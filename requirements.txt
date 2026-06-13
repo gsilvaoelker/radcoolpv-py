@@ -1,0 +1,16 @@
+# Python runtime dependencies for radcoolpv (pip-installable).
+# These cover everything except the RCWA optics backend (see note below).
+numpy>=1.21
+scipy>=1.7
+matplotlib>=3.4
+pyyaml>=5.4
+openpyxl>=3.0
+
+# Optional, for development/tests:
+pytest>=7.0
+
+# NOTE: the live RCWA optics stage (geometry.source: s4) additionally needs the
+# S4 Python module (`import S4`), which is NOT on PyPI — it is built from source
+# with system libraries (FFTW, BLAS/LAPACK). Use `./install.sh --with-s4`, or see
+# the S4 instructions printed by install.sh. The thermal stage, free-form optics,
+# and resuming from existing OUTPUTS4 folders all work without S4.

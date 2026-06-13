@@ -1,0 +1,47 @@
+# Optics only (RCWA via S4): compute the spectral/directional properties of a
+# SiO2 cylinder array on the Si3N4/Si/Ag stack. Requires the S4 Python module.
+# The thermal stage is off, so no energy balance is run.
+
+run:
+  optics: true
+  thermal: false
+  plots: true
+  mode: standard
+  results_dir: results
+  outputs: [legacy, clean]
+
+simulation:
+  wavelength: {min: 0.3, max: 30.0, n: 2000}
+  angles: hemispherical
+  rcwa_modes: 10
+
+geometry:
+  source: s4
+  shape: cylinder
+  photonic_material: sio2
+  lattice: {type: square, x: 20.0, y: 20.0}
+  discretization_layers: 1
+  cylinder: {radius: 5.0, height: 30.0}
+
+structure:
+  - {material: sio2,      thickness: 100.0}
+  - {material: si3n4,     thickness: 0.075}
+  - {material: silicon,   thickness: 250.0}
+  - {material: substrate, thickness: 0.0, terminal: true}
+
+materials:
+  sio2: PalikKitamura_SiO2
+  silicon: SiliconNew
+  si3n4: DrudeSi3N4
+  substrate: Hagemann_Ag
+
+# thermal section unused (run.thermal=false) but kept for completeness.
+thermal:
+  ambient_temperature: 298
+  convection_coefficient: 12
+
+data:
+  solar_spectrum: data/astmg173.xlsx
+  atmosphere: data/cptrans_nq_100_15.dat
+
+backend: {s4: bindings}

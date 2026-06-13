@@ -1,0 +1,43 @@
+# Validation: reproduce Perrakis et al. (2020) Fig. 2 cooling power.
+# Thermal-only run that resumes from a precomputed optics folder (the committed
+# quartz validation OUTPUTS4 files), in PV-free `test` mode. This also doubles
+# as a thermal-only / resume example: optics is off and read from a folder.
+
+run:
+  optics: false
+  thermal: true
+  plots: true
+  mode: test
+  results_dir: results
+  outputs: [legacy, clean]
+  optics_results: quartzValidations-4-30um   # bundled in the package (validation data)
+
+simulation:
+  wavelength: {min: 4.0, max: 30.0, n: 2000}   # must match the resumed optics folder
+  angles: hemispherical
+  rcwa_modes: 1
+
+geometry:
+  source: s4
+  shape: flat
+  photonic_material: sio2
+
+structure:
+  - {material: silicon,   thickness: 250.0}
+  - {material: substrate, thickness: 0.0, terminal: true}
+
+materials:
+  sio2: PalikKitamura_SiO2
+  silicon: SiliconNew
+  substrate: Hagemann_Ag
+
+thermal:
+  ambient_temperature: 300       # Perrakis Fig. 2 conditions
+  convection_coefficient: 0
+  equilibrium: auto
+
+data:
+  solar_spectrum: data/astmg173.xlsx
+  atmosphere: data/cptrans_nq_100_15.dat
+
+backend: {s4: bindings}

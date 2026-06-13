@@ -1,0 +1,41 @@
+{
+  "run": {
+    "optics": true,
+    "thermal": true,
+    "mode": "standard"
+  },
+  "simulation": {
+    "wavelength": {
+      "min": 0.31,
+      "max": 20.0,
+      "n": 1000
+    },
+    "angles": "normal",
+    "rcwa_modes": 10
+  },
+  "geometry": {
+    "source": "freeform",
+    "shape": "flat",
+    "photonic_material": "sio2"
+  },
+  "optics": {
+    "angles": "normal",
+    "n_lambda": 1000
+  },
+  "thermal": {
+    "ambient_temperature": 298,
+    "convection_coefficient": 12,
+    "equilibrium_mode": "manual",
+    "equilibrium_temperature_K": 319.0,
+    "vmpp_V": 0.6586,
+    "short_circuit_current_A_per_m2": 357.21596582237527,
+    "mpp_ambient_W_per_m2": 237.6640530363462,
+    "mpp_equilibrium_W_per_m2": 223.49819053303423,
+    "voc_equilibrium_V": 0.7222222222222222,
+    "fill_factor_equilibrium": 0.866307955562147,
+    "atmospheric_power_W_per_m2": 158.84581026331273,
+    "absorbed_solar_power_W_per_m2": 743.5163268538915,
+    "temperature_coefficient_perc_per_K": -0.2838312620238498,
+    "efficiency_equilibrium": 0.22489377327099608
+  }
+}

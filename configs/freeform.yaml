@@ -1,0 +1,46 @@
+# Free-form optics + thermal: read an externally optimised structure (no S4),
+# then run the energy balance. Runs end-to-end without the S4 module installed.
+
+run:
+  optics: true
+  thermal: true
+  plots: true
+  mode: standard
+  results_dir: results
+  outputs: [legacy, clean]
+
+simulation:
+  wavelength: {min: 0.31, max: 20.0, n: 1000}   # overridden to the data file's span
+  angles: normal
+  rcwa_modes: 10
+
+geometry:
+  source: freeform
+  shape: flat
+  photonic_material: sio2
+  freeform: {file: data/freeform_NIL_1um.txt}
+
+structure:
+  - {material: silicon,   thickness: 250.0}
+  - {material: substrate, thickness: 0.0, terminal: true}
+
+materials:
+  sio2: PalikKitamura_SiO2
+  silicon: SiliconNew
+  substrate: Hagemann_Ag
+
+thermal:
+  ambient_temperature: 298
+  convection_coefficient: 12
+  voltage: {min: 0.1, max: 0.8, n: 100}
+  equilibrium: auto
+  pv:
+    series_resistance: 0.00011
+    shunt_resistance: 0.1
+    iqe_file: data/siliconIQE.txt
+
+data:
+  solar_spectrum: data/astmg173.xlsx
+  atmosphere: data/cptrans_nq_100_15.dat
+
+backend: {s4: bindings}

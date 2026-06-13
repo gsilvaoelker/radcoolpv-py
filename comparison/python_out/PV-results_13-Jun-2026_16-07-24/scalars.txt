@@ -1,0 +1,14 @@
+isc_A_m2 357.2159658
+voc_equil_V 0.7222222222
+voc_amb_V 0.7575757576
+ff_equil 0.8663079556
+ff_amb 0.8782265633
+mpp_equil_W_m2 223.4981905
+mpp_amb_W_m2 237.664053
+atm_power_W_m2 158.8458103
+solar_power_abs_W_m2 743.5163269
+solar_power_am15_W_m2 993.7944803
+beta_p_perc_K -0.283831262
+efficiency_equil 0.2248937733
+equil_temp_K 319
+vmpp_V 0.6586
