@@ -2,18 +2,18 @@
 
 This folder holds literature-reproduction checks for `radcoolpv`.
 
-**Trusted (verified to run):** Validation A and Validation B.
-**Not trusted:** everything else. Validations C and D are reference papers only
-(no runnable configs yet). Validation E has been moved to
-[`archive/validation E/`](archive/) and is **not** an active or trusted
-validation — see the note at the end.
+**Trusted (verified to run):** Validation A and Validation B. These are the only
+validations that remain here; everything else has been moved to the gitignored
+`../archive/` folder (validations C and D were reference papers with no runnable
+configs, validation E was explicitly untrusted).
 
-All commands below are run from the repository root
-(`.../radcoolpv-py/`). They pin the working copy of the package on `PYTHONPATH`
-because a stale editable install elsewhere on the machine otherwise shadows it
-(see [`../docs/CODE_REVIEW.md`](../docs/CODE_REVIEW.md), finding 1). Both trusted
+Source papers are **not** redistributed with this repository — they are
+copyrighted publisher PDFs. Each validation below names its paper; cite by DOI.
+
+All commands below are run from the repository root (`.../radcoolpv-py/`) with
+the package installed (`./install.sh`, or `pip install -e .`). Both trusted
 validations **resume from precomputed optical spectra** (`run.optics: false`), so
-they never invoke the RCWA engine and are unaffected by the optics backend.
+they never invoke the RCWA engine and need no S4 build.
 
 ---
 
@@ -47,7 +47,7 @@ radiative cooling of a silicon solar cell.
 Run:
 
 ```bash
-PYTHONPATH="$PWD" python "validations/validation A/run_table1_validation.py"
+python "validations/validation A/run_table1_validation.py"
 ```
 
 ## Validation B — Le et al. (ACS Photonics 2026), Fig. 4d / Fig. 5d
@@ -80,20 +80,15 @@ Run:
 
 ```bash
 for f in fig4d_pdms fig4d_sds fig4d_ads fig5d_cooling_family; do
-  PYTHONPATH="$PWD" radcoolpv run "validations/validation B/$f.yaml"
+  radcoolpv run "validations/validation B/$f.yaml"
 done
 ```
 
-> Note: the un-pinned `radcoolpv run …` currently fails on Validation B with a
-> `TypeError` because the machine's editable install points at a stale copy that
-> predates `cooling_curve`. The `PYTHONPATH="$PWD"` prefix pins the working copy.
-
 ---
 
-## Archived / untrusted
+## Archived
 
-* **`archive/validation E/`** — a silica-microcylinder reproduction (Akerboom et
-  al. 2022) built in an earlier session. Preserved in full but **not** a trusted
-  or active validation; it is excluded from the list above by intent.
-* **`validation C/`, `validation D/`** — reference papers only; no runnable
-  configs.
+Moved to `../archive/` (local, gitignored): validation C and D (reference papers
+only, no runnable configs), validation E (a silica-microcylinder reproduction
+after Akerboom et al. 2022, preserved in full but never trusted), and the
+source PDFs for all of the above plus Validation A.

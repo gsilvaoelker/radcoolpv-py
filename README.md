@@ -143,8 +143,9 @@ radcoolpv/
 configs/               example YAML configs
 scripts/               convert_permittivity.py
 tests/                 pytest suite
-comparison/            MATLAB vs Python validation: compare_plots.py generates
-                        side-by-side optics/IV/power/energy-balance/scalars
-                        plots from committed matlab_out/ and python_out/ runs
+validations/           literature reproductions (see validations/README.md)
 ```
-```
+
+Not tracked: `archive/` holds the original MATLAB toolchain, the one-off
+MATLAB-vs-Python comparison, untrusted validations, and the non-redistributable
+source PDFs. It is gitignored — see `archive/README.md`.
