@@ -128,7 +128,12 @@ def _photonic_layers(cfg: Config) -> List[S4Layer]:
                     pats.append(Pattern("circle", mat, corner, radius=xs[i]))
                 layers.append(S4Layer(f"Layer_{i + 1}", delta, "vacuum", pats))
         else:  # semisphere: lower half only (matches the MATLAB writing loop)
-            half = round(n / 2)
+            # MATLAB's round() rounds half AWAY FROM ZERO, Python's rounds half
+            # TO EVEN, so a literal round(n/2) silently drops the equatorial
+            # slab whenever n is odd and n//2 is even (n = 5, 9, 21, ...). The
+            # dome then came out delta short - 4.0 um instead of 5.0 at n = 5.
+            # ceil() is what MATLAB's round(n/2) means for positive n.
+            half = (n + 1) // 2
             for i in range(n):
                 idx = i + 1
                 if idx < n / 2:

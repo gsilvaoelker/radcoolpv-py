@@ -379,3 +379,16 @@ def _require_shape_params(geom: GeometryConfig) -> None:
     missing = [k for k in keys if k not in block]
     if missing:
         raise ConfigError(f"geometry.{geom.shape} missing required keys: {missing}")
+
+    if geom.shape == "semisphere" and geom.discretization_layers % 2 == 0:
+        # The dome is built by slicing a full sphere and stopping at the
+        # equator, so an even slice count has no slab centred there and the
+        # structure comes out `radius / discretization_layers` too short -
+        # 50% short at 2 layers. The MATLAB original carries the same
+        # constraint as a bare comment ("Use odd numbers for semipsheres");
+        # here it is enforced rather than left to the reader.
+        raise ConfigError(
+            "geometry.discretization_layers must be ODD for shape 'semisphere' "
+            f"(got {geom.discretization_layers}); an even count builds a dome "
+            "radius/discretization_layers shorter than requested."
+        )
