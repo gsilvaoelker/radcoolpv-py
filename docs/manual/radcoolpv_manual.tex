@@ -1,0 +1,389 @@
+\documentclass[11pt]{article}
+
+\usepackage[a4paper,margin=1in]{geometry}
+\usepackage{textcomp}        % \textdegree
+\usepackage{underscore}      % literal _ in text/\texttt
+\usepackage{booktabs}
+\usepackage{longtable}
+\usepackage{xcolor}
+\usepackage{listings}
+\usepackage[hidelinks]{hyperref}
+
+\definecolor{codebg}{gray}{0.95}
+\lstdefinestyle{cfg}{
+  basicstyle=\ttfamily\small,
+  backgroundcolor=\color{codebg},
+  frame=single, framerule=0pt, framesep=6pt,
+  breaklines=true, columns=fullflexible, keepspaces=true,
+  showstringspaces=false, xleftmargin=4pt, xrightmargin=4pt,
+}
+\lstset{style=cfg}
+
+\newcommand{\code}[1]{\texttt{#1}}
+
+\title{\textbf{radcoolpv} \\[4pt] \large A YAML-driven radiative-cooling
+photovoltaics simulator \\ User manual}
+\author{}
+\date{Version 0.1.0}
+
+\begin{document}
+\maketitle
+\tableofcontents
+\bigskip
+
+\section{Overview}
+
+\code{radcoolpv} is a pure-Python simulator for the radiative cooling and
+photovoltaic performance of photonic-structured silicon solar modules. A single
+YAML file drives a two-stage pipeline:
+
+\begin{enumerate}
+  \item \textbf{Optics} --- spectral and directional reflectance,
+  transmittance, absorptance and silicon-layer absorptance of a photonic
+  structure on a multilayer stack, computed by rigorous coupled-wave analysis
+  (RCWA) with the pure-Python \code{grcwa} engine, read from free-form data, or
+  resumed from a previous run.
+  \item \textbf{Thermal / electrical} --- the steady-state energy balance
+  (radiative, atmospheric, convective, solar, and, in the full-PV mode,
+  electrical and luminescence terms), the equilibrium cell temperature, and the
+  diode I--V / MPP / \(V_{oc}\) / fill-factor / efficiency.
+\end{enumerate}
+
+The two stages share one wavelength grid and are coupled in memory. Everything
+in this manual reflects the behaviour actually implemented in the code; planned
+or unsupported options are called out as such.
+
+\section{Installation and requirements}
+
+\subsection{Requirements}
+\begin{itemize}
+  \item Python \(\geq 3.9\).
+  \item The Python packages \code{numpy}, \code{scipy}, \code{matplotlib},
+  \code{pyyaml}, \code{openpyxl}, and \code{grcwa} (all pure Python). \code{pytest}
+  and \code{tmm} are needed only to run the test suite.
+  \item No compiled or native dependency --- the RCWA engine (\code{grcwa}) is
+  pure Python, so a plain \code{pip} install covers the whole toolchain.
+\end{itemize}
+
+\subsection{Install}
+From the repository root:
+\begin{lstlisting}[language=bash]
+./install.sh             # create a .venv and install everything into it
+./install.sh --system    # install into the current Python instead of a venv
+\end{lstlisting}
+or by hand:
+\begin{lstlisting}[language=bash]
+pip install -r requirements.txt && pip install -e .
+\end{lstlisting}
+
+\subsection{Which interpreter runs the code (important)}
+If a stale editable install of \code{radcoolpv} exists elsewhere on the machine,
+the \code{radcoolpv} console script (and any script launched \emph{by path}) can
+import that stale copy instead of your working tree --- symptoms include a
+\code{TypeError} about an unexpected \code{cooling_temperature} argument. Pin the
+working copy by prefixing commands with \code{PYTHONPATH="\$PWD"} (run from the
+repository root), or re-run \code{pip install -e .} from the working copy.
+
+\section{Project structure}
+\begin{lstlisting}
+radcoolpv/
+  cli.py         `radcoolpv run ...` entry point
+  config.py      YAML -> typed config + validation + derived helpers
+  constants.py   physical constants / unit conversions
+  pipeline.py    orchestrator (stage coupling, outputs, plots)
+  materials/     registry + tabulated loader + analytic models + data/ (CSV n,k)
+  optics/        geometry, grcwa_backend, directional, averages, freeform
+  thermal/       spectra, radiative, pv, energy_balance
+  io/            results context + legacy/clean writers
+  plotting/      figures
+  data/          bundled solar / atmosphere / IQE / free-form example
+configs/         example YAML configs
+validations/     literature-reproduction checks (A and B are trusted)
+tests/           pytest suite
+\end{lstlisting}
+
+\section{Running}
+\begin{lstlisting}[language=bash]
+radcoolpv run configs/freeform.yaml                 # optics + PV
+radcoolpv run configs/full.yaml --print-config      # show resolved settings only
+\end{lstlisting}
+The only subcommand is \code{run}; \code{--print-config} parses and prints the
+resolved configuration and exits without computing. Each run creates a
+timestamped folder under \code{results\_dir/} (see Section~\ref{sec:outputs}).
+
+\section{YAML configuration reference}\label{sec:yaml}
+
+A configuration has the top-level sections \code{run}, \code{simulation},
+\code{geometry}, \code{structure}, \code{materials}, \code{thermal},
+\code{data}, and (only for \code{spectral_compare}) \code{comparison}. Every
+field below is optional unless marked required; omitted fields take the default
+shown.
+
+\subsection{\texttt{run}}
+\begin{longtable}{@{}p{3.1cm}p{1.6cm}p{2.0cm}p{5.4cm}@{}}
+\toprule
+Field & Type & Default & Meaning / values \\ \midrule
+\endhead
+\code{optics} & bool & \code{true} & Run the optics stage. \\
+\code{thermal} & bool & \code{true} & Run the thermal stage. \\
+\code{plots} & bool & \code{true} & Write PNG figures. \\
+\code{mode} & enum & \code{standard} & \code{standard} \(|\) \code{cooling_curve} \(|\) \code{test} \(|\) \code{spectral_compare}. (\code{test2} is accepted but \emph{not implemented} --- it behaves like \code{standard}; do not use it.) \\
+\code{results_dir} & path & \code{results} & Parent folder for output. \\
+\code{outputs} & list & \code{[legacy, clean]} & Any of \code{legacy}, \code{clean}. \\
+\code{optics_results} & path & \code{null} & When \code{optics:\ false}, resume from this raw \code{OUTPUTS4} folder or reduced-spectrum file. \\
+\bottomrule
+\end{longtable}
+
+\subsection{\texttt{simulation}}
+\begin{longtable}{@{}p{3.1cm}p{1.6cm}p{2.0cm}p{5.4cm}@{}}
+\toprule
+Field & Type & Default & Meaning / values \\ \midrule
+\endhead
+\code{wavelength.min} & float & \code{0.3} & Grid start, $\mu$m (\(>0\)). \\
+\code{wavelength.max} & float & \code{30.0} & Grid end, $\mu$m. \\
+\code{wavelength.n} & int & \code{2000} & Number of points (\(\geq 2\)); grid is \code{linspace(min,max,n)}. \\
+\code{angles} & enum & \code{hemispherical} & \code{normal} (0\textdegree) or \code{hemispherical} (18 angles, 0--85\textdegree). \\
+\code{rcwa_modes} & int & \code{10} & grcwa Fourier truncation \code{nG}. Patterned structures typically need \(\sim\)100+. \\
+\code{grid_nx} & int & \code{128} & Raster resolution of patterned layers (grcwa). \\
+\code{grid_ny} & int & \code{128} & Raster resolution of patterned layers (grcwa). \\
+\bottomrule
+\end{longtable}
+
+\subsection{\texttt{geometry}}
+\begin{longtable}{@{}p{3.4cm}p{1.6cm}p{2.0cm}p{5.1cm}@{}}
+\toprule
+Field & Type & Default & Meaning / values \\ \midrule
+\endhead
+\code{source} & enum & \code{grcwa} & \code{grcwa} (live RCWA) or \code{freeform} (read a data file). \\
+\code{shape} & enum & \code{flat} & \code{flat} \(|\) \code{sphere} \(|\) \code{semisphere} \(|\) \code{triangle} \(|\) \code{cylinder}. \\
+\code{photonic_material} & name & \code{sio2} & Logical material of the photonic pattern. \\
+\code{lattice.type} & enum & \code{square} & \code{square} or \code{hexagonal}. \\
+\code{lattice.x}, \code{.y} & float & \code{20.0} & Lattice pitch, $\mu$m (square uses \code{x} for both axes). \\
+\code{discretization_layers} & int & \code{1} & Slices for sphere/semisphere/triangle. \\
+\code{sphere.radius} & float & --- & $\mu$m (required for sphere/semisphere). \\
+\code{triangle.base}, \code{.height} & float & --- & $\mu$m (required for triangle). \\
+\code{cylinder.radius}, \code{.height} & float & --- & $\mu$m (required for cylinder). \\
+\code{freeform.file} & path & --- & Data file (required when \code{source:\ freeform}). \\
+\bottomrule
+\end{longtable}
+
+\subsection{\texttt{structure}}
+An ordered list of flat layers below the photonic structure, top to bottom. Each
+item is \code{\{material, thickness, terminal\}}: \code{material} is a logical
+name declared in \code{materials}; \code{thickness} is in $\mu$m; exactly one layer
+must set \code{terminal:\ true} (the semi-infinite substrate). Exactly one layer
+should use material \code{silicon} --- it is the single source of truth for the
+cell thickness, and its per-layer absorptance drives the photocurrent.
+
+\subsection{\texttt{materials}}
+A mapping from logical name to a registry model. Tabulated \((\lambda,n,k)\)
+models are bundled as CSVs: \code{PalikKitamura_SiO2}, \code{SiliconNew},
+\code{Hagemann_Ag}, \code{Rubin_SodaLime}, \code{GuptaQuerry_PDMS},
+\code{Jaramillo_NILresist}. Analytic models: \code{Vacuum}, \code{DrudeSi3N4}.
+The name \code{vacuum} is always available (\(\varepsilon=1\)). Add a material by
+dropping a \code{lambda_um,n,k} CSV into \code{radcoolpv/materials/data/}.
+
+\subsection{\texttt{thermal}}
+\begin{longtable}{@{}p{3.7cm}p{1.5cm}p{1.9cm}p{5.0cm}@{}}
+\toprule
+Field & Type & Default & Meaning / values \\ \midrule
+\endhead
+\code{ambient_temperature} & float & \code{298} & \(T_{amb}\), K. \\
+\code{convection_coefficient} & float & \code{12} & Non-radiative coefficient \(h_c\), W/m\(^2\)K. \\
+\code{voltage.min/max/n} & --- & \code{0.1/0.8/100} & PV bias sweep, V / count. \\
+\code{equilibrium} & enum & \code{auto} & \code{auto} (fixed-point solve) or \code{manual} (use \code{emit_temp}, \code{vmpp}). \\
+\code{cooling_temperature} & sweep & --- & \code{\{min,max,n\}} in K; \emph{required} for \code{cooling_curve}. \\
+\code{solar_irradiance} & float & \code{null} & \code{cooling_curve} only: rescale absorbed solar to this W/m\(^2\). \\
+\code{reference_curve_file} & path & \code{null} & \code{cooling_curve} plot overlay (digitized reference). \\
+\code{reference_curve_column} & int & \code{1} & Column of the overlay file to plot. \\
+\code{emit_temp} & float & \code{319} & Equilibrium T for \code{equilibrium:\ manual}. \\
+\code{vmpp} & float & \code{0.6586} & MPP voltage for \code{manual}. \\
+\code{pv.series_resistance} & float & \code{1.1e-4} & \(R_s\), \(\Omega\,\mathrm{m}^2\). \\
+\code{pv.shunt_resistance} & float & \code{0.1} & \(R_{sh}\), \(\Omega\,\mathrm{m}^2\). \\
+\code{pv.bandgap} & --- & see code & \code{\{eg0,alpha,beta\}} of \(E_g(T)=e_{g0}-\alpha T^2/(T+\beta)\). \\
+\code{pv.iqe_file} & path & \code{data/siliconIQE.txt} & Internal quantum efficiency table. \\
+\bottomrule
+\end{longtable}
+
+\subsection{\texttt{data}}
+\code{solar_spectrum} (default \code{data/astmg173.xlsx}, AM1.5G) and
+\code{atmosphere} (default \code{data/cptrans_nq_100_15.dat}, Cerro-Pach\'on
+transmittance). Paths are resolved relative to the config, then to the package's
+bundled \code{data/}, so the defaults resolve by basename.
+
+\section{Inputs and outputs}\label{sec:outputs}
+
+\textbf{Required inputs.} The optical description (live geometry + materials, a
+free-form file, or a resume target), the solar spectrum, the atmospheric
+transmittance, and --- for the full-PV path --- the IQE table and PV parameters.
+
+\textbf{Outputs} (per run, in a timestamped folder). With \code{legacy}:
+\code{OUTPUTS4-TE.txt} / \code{OUTPUTS4-TM.txt} (raw per-angle optics),
+\code{opticalProps-PVcode.txt}, \code{IV-PVcode.txt}, \code{Power-PVcode.txt},
+\code{simulParam.log} / \code{simulParamPV.log}. With \code{clean}:
+\code{optics.csv}, \code{iv.csv}, \code{power.csv} (full PV) or
+\code{cooling_power.csv} (\code{cooling_curve}), and \code{run.json} (a record of
+key inputs and scalar results: \(T_{eq}\), \(V_{mpp}\), \(I_{sc}\), MPP,
+\(V_{oc}\), FF, \(P_{atm}\), absorbed \(P_{sun}\), efficiency, \(\beta_P\)).
+Figures are written to \code{figures/} when \code{plots:\ true}.
+
+\section{Error messages and common problems}
+\begin{itemize}
+  \item \code{TypeError: ... unexpected keyword argument 'cooling_temperature'}
+  --- a stale install is being imported; see Section~2.3 (use \code{PYTHONPATH}).
+  \item \code{ConfigError: run.mode must be ...} / \code{geometry.source must be
+  'grcwa' or 'freeform'} / \code{`structure` must mark exactly one layer as
+  terminal} --- configuration validation; the message names the offending field.
+  \item \code{ConfigError: cooling_curve mode requires thermal.cooling_temperature
+  with max > min and n >= 2}.
+  \item \code{RuntimeError: The grcwa module is not installed} ---
+  \code{pip install grcwa}.
+  \item \code{... expected 5-column HEMSIPH or 7-column PVcode reduced optics} ---
+  a resumed reduced-spectrum file has the wrong number of columns.
+  \item A live patterned RCWA sweep is slow (pure Python): reduce
+  \code{wavelength.n}, set \code{angles:\ normal}, or lower \code{rcwa_modes}.
+\end{itemize}
+
+\section{Worked examples}
+
+\subsection{Free-form optics + PV (no live RCWA)}
+\code{configs/freeform.yaml} reads a precomputed free-form spectrum and runs the
+full PV energy balance:
+\begin{lstlisting}[language=bash]
+PYTHONPATH="$PWD" radcoolpv run configs/freeform.yaml
+\end{lstlisting}
+Produces \code{optics.csv}, \code{iv.csv}, \code{power.csv}, \code{run.json} and
+figures; the log prints \(T_{eq}\), \(V_{mpp}\) and the MPP.
+
+\subsection{Cooling-power curve (Validation B)}
+\begin{lstlisting}[language=bash]
+PYTHONPATH="$PWD" radcoolpv run "validations/validation B/fig4d_pdms.yaml"
+\end{lstlisting}
+A \code{cooling_curve} run: writes \code{cooling_power.csv} and a cooling-curve
+figure and prints the equilibrium temperature (here \(T_{eq}\approx 329.9\) K).
+
+\subsection{Resume from a reduced spectrum}
+Set \code{run.optics:\ false} and point \code{run.optics_results} at a 5-column
+(\code{lambda,R,T,emit,abs\_si}) or 7-column reduced file; the thermal stage runs
+directly on it. This is how Validations A and B operate.
+
+\subsection{Live grcwa optics (small)}
+A minimal patterned run (normal incidence, few wavelengths) exercises the RCWA
+engine end-to-end:
+\begin{lstlisting}
+run: {optics: true, thermal: false, plots: false, mode: standard,
+      results_dir: results, outputs: [clean]}
+simulation: {wavelength: {min: 4.0, max: 12.0, n: 6}, angles: normal,
+             rcwa_modes: 40, grid_nx: 64, grid_ny: 64}
+geometry:
+  source: grcwa
+  shape: cylinder
+  photonic_material: sio2
+  lattice: {type: hexagonal, x: 6.125, y: 6.125}
+  cylinder: {radius: 1.75, height: 2.25}
+structure:
+  - {material: sio2, thickness: 50.0}
+  - {material: silicon, thickness: 3.0}
+  - {material: substrate, thickness: 0.0, terminal: true}
+materials: {sio2: PalikKitamura_SiO2, silicon: SiliconNew,
+            substrate: Hagemann_Ag}
+data: {solar_spectrum: data/astmg173.xlsx,
+       atmosphere: data/cptrans_nq_100_15.dat}
+\end{lstlisting}
+
+\section{Supported calculations}\label{sec:supported}
+
+This section lists only what the current code implements.
+
+\subsection{Optical calculations}
+\begin{itemize}
+  \item \textbf{Engines / inputs.} (i) Live RCWA via the pure-Python
+  \code{grcwa} engine (\code{source:\ grcwa}); (ii) free-form data loader
+  (\code{source:\ freeform}, an 8-column normal-incidence file); (iii) resume
+  from a raw \code{OUTPUTS4} folder or a 5-/7-column reduced spectrum.
+  \item \textbf{Structures.} flat, sphere, semisphere, triangle, cylinder
+  (spheres/triangles staircase-discretised), on an ordered flat \code{structure}
+  with exactly one terminal substrate; square or hexagonal lattice.
+  \item \textbf{Materials.} Tabulated \((n,k)\) CSVs and analytic models
+  (\code{Vacuum}, \code{DrudeSi3N4}); dispersive, complex (absorbing) permittivity.
+  \item \textbf{Wavelength / angle / polarisation.} \code{linspace(min,max,n)};
+  normal (0\textdegree) or hemispherical (18 angles, 0--85\textdegree); TE at
+  normal incidence, TE + TM for hemispherical (handled internally).
+  \item \textbf{Outputs.} Reflectance \(R\), transmittance \(T\), total
+  absorptance \(A=1-R-T\) (used as emittance), and silicon-layer absorptance,
+  each with hemispherical and normal-incidence copies; the atmospheric emissivity
+  and trapezoidal band averages.
+  \item \textbf{Backend.} All live RCWA is \code{grcwa}. In grcwa, patterned
+  layers are rasterised to an \code{Nx\(\times\)Ny} grid and \code{rcwa_modes}
+  sets the Fourier truncation; silicon absorptance is the net Poynting-flux
+  difference across the silicon layer.
+  \item \textbf{Assumptions / limits.} One terminal (semi-infinite) substrate;
+  cos\(\theta\)sin\(\theta\) hemispherical quadrature; staircase rasterisation of
+  patterns; pure-Python performance (see limitations).
+\end{itemize}
+
+\subsection{PV-module (thermal / electrical / radiative-cooling) calculations}
+\begin{itemize}
+  \item \textbf{Modes.} \code{standard} (full PV energy balance + I--V),
+  \code{cooling_curve} (PV-free radiative balance over a temperature sweep),
+  \code{test} (Perrakis 2020 reference with a fixed absorbed-solar value),
+  \code{spectral_compare} (overlay plot only).
+  \item \textbf{Energy-balance terms.} \(P_{rad}=\pi\!\int\!\varepsilon
+  B_\lambda(T)\,d\lambda\); \(P_{atm}=\pi\!\int\!\varepsilon\,\varepsilon_{atm}
+  B_\lambda(T_{amb})\,d\lambda\); \(P_{conv}=h_c(T-T_{amb})\); \(P_{sun}\) from
+  \(\int\!\varepsilon\,I_{\mathrm{AM1.5G}}\,d\lambda\) (optionally rescaled by
+  \code{solar_irradiance}); and, in \code{standard}, the electrical \(P_{mpp}\)
+  and luminescence \(P_{nonthermal}\). Equilibrium is the first zero-crossing of
+  the cooling curve.
+  \item \textbf{Electrical model.} Temperature-dependent bandgap; \(J_{sc}\) from
+  IQE \(\times\) silicon absorptance \(\times\) solar photon flux up to
+  \(\lambda_g\); saturation current from the blackbody photon flux; Auger
+  recombination; an \(R_s\)/\(R_{sh}\) diode solved per bias with \code{fsolve};
+  MPP, \(V_{oc}\), fill factor, efficiency (MPP \(/\) total AM1.5G) and the
+  temperature coefficient \(\beta_P\).
+  \item \textbf{Required parameters.} \(T_{amb}\), \(h_c\); optics
+  (emittance + silicon absorptance); AM1.5G spectrum; atmospheric transmittance;
+  and, for \code{standard}, the IQE table, \(R_s\), \(R_{sh}\) and the bandgap.
+  \item \textbf{Outputs.} \(T_{eq}\); and for \code{standard}: \(V_{mpp}\),
+  \(I_{sc}\), MPP (ambient and equilibrium), \(V_{oc}\), FF, efficiency,
+  \(\beta_P\), \(P_{atm}\), absorbed \(P_{sun}\), equilibrium radiated power;
+  for \code{cooling_curve}: the cooling-power curve and \(T_{eq}\).
+  \item \textbf{Assumptions / approximations.} Convection linear in
+  \(\Delta T\); conduction to the mount neglected; a single silicon layer; a
+  single scalar bandgap wavelength per run (MATLAB-parity reduction); efficiency
+  normalised to total (not absorbed) AM1.5G; the hemispherical \code{emit_atm}
+  output column is an unweighted angular integral (display only).
+\end{itemize}
+
+\section{Running the trusted validations}
+From the repository root (see \code{validations/README.md}):
+\begin{lstlisting}[language=bash]
+# Validation A -- Silva-Oelker & Jaramillo-Fernandez 2022, Table 1 (full PV)
+PYTHONPATH="$PWD" python "validations/validation A/run_table1_validation.py"
+
+# Validation B -- Le et al. 2026, cooling-power curves
+for f in fig4d_pdms fig4d_sds fig4d_ads fig5d_cooling_family; do
+  PYTHONPATH="$PWD" radcoolpv run "validations/validation B/$f.yaml"
+done
+\end{lstlisting}
+Both resume from precomputed optical spectra, so they do not invoke the RCWA
+engine. Validation A prints a Published / Computed / Rel-err table (most rows
+within \(\sim\)2\%); Validation B writes cooling curves and prints equilibrium
+temperatures.
+
+\section{Limitations of the current version}
+\begin{itemize}
+  \item Live patterned RCWA is pure Python and therefore much slower than the
+  former C++ S4 backend; patterns are rasterised (staircase), and \code{nG} /
+  grid resolution must be chosen for convergence.
+  \item \code{run.mode: test2} is accepted by the parser but not implemented (it
+  behaves like \code{standard}).
+  \item Efficiency is normalised to the total AM1.5G power, not the absorbed
+  power.
+  \item The hemispherical \code{emit_atm} output column is an unweighted angular
+  integral (it maxes near \(\pi/2\)); it is a display quantity, not an emissivity.
+  \item Reproducibility depends on importing the working copy of the package
+  (Section~2.3).
+\end{itemize}
+
+\end{document}

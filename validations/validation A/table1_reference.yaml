@@ -1,0 +1,47 @@
+# Table 1 row: Reference (Fig. 1(d) gray / Fig. 1(b)) -- base PV stack
+# (Si3N4/Si/Ag) under a standard 3200 um-thick glass cover. No photonic
+# structure.
+#
+# NOTE: run.optics_results points to a *hemispherically-reduced* spectral
+# file (data/Fig. 1D/HEMSIPH-PVCELLENCAPSULATED.txt: lambda, ref, tran,
+# emit, abs_si), not the raw per-(wavelength,angle) OUTPUTS4-TE/TM.txt
+# format used by raw S4 resumes. radcoolpv detects this reduced file directly
+# when `run.optics` is false, so `radcoolpv run table1_reference.yaml` runs
+# the thermal stage.
+#
+# Approximation: this file has no separate normal-incidence column, so the
+# small non-thermal/luminescence term falls back to the hemispherical value
+# (OpticsResult's built-in default). The atmospheric-power term (P_atm) is
+# computed treating emissivity as angle-independent.
+
+run:
+  optics: false
+  thermal: true
+  plots: true
+  results_dir: results/reference
+  mode: standard
+  outputs: []
+  optics_results: data/Fig. 1D/HEMSIPH-PVCELLENCAPSULATED.txt
+
+simulation:
+  wavelength: {min: 0.3, max: 30.0, n: 2000}
+  angles: hemispherical
+
+structure:
+  - {material: silicon,   thickness: 250.0}
+  - {material: substrate, thickness: 0.0, terminal: true}
+
+thermal:
+  ambient_temperature: 298       # K
+  convection_coefficient: 12     # W/m2-K
+  voltage: {min: 0.1, max: 0.8, n: 100}
+  equilibrium: auto
+  pv:
+    series_resistance: 0.00011   # Ohm m2 (= 1.1 Ohm cm2)
+    shunt_resistance: 0.1        # Ohm m2 (= 1000 Ohm cm2)
+    bandgap: {eg0: 1.166, alpha: 4.73e-4, beta: 636}
+    iqe_file: data/siliconIQE.txt   # not bundled in this folder; resolves to radcoolpv's default
+
+data:
+  solar_spectrum: data/solarData/astmg173.xlsx
+  atmosphere: data/atmosphericData/cptrans_nq_100_15.dat

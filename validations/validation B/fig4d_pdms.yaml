@@ -1,0 +1,32 @@
+# Fig. 4d validation (Le et al., ACS Photonics 2026, 13, 1108-1121): bare-film
+# passive radiative cooling power vs. film temperature, PDMS film.
+#
+# The YAML drives a PV-free cooling-curve run from bundled digitized Fig. 4(a-c)
+# optical data. The films are treated as opaque and the 14-30 um emissivity is
+# held at its digitized 14 um value. Fig. 4(d) is plotted only as reference.
+
+run:
+  optics: false
+  thermal: true
+  plots: true
+  mode: cooling_curve
+  results_dir: results/pdms
+  outputs: [clean]
+  optics_results: data/digitized_optics/pdms.txt
+
+simulation:
+  wavelength: {min: 0.3, max: 30.0, n: 2000}
+  angles: hemispherical
+
+thermal:
+  ambient_temperature: 298       # K -- not stated in the paper; validation default, unconfirmed
+  convection_coefficient: 9      # W/m2-K -- paper-stated (hc = 9, "2 m/s wind")
+  solar_irradiance: 800           # W/m2 -- Supporting Information, Section 4
+  equilibrium: auto
+  cooling_temperature: {min: 310.0, max: 360.0, n: 101}
+  reference_curve_file: fig4d_digitized.txt
+  reference_curve_column: 1
+
+data:
+  solar_spectrum: data/astmg173.xlsx        # not bundled here; resolves to radcoolpv's default (AM1.5G, matches paper body text)
+  atmosphere: data/cptrans_nq_100_15.dat    # not bundled here; resolves to radcoolpv's default (Cerro Pachon, Chile -- not Hiroshima's climate)

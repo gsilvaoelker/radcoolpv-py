@@ -1,0 +1,26 @@
+# Figure 5d digitized validation (Le et al., ACS Photonics 2026).
+# The paper does not supply the commercial module's raw stack optics, so this
+# YAML reproduces the plotted heat-transfer-coefficient family from digitized
+# data; it is not an independent module-stack calculation.
+
+run:
+  optics: false
+  thermal: false
+  plots: true
+  mode: spectral_compare
+  results_dir: results/fig5d_cooling_family
+  outputs: []
+
+comparison:
+  xlim: [310.0, 390.0]
+  ylim: [-600.0, 600.0]
+  xlabel: Solar panel temperature Tsc (K)
+  ylabel: Cooling power Pcool (W/m2)
+  title: ADS-coated solar panel cooling power
+  output_file: fig5d_cooling_family.png
+  spectra:
+    - {label: '0 W/m2-K',  file: data/digitized_fig5d/h0.txt,  color: '#506c2f'}
+    - {label: '3 W/m2-K',  file: data/digitized_fig5d/h3.txt,  color: '#aaa600'}
+    - {label: '6 W/m2-K',  file: data/digitized_fig5d/h6.txt,  color: '#f0b000'}
+    - {label: '9 W/m2-K',  file: data/digitized_fig5d/h9.txt,  color: '#ff7f0e'}
+    - {label: '12 W/m2-K', file: data/digitized_fig5d/h12.txt, color: '#ff2020'}
