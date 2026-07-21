@@ -1,0 +1,30 @@
+# Validation E -- Akerboom et al., ACS Photonics 2022, 9, 3831-3840.
+# Theoretical case (Fig. 2c/2d, green curve): unity emissivity ONLY in the main
+# 8-14 um atmospheric transmission window. Suboptimal for a solar absorber whose
+# operating temperature is above ambient; the paper reports 341.5 K.
+#
+# Optical file built by build_optics.py (emit = 1 for lambda <= 1.107 um and in
+# 8-14 um; 0 elsewhere).
+
+run:
+  optics: false
+  thermal: true
+  plots: false
+  mode: cooling_curve
+  results_dir: results/bound_window
+  outputs: [clean]
+  optics_results: data/optics/bound_window.txt
+
+simulation:
+  wavelength: {min: 0.3, max: 30.0, n: 3000}
+  angles: hemispherical
+
+thermal:
+  ambient_temperature: 300       # K
+  convection_coefficient: 12      # W/m2-K effective (Methods states 6; see README)
+  cooling_temperature: {min: 300.0, max: 460.0, n: 1601}
+  equilibrium: auto
+
+data:
+  solar_spectrum: data/astmg173.xlsx
+  atmosphere: data/cptrans_nq_100_15.dat

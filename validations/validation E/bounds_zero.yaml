@@ -1,0 +1,33 @@
+# Validation E -- Akerboom et al., ACS Photonics 2022, 9, 3831-3840.
+# Theoretical upper bound (Fig. 2c/2d, red curve): a solar absorber with ZERO
+# infrared emissivity below the Si bandgap. With no thermal radiation and no
+# atmospheric absorption, the equilibrium temperature is set purely by
+# P_sun / hc, giving the paper's upper bound of 366.5 K.
+#
+# The optical file bound_zero.txt is an idealized step function built by
+# build_optics.py (emit = 1 for lambda <= 1.107 um to fix P_sun = 808 W/m^2;
+# emit = 0 in the infrared).
+
+run:
+  optics: false
+  thermal: true
+  plots: false
+  mode: cooling_curve
+  results_dir: results/bound_zero
+  outputs: [clean]
+  optics_results: data/optics/bound_zero.txt
+
+simulation:
+  wavelength: {min: 0.3, max: 30.0, n: 3000}
+  angles: hemispherical
+
+thermal:
+  ambient_temperature: 300       # K (paper Fig. 1)
+  convection_coefficient: 12      # W/m2-K -- effective value that reproduces the
+                                  # paper (Methods states 6; see README).
+  cooling_temperature: {min: 300.0, max: 460.0, n: 1601}
+  equilibrium: auto
+
+data:
+  solar_spectrum: data/astmg173.xlsx         # resolves to bundled AM1.5G
+  atmosphere: data/cptrans_nq_100_15.dat     # resolves to bundled Cerro Pachon

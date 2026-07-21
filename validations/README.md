@@ -2,10 +2,16 @@
 
 This folder holds literature-reproduction checks for `radcoolpv`.
 
-**Trusted (verified to run):** Validation A and Validation B. These are the only
-validations that remain here; everything else has been moved to the gitignored
-`../archive/` folder (validations C and D were reference papers with no runnable
-configs, validation E was explicitly untrusted).
+**Trusted (verified to run):** Validations A, B and E.
+
+* **A** and **B** resume from precomputed spectra (`run.optics: false`) and so
+  validate the **thermal / PV** stage independently of the optics engine.
+* **E** additionally runs the **S4 RCWA optics** engine end to end — it is the
+  only validation that computes a patterned structure's emissivity from first
+  principles and feeds it to the thermal balance.
+
+Validations C and D (reference papers with no runnable configs) remain in the
+gitignored `../archive/` folder.
 
 Source papers are **not** redistributed with this repository — they are
 copyrighted publisher PDFs. Each validation below names its paper; cite by DOI.
@@ -86,9 +92,26 @@ done
 
 ---
 
+## Validation E — Akerboom et al. (ACS Photonics 2022), silica microcylinders
+
+Silica-microcylinder module glass for radiative cooling of a Si solar module.
+The **only** validation that runs the optics engine: `build_optics_s4.py`
+computes the flat and microcylinder emissivity with S4 RCWA, and the
+`stack_*.yaml` configs feed it to the `cooling_curve` balance. Reproduces the
+paper's band-averaged emissivity to ≤0.6 pp and every equilibrium temperature to
+≤0.6 K. See `validation E/README.md` for the two method caveats (RCWA vs the
+paper's FDTD on the Mie-resonant cylinders; Ag vs Au back mirror).
+
+Run:
+
+```bash
+cd "validation E" && python run_validation.py          # rebuild optics + validate
+python run_validation.py --no-build                     # reuse committed spectra
+```
+
 ## Archived
 
 Moved to `../archive/` (local, gitignored): validation C and D (reference papers
-only, no runnable configs), validation E (a silica-microcylinder reproduction
-after Akerboom et al. 2022, preserved in full but never trusted), and the
-source PDFs for all of the above plus Validation A.
+only, no runnable configs), the earlier fitted-optics version of the
+Akerboom reproduction (superseded by the S4 Validation E above), and the source
+PDFs for all of these plus Validation A.

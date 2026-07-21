@@ -1,0 +1,29 @@
+# Validation E -- Akerboom et al., ACS Photonics 2022, 9, 3831-3840.
+# Bare reference cell (Fig. 5b, "Au-Si"): gold-backed 500 um silicon with no
+# module glass. Weak IR emissivity, so it runs hottest. Paper: 360 K.
+#
+# Optics are computed by build_optics_s4.py with the S4 RCWA engine (flat stack,
+# 1 Fourier mode) and read here via run.optics: false.
+
+run:
+  optics: false
+  thermal: true
+  plots: false
+  mode: cooling_curve
+  results_dir: results/bare
+  outputs: [clean]
+  optics_results: data/optics/s4_au_si.txt
+
+simulation:
+  wavelength: {min: 0.3, max: 30.0, n: 3000}
+  angles: hemispherical
+
+thermal:
+  ambient_temperature: 300       # K
+  convection_coefficient: 12      # W/m2-K effective (Methods states 6; see README)
+  cooling_temperature: {min: 300.0, max: 460.0, n: 1601}
+  equilibrium: auto
+
+data:
+  solar_spectrum: data/astmg173.xlsx
+  atmosphere: data/cptrans_nq_100_15.dat
