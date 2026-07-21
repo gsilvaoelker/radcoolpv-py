@@ -14,5 +14,24 @@ dist/
 results/
 configs/results/
 
+# Editor / tooling
+.claude/
+.idea/
+.vscode/
+.coverage
+htmlcov/
+
+# MATLAB / render artifacts
+*.asv
+*.fig
+*.pov
+
 # OS
 .DS_Store
+
+# The parent repo ignores `*.dat` as a generic result-file type, but two .dat
+# files are bundled package-data that radcoolpv needs at runtime:
+#   radcoolpv/data/cptrans_nq_100_15.dat        default atmosphere (config.py)
+#   radcoolpv/validation/data/perrakis-h0.dat   Perrakis reference (references.py)
+# Without these negations a clean clone builds a broken wheel.
+!radcoolpv/**/*.dat
