@@ -28,7 +28,7 @@ def write_optics_csv(folder: str, optics: OpticsResult) -> None:
 
 def write_iv_csv(folder: str, thermal) -> None:
     iv = thermal.iv
-    cols = np.column_stack([iv.volt, -iv.current_dens[thermal.equil_index, :]])
+    cols = np.column_stack([iv.volt, -thermal.current_equil])
     np.savetxt(os.path.join(folder, "iv.csv"), cols, delimiter=",",
                header="voltage_V,current_density_A_per_m2", comments="", fmt="%.8g")
 
@@ -36,10 +36,17 @@ def write_iv_csv(folder: str, thermal) -> None:
 def write_power_csv(folder: str, thermal) -> None:
     iv = thermal.iv
     cols = np.column_stack([
-        iv.volt, iv.cell_power[:, thermal.equil_index], iv.cell_power[:, 0]])
+        iv.volt, thermal.power_equil, iv.cell_power[:, 0]])
     np.savetxt(os.path.join(folder, "power.csv"), cols, delimiter=",",
                header="voltage_V,power_equilibrium_W_per_m2,power_ambient_W_per_m2",
                comments="", fmt="%.8g")
+
+
+def write_cooling_curve_csv(folder: str, thermal) -> None:
+    """Cooling power versus emitter temperature for PV-free runs."""
+    cols = np.column_stack([thermal.emit_temp, thermal.cool_power])
+    np.savetxt(os.path.join(folder, "cooling_power.csv"), cols, delimiter=",",
+               header="temperature_K,cooling_power_W_per_m2", comments="", fmt="%.8g")
 
 
 def write_run_json(folder: str, cfg: Config, optics: Optional[OpticsResult],
@@ -64,6 +71,7 @@ def write_run_json(folder: str, cfg: Config, optics: Optional[OpticsResult],
         record["thermal"] = {
             "ambient_temperature": cfg.thermal.ambient_temperature,
             "convection_coefficient": cfg.thermal.convection_coefficient,
+            "solar_irradiance_W_per_m2": cfg.thermal.solar_irradiance,
             "equilibrium_mode": cfg.thermal.equilibrium,
             "equilibrium_temperature_K": thermal.equil_temp,
             "vmpp_V": thermal.vmpp,

@@ -12,6 +12,7 @@ import os
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt  # noqa: E402
+import numpy as np
 
 from ..io.results import RunContext
 from ..validation import references
@@ -25,12 +26,17 @@ def make_all(ctx: RunContext, lit_base: str = None) -> list:
     optics = ctx.optics
     thermal = ctx.thermal
 
+    if ctx.config.run.mode == "spectral_compare":
+        return [_spectral_comparison(out_dir, ctx.config)]
+
     if optics is not None:
         paths.append(_optical_properties(out_dir, optics))
 
     if thermal is not None:
         paths.append(_cooler_emissivity(out_dir, optics))
-        if ctx.config.run.mode == "test":
+        if ctx.config.run.mode == "cooling_curve":
+            paths.append(_cooling_power_curve(out_dir, thermal, ctx.config))
+        elif ctx.config.run.mode == "test":
             paths.append(_cooling_power_validation(out_dir, thermal, lit_base))
         else:
             paths.append(_energy_balance_terms(out_dir, thermal))
@@ -46,6 +52,12 @@ def _save(fig, path):
     fig.savefig(path, dpi=130, bbox_inches="tight")
     plt.close(fig)
     return path
+
+
+def _positive_y_limit(*curves) -> float:
+    """Return a first-quadrant upper limit with 10% headroom."""
+    largest = max((float(np.nanmax(curve)) for curve in curves), default=0.0)
+    return 1.1 * largest if largest > 0.0 else 1.0
 
 
 def _optical_properties(out_dir, optics):
@@ -72,6 +84,22 @@ def _cooler_emissivity(out_dir, optics):
     ax.set_xticklabels(["0.3", "1.1", "4", "8", "13", "30"])
     ax.set_title("Cooler emissivity vs. wavelength")
     return _save(fig, os.path.join(out_dir, "cooler_emissivity.png"))
+
+
+def _spectral_comparison(out_dir, cfg):
+    fig, ax = plt.subplots(figsize=(7, 4))
+    for series in cfg.comparison.spectra:
+        data = np.loadtxt(cfg.resolve_data(series["file"]))
+        kwargs = {"label": series["label"]}
+        if "color" in series:
+            kwargs["color"] = series["color"]
+        ax.plot(data[:, 0], data[:, 1], **kwargs)
+    ax.set_xlim(*cfg.comparison.xlim); ax.set_ylim(*cfg.comparison.ylim)
+    ax.set_xlabel(cfg.comparison.xlabel)
+    ax.set_ylabel(cfg.comparison.ylabel)
+    ax.set_title(cfg.comparison.title)
+    ax.legend(frameon=False)
+    return _save(fig, os.path.join(out_dir, cfg.comparison.output_file))
 
 
 def _energy_balance_terms(out_dir, t):
@@ -101,22 +129,48 @@ def _cooling_power_validation(out_dir, t, lit_base):
     return _save(fig, os.path.join(out_dir, "cooling_power_validation.png"))
 
 
+def _cooling_power_curve(out_dir, t, cfg):
+    fig, ax = plt.subplots(figsize=(7, 4))
+    ax.plot(t.emit_temp, t.cool_power, lw=2, label="radcoolpv")
+    path = cfg.resolve_data(cfg.thermal.reference_curve_file)
+    if path:
+        with open(path) as fh:
+            lines = [line for line in fh if not line.startswith("#")]
+        data = np.genfromtxt(lines[1:], missing_values="NA", filling_values=np.nan)
+        column = cfg.thermal.reference_curve_column
+        y = data[:, column]
+        valid = np.isfinite(y)
+        ax.plot(data[valid, 0], y[valid], "o", ms=3, mfc="white", label="Digitized reference")
+    ax.axhline(0.0, color="0.5", lw=0.8)
+    ax.axvline(t.equil_temp, ls="--", color="0.5", label=fr"$T_{{eq}}={t.equil_temp:.1f}$ K")
+    ax.set_xlabel("Film temperature (K)")
+    ax.set_ylabel(r"Cooling power (W/m$^2$)")
+    ax.set_title("Cooling power versus film temperature")
+    ax.legend(frameon=False)
+    return _save(fig, os.path.join(out_dir, "cooling_power_curve.png"))
+
+
 def _iv_curve(out_dir, t):
     iv = t.iv
+    current = -t.current_equil
     fig, ax = plt.subplots(figsize=(7, 4))
-    ax.plot(iv.volt, -iv.current_dens[t.equil_index, :])
+    ax.plot(iv.volt, current)
     ax.set_xlabel("Voltage (V)"); ax.set_ylabel(r"Current density (A/m$^2$)")
+    ax.set_xlim(left=0.0); ax.set_ylim(0.0, _positive_y_limit(current))
     ax.set_title("Current-voltage characteristic")
     return _save(fig, os.path.join(out_dir, "iv_curve.png"))
 
 
 def _power_curve(out_dir, t):
     iv = t.iv
+    power_equil = t.power_equil
+    power_ambient = iv.cell_power[:, 0]
     fig, ax = plt.subplots(figsize=(7, 4))
-    ax.plot(iv.volt, iv.cell_power[:, t.equil_index], "-s", ms=4, mfc="white",
+    ax.plot(iv.volt, power_equil, "-s", ms=4, mfc="white",
             label=f"Equilibrium, MPP={t.mpp_equil:.1f}")
-    ax.plot(iv.volt, iv.cell_power[:, 0], label=f"Ambient, MPP={t.mpp_amb:.1f}")
+    ax.plot(iv.volt, power_ambient, label=f"Ambient, MPP={t.mpp_amb:.1f}")
     ax.set_xlabel("Voltage (V)"); ax.set_ylabel(r"Output power (W/m$^2$)")
+    ax.set_xlim(left=0.0); ax.set_ylim(0.0, _positive_y_limit(power_equil, power_ambient))
     ax.set_title("Output power vs. voltage"); ax.legend(frameon=False)
     return _save(fig, os.path.join(out_dir, "power_curve.png"))
 

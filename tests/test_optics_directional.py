@@ -55,3 +55,19 @@ def test_band_averages_match_matlab_log(reduced):
     # Compare against the values recorded in the MATLAB simulParam.log.
     assert avg.emit_window1 == pytest.approx(71.6497, abs=5e-3)
     assert avg.emit_window2 == pytest.approx(71.2340, abs=5e-3)
+
+
+def test_reduced_pvcode_file_loads_directly(tmp_path):
+    path = tmp_path / "reduced.txt"
+    data = np.array([
+        [0.3, 0.2, 0.21, 0.7, 0.69, 0.08, 0.09],
+        [1.0, 0.3, 0.31, 0.6, 0.59, 0.15, 0.16],
+    ])
+    np.savetxt(path, data)
+
+    res = directional.from_reduced_file(str(path), ATMOS)
+
+    assert res.angles == "hemispherical"
+    assert np.allclose(res.emit, data[:, 1])
+    assert np.allclose(res.ref, data[:, 3])
+    assert np.allclose(res.abs_silicon_norm, data[:, 6])

@@ -1,9 +1,10 @@
-"""Build the S4 layer stack from the geometry + structure config.
+"""Build the RCWA layer stack from the geometry + structure config.
 
 Ports the geometry blocks of ``mainOpticalMatlabS4_v11.m`` (the discretisation
 of spheres/semispheres/triangles/cylinders and the flat layer stack). Produces a
-solver-agnostic description that ``s4_backend`` turns into S4 calls; this keeps
-the geometry math testable without S4 installed.
+solver-agnostic description that ``grcwa_backend`` turns into RCWA calls; this
+keeps the geometry math independent of the optics engine. The ``S4Structure`` /
+``S4Layer`` names are retained from the original port for continuity.
 
 All lengths are in micrometres. Material names are the *logical* names from the
 config (e.g. ``sio2``, ``silicon``, ``vacuum``); the backend maps them to eps.

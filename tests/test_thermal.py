@@ -6,6 +6,7 @@ import numpy as np
 import pytest
 
 from radcoolpv import config as cm
+from radcoolpv._compat import trapz
 from radcoolpv.io.results import OpticsResult
 from radcoolpv.optics import directional
 from radcoolpv.thermal import energy_balance
@@ -34,7 +35,7 @@ def _quartz_cfg(mode):
         "run": {"optics": True, "thermal": True, "plots": False, "mode": mode},
         "simulation": {"wavelength": {"min": 4.0, "max": 30.0, "n": 2000},
                        "angles": "hemispherical"},
-        "geometry": {"source": "s4", "shape": "flat", "photonic_material": "sio2"},
+        "geometry": {"source": "grcwa", "shape": "flat", "photonic_material": "sio2"},
         "structure": [{"material": "silicon", "thickness": 250.0},
                       {"material": "substrate", "thickness": 0.0, "terminal": True}],
         "materials": {"sio2": "PalikKitamura_SiO2", "silicon": "SiliconNew",
@@ -79,7 +80,7 @@ def test_pv_path_is_sane_and_fixed_point_converges():
     cfg = cm.from_dict({
         "run": {"optics": True, "thermal": True, "plots": False, "mode": "standard"},
         "simulation": {"wavelength": {"min": 0.3, "max": 30.0, "n": 2000}, "angles": "normal"},
-        "geometry": {"source": "s4", "shape": "flat", "photonic_material": "sio2"},
+        "geometry": {"source": "grcwa", "shape": "flat", "photonic_material": "sio2"},
         "structure": [{"material": "silicon", "thickness": 250.0},
                       {"material": "substrate", "thickness": 0.0, "terminal": True}],
         "materials": {"sio2": "PalikKitamura_SiO2", "silicon": "SiliconNew",
@@ -94,3 +95,37 @@ def test_pv_path_is_sane_and_fixed_point_converges():
     assert 0.0 < res.ff_equil < 1.0
     assert res.emit_temp[0] <= res.equil_temp <= res.emit_temp[-1]
     assert 0.55 < res.vmpp < 0.75
+    assert res.rad_power_equil == pytest.approx(
+        np.interp(res.equil_temp, res.emit_temp, res.rad_power))
+    assert np.allclose(
+        res.power_equil,
+        [np.interp(res.equil_temp, res.emit_temp, row) for row in res.iv.cell_power],
+    )
+
+
+def test_cooling_curve_mode_uses_configured_temperature_sweep():
+    grid = np.linspace(0.3, 30.0, 2000)
+    optics = _synthetic_optics(grid, ATMOS)
+    solar = load_solar(SOLAR, grid)
+    cfg = cm.from_dict({
+        "run": {"optics": True, "thermal": True, "plots": False, "mode": "cooling_curve"},
+        "simulation": {"wavelength": {"min": 0.3, "max": 30.0, "n": 2000}, "angles": "normal"},
+        "geometry": {"source": "grcwa", "shape": "flat", "photonic_material": "sio2"},
+        "structure": [{"material": "silicon", "thickness": 250.0},
+                      {"material": "substrate", "thickness": 0.0, "terminal": True}],
+        "materials": {"sio2": "PalikKitamura_SiO2", "silicon": "SiliconNew",
+                      "substrate": "Hagemann_Ag"},
+        "thermal": {"ambient_temperature": 298.0, "convection_coefficient": 9.0,
+                    "solar_irradiance": 800.0,
+                    "cooling_temperature": {"min": 310.0, "max": 360.0, "n": 101}},
+    })
+
+    res = energy_balance.run(cfg, optics, solar)
+
+    assert res.iv is None
+    assert res.emit_temp[0] == pytest.approx(310.0)
+    assert res.emit_temp[-1] == pytest.approx(360.0)
+    assert len(res.cool_power) == 101
+    assert res.solar_power == pytest.approx(
+        trapz(optics.emit * solar.irradiance_per_um, grid) * 800.0 / solar.total_am15
+    )

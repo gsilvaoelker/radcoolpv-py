@@ -51,7 +51,7 @@ def write_pv_optical_props(folder: str, optics: OpticsResult) -> None:
 def write_iv(folder: str, thermal) -> None:
     """IV-PVcode.txt: voltage, output current density at equilibrium temperature."""
     iv = thermal.iv
-    j = -iv.current_dens[thermal.equil_index, :]
+    j = -thermal.current_equil
     np.savetxt(os.path.join(folder, "IV-PVcode.txt"),
                np.column_stack([iv.volt, j]), fmt="%6.6f")
 
@@ -60,7 +60,7 @@ def write_power(folder: str, thermal) -> None:
     """Power-PVcode.txt: voltage, power(equilibrium), power(ambient)."""
     iv = thermal.iv
     cols = np.column_stack([
-        iv.volt, iv.cell_power[:, thermal.equil_index], iv.cell_power[:, 0],
+        iv.volt, thermal.power_equil, iv.cell_power[:, 0],
     ])
     np.savetxt(os.path.join(folder, "Power-PVcode.txt"), cols, fmt="%6.6f")
 

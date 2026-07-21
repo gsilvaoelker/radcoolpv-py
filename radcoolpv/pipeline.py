@@ -42,15 +42,17 @@ def print_resolved(cfg: Config) -> None:
 
 def _run_optics(cfg: Config, ctx: RunContext):
     """Run (or resume) the optics stage, returning an OpticsResult."""
-    from .optics import directional, freeform, s4_backend
+    from .optics import directional, freeform, grcwa_backend
 
     atmosphere = cfg.resolve_data(cfg.data.atmosphere)
     n_lambda = cfg.simulation.wavelength.n
 
     if not cfg.run.optics:
-        # Resume: read a previous optics results folder (OUTPUTS4 files).
-        folder = cfg.resolve_data(cfg.run.optics_results)
-        raw = directional.from_folder(folder, n_lambda)
+        # Resume either raw per-angle OUTPUTS4 files or a reduced spectrum.
+        source = cfg.resolve_data(cfg.run.optics_results)
+        if os.path.isfile(source):
+            return directional.from_reduced_file(source, atmosphere)
+        raw = directional.from_folder(source, n_lambda)
         return directional.reduce(raw, atmosphere, lambda_grid=cfg.wavelength_array())
 
     if cfg.geometry.source == "freeform":
@@ -60,8 +62,8 @@ def _run_optics(cfg: Config, ctx: RunContext):
 
     grid = cfg.wavelength_array()
     angles = cfg.angle_array_deg()
-    print(f"[optics]  S4 sweep: {len(grid)} wavelengths x {len(angles)} angle(s)")
-    raw = s4_backend.sweep(cfg, grid, angles)
+    print(f"[optics]  grcwa RCWA sweep: {len(grid)} wavelengths x {len(angles)} angle(s)")
+    raw = grcwa_backend.sweep(cfg, grid, angles)
     ctx.extras["raw"] = raw
     return directional.reduce(raw, atmosphere, lambda_grid=grid)
 
@@ -99,6 +101,8 @@ def _write_outputs(cfg: Config, ctx: RunContext) -> None:
         if thermal is not None and thermal.iv is not None:
             clean_writers.write_iv_csv(ctx.results_dir, thermal)
             clean_writers.write_power_csv(ctx.results_dir, thermal)
+        elif thermal is not None and cfg.run.mode == "cooling_curve":
+            clean_writers.write_cooling_curve_csv(ctx.results_dir, thermal)
         clean_writers.write_run_json(ctx.results_dir, cfg, optics, thermal)
 
 

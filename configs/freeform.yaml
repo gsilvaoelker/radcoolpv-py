@@ -1,4 +1,4 @@
-# Free-form optics + thermal: read an externally optimised structure (no S4),
+# Free-form optics + thermal: read an externally optimised structure (pure Python),
 # then run the energy balance. Runs end-to-end without the S4 module installed.
 
 run:
@@ -43,4 +43,3 @@ data:
   solar_spectrum: data/astmg173.xlsx
   atmosphere: data/cptrans_nq_100_15.dat
 
-backend: {s4: bindings}

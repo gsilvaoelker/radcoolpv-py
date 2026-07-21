@@ -1,11 +1,16 @@
-# Full run: optics (RCWA via S4) + thermal energy balance, auto-coupled.
-# Mirrors the MATLAB default (a SiO2 cylinder array on a Si3N4/Si/Ag stack).
+# Full run: optics (RCWA via the pure-Python grcwa engine) + thermal energy
+# balance, auto-coupled. Mirrors the MATLAB default (a SiO2 cylinder array on a
+# Si3N4/Si/Ag stack).
+#
+# NOTE: a live patterned RCWA sweep at this resolution (2000 wavelengths x 18
+# angles) is expensive in pure Python; reduce wavelength.n / use angles: normal
+# for a quick check.
 
 run:
   optics: true
   thermal: true
   plots: true
-  mode: standard            # standard | test | test2
+  mode: standard            # standard | cooling_curve | test | spectral_compare
   results_dir: results
   outputs: [legacy, clean]
   optics_results: null
@@ -13,10 +18,12 @@ run:
 simulation:                 # shared by both stages -> no manual drift
   wavelength: {min: 0.3, max: 30.0, n: 2000}
   angles: hemispherical     # normal | hemispherical (= 18 angles, 0..85 deg)
-  rcwa_modes: 10
+  rcwa_modes: 100           # grcwa Fourier truncation (nG); patterned layers need ~100+
+  grid_nx: 128              # patterned-layer raster resolution
+  grid_ny: 128
 
 geometry:
-  source: s4                # s4 | freeform
+  source: grcwa             # grcwa | freeform
   shape: cylinder           # flat | sphere | semisphere | triangle | cylinder
   photonic_material: sio2
   lattice: {type: square, x: 20.0, y: 20.0}
@@ -55,5 +62,3 @@ thermal:
 data:
   solar_spectrum: data/astmg173.xlsx
   atmosphere: data/cptrans_nq_100_15.dat
-
-backend: {s4: bindings}

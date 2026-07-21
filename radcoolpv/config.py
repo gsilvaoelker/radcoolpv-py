@@ -29,7 +29,7 @@ class RunConfig:
     optics: bool = True
     thermal: bool = True
     plots: bool = True
-    mode: str = "standard"            # standard | test | test2
+    mode: str = "standard"            # standard | test | test2 | cooling_curve
     results_dir: str = "results"
     outputs: List[str] = field(default_factory=lambda: ["legacy", "clean"])
     optics_results: Optional[str] = None  # resume a prior optics run
@@ -49,7 +49,9 @@ class Wavelength:
 class SimulationConfig:
     wavelength: Wavelength = field(default_factory=Wavelength)
     angles: str = "hemispherical"     # normal | hemispherical
-    rcwa_modes: int = 10
+    rcwa_modes: int = 10              # grcwa Fourier truncation (nG)
+    grid_nx: int = 128               # patterned-layer raster resolution (grcwa)
+    grid_ny: int = 128
 
     def angle_array_deg(self) -> np.ndarray:
         if self.angles == "normal":
@@ -69,7 +71,7 @@ class Lattice:
 
 @dataclass
 class GeometryConfig:
-    source: str = "s4"               # s4 | freeform
+    source: str = "grcwa"            # grcwa | freeform
     shape: str = "flat"              # flat | sphere | semisphere | triangle | cylinder
     photonic_material: str = "sio2"
     lattice: Lattice = field(default_factory=Lattice)
@@ -113,11 +115,25 @@ class VoltageSweep:
 
 
 @dataclass
+class TemperatureSweep:
+    min: float
+    max: float
+    n: int
+
+    def array(self) -> np.ndarray:
+        return np.linspace(self.min, self.max, self.n)
+
+
+@dataclass
 class ThermalConfig:
     ambient_temperature: float = 298.0
     convection_coefficient: float = 12.0
     voltage: VoltageSweep = field(default_factory=VoltageSweep)
     equilibrium: str = "auto"        # auto | manual
+    cooling_temperature: Optional[TemperatureSweep] = None
+    solar_irradiance: Optional[float] = None  # W/m2; cooling_curve-only normalization
+    reference_curve_file: Optional[str] = None
+    reference_curve_column: int = 1
     emit_temp: float = 319.0         # used only if manual
     vmpp: float = 0.6586             # used only if manual
     pv: PVConfig = field(default_factory=PVConfig)
@@ -130,9 +146,14 @@ class DataConfig:
 
 
 @dataclass
-class BackendConfig:
-    s4: str = "bindings"             # bindings (import S4)
-    s4_binary: Optional[str] = None  # reserved for a future subprocess fallback
+class ComparisonConfig:
+    spectra: List[Dict[str, str]] = field(default_factory=list)
+    xlim: List[float] = field(default_factory=lambda: [2.5, 14.0])
+    ylim: List[float] = field(default_factory=lambda: [0.0, 1.0])
+    xlabel: str = r"Wavelength, $\lambda$ ($\mu$m)"
+    ylabel: str = "Emissivity"
+    title: str = "Mid- and LWIR emissivity"
+    output_file: str = "spectral_comparison.png"
 
 
 @dataclass
@@ -144,7 +165,7 @@ class Config:
     materials: Dict[str, str] = field(default_factory=dict)
     thermal: ThermalConfig = field(default_factory=ThermalConfig)
     data: DataConfig = field(default_factory=DataConfig)
-    backend: BackendConfig = field(default_factory=BackendConfig)
+    comparison: ComparisonConfig = field(default_factory=ComparisonConfig)
     base_dir: str = "."              # directory the config was loaded from
 
     # ----- derived helpers ------------------------------------------------- #
@@ -236,6 +257,8 @@ def from_dict(raw: Dict[str, Any], base_dir: str = ".") -> Config:
     th_raw = dict(_section(raw, "thermal"))
     if "voltage" in th_raw:
         th_raw["voltage"] = VoltageSweep(**th_raw["voltage"])
+    if "cooling_temperature" in th_raw:
+        th_raw["cooling_temperature"] = TemperatureSweep(**th_raw["cooling_temperature"])
     if "pv" in th_raw:
         pv_raw = dict(th_raw["pv"])
         if "bandgap" in pv_raw:
@@ -244,11 +267,12 @@ def from_dict(raw: Dict[str, Any], base_dir: str = ".") -> Config:
     thermal = ThermalConfig(**th_raw)
 
     data = DataConfig(**_section(raw, "data"))
-    backend = BackendConfig(**_section(raw, "backend"))
+    comparison = ComparisonConfig(**_section(raw, "comparison"))
 
     cfg = Config(
         run=run, simulation=simulation, geometry=geometry, structure=structure,
-        materials=materials, thermal=thermal, data=data, backend=backend,
+        materials=materials, thermal=thermal, data=data,
+        comparison=comparison,
         base_dir=base_dir,
     )
     validate(cfg)
@@ -272,13 +296,26 @@ _SHAPES = {"flat", "sphere", "semisphere", "triangle", "cylinder"}
 
 
 def validate(cfg: Config) -> None:
-    if cfg.run.mode not in {"standard", "test", "test2"}:
-        raise ConfigError(f"run.mode must be standard|test|test2, got {cfg.run.mode!r}")
+    if cfg.run.mode not in {"standard", "test", "test2", "cooling_curve", "spectral_compare"}:
+        raise ConfigError(
+            f"run.mode must be standard|test|test2|cooling_curve|spectral_compare, got {cfg.run.mode!r}"
+        )
     for o in cfg.run.outputs:
         if o not in {"legacy", "clean"}:
             raise ConfigError(f"run.outputs items must be 'legacy' or 'clean', got {o!r}")
-    if not (cfg.run.optics or cfg.run.thermal):
+    if not (cfg.run.optics or cfg.run.thermal or cfg.run.mode == "spectral_compare"):
         raise ConfigError("Nothing to do: run.optics and run.thermal are both false.")
+
+    if cfg.run.mode == "spectral_compare":
+        if cfg.run.optics or cfg.run.thermal:
+            raise ConfigError("spectral_compare mode requires run.optics and run.thermal to be false.")
+        if not cfg.comparison.spectra:
+            raise ConfigError("spectral_compare mode requires comparison.spectra.")
+        for series in cfg.comparison.spectra:
+            if "label" not in series or "file" not in series:
+                raise ConfigError("Each comparison.spectra item requires label and file.")
+        if len(cfg.comparison.xlim) != 2 or len(cfg.comparison.ylim) != 2:
+            raise ConfigError("comparison.xlim and comparison.ylim must each contain two values.")
 
     # Cross-check: thermal without optics must resume a prior optics run.
     if cfg.run.thermal and not cfg.run.optics and not cfg.run.optics_results:
@@ -291,12 +328,16 @@ def validate(cfg: Config) -> None:
         raise ConfigError("simulation.wavelength.n must be >= 2.")
     cfg.simulation.angle_array_deg()  # raises if angles invalid
 
-    if cfg.run.optics and cfg.geometry.source == "s4":
+    if cfg.run.optics and cfg.geometry.source not in {"grcwa", "freeform"}:
+        raise ConfigError(
+            f"geometry.source must be 'grcwa' or 'freeform', got {cfg.geometry.source!r}")
+
+    if cfg.run.optics and cfg.geometry.source == "grcwa":
         if cfg.geometry.shape not in _SHAPES:
             raise ConfigError(f"geometry.shape must be one of {sorted(_SHAPES)}, got {cfg.geometry.shape!r}")
         _require_shape_params(cfg.geometry)
         if not cfg.structure:
-            raise ConfigError("`structure` must list at least the terminal layer when running S4 optics.")
+            raise ConfigError("`structure` must list at least the terminal layer when running grcwa optics.")
         if not any(l.terminal for l in cfg.structure):
             raise ConfigError("`structure` must mark exactly one layer as terminal: true (the substrate).")
         # Photonic + structure materials must be declared in `materials`.
@@ -314,6 +355,14 @@ def validate(cfg: Config) -> None:
             raise ConfigError(f"thermal.equilibrium must be auto|manual, got {cfg.thermal.equilibrium!r}")
         if cfg.thermal.voltage.n < 2:
             raise ConfigError("thermal.voltage.n must be >= 2.")
+        if cfg.run.mode == "cooling_curve":
+            sweep = cfg.thermal.cooling_temperature
+            if sweep is None or sweep.n < 2 or sweep.max <= sweep.min:
+                raise ConfigError(
+                    "cooling_curve mode requires thermal.cooling_temperature with max > min and n >= 2."
+                )
+            if cfg.thermal.solar_irradiance is not None and cfg.thermal.solar_irradiance <= 0.0:
+                raise ConfigError("thermal.solar_irradiance must be positive when set.")
 
 
 def _require_shape_params(geom: GeometryConfig) -> None:

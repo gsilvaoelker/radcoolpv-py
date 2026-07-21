@@ -89,6 +89,41 @@ def from_folder(path: str, n_lambda: int) -> RawOptics:
     return raw
 
 
+def from_reduced_file(path: str, atmosphere_path: str) -> OpticsResult:
+    """Load a previously hemispherically reduced optical-property spectrum.
+
+    Accepted columns are either the five-column ``HEMSIPH`` form
+    ``lambda, R, T, emit, abs_si`` or the seven-column ``PVcode`` form
+    ``lambda, emit, emit_normal, R, R_normal, abs_si, abs_si_normal``.
+    These files retain no directional information, so their atmospheric term
+    uses the same angle-independent approximation as free-form optics.
+    """
+    data = np.loadtxt(path)
+    if data.ndim == 1:
+        data = data[None, :]
+    lam = data[:, 0]
+    if data.shape[1] == 5:
+        ref, tran, emit, abs_si = data[:, 1], data[:, 2], data[:, 3], data[:, 4]
+        ref_norm = emit_norm = abs_si_norm = None
+    elif data.shape[1] == 7:
+        emit, emit_norm, ref, ref_norm, abs_si, abs_si_norm = data[:, 1:].T
+        tran = 1.0 - ref - emit
+    else:
+        raise ValueError(
+            f"{path}: expected 5-column HEMSIPH or 7-column PVcode reduced optics, "
+            f"got {data.shape[1]} columns."
+        )
+
+    atm = load_atmosphere(atmosphere_path, lam)
+    emit_atm = 1.0 - atm
+    return OpticsResult(
+        lambda_um=lam, ref=ref, tran=tran, emit=emit, abs_silicon=abs_si,
+        emit_atm=emit_atm, emitt_spec_times_emit_atm=emit_atm * emit,
+        ref_norm=ref_norm, emit_norm=emit_norm, abs_silicon_norm=abs_si_norm,
+        angles="hemispherical",
+    )
+
+
 def reduce(raw: RawOptics, atmosphere_path: str,
            lambda_grid: Optional[np.ndarray] = None) -> OpticsResult:
     """Reduce raw per-angle data to spectral properties (normal or hemispherical).

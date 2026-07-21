@@ -7,8 +7,8 @@ A single YAML config drives a two-stage pipeline:
 
 1. **Optics** — spectral / directional reflectance, transmittance, absorptance,
    and silicon-layer absorption of a photonic structure on a multilayer PV
-   stack, via RCWA (the **S4 Python bindings**), free-form data, or a resumed
-   previous run.
+   stack, via RCWA (the pure-Python **grcwa** engine), free-form data, or a
+   resumed previous run.
 2. **Thermal** — the energy balance (radiative, atmospheric, convective, solar,
    electrical, and luminescence terms), the steady-state cell temperature, and
    the PV I–V / MPP / Voc / FF / efficiency / temperature coefficient.
@@ -26,13 +26,12 @@ installed anywhere with no dependency on the original `radCoolPV` MATLAB tree.
 
 ```bash
 ./install.sh             # creates a .venv and installs everything into it
-./install.sh --with-s4   # also builds the S4 Python module (live RCWA optics)
 ./install.sh --system    # install into the current Python instead of a venv
 ```
 
 The installer creates a local virtual environment (`.venv`) so it works on
 managed system Pythons (Homebrew / PEP 668), installs `requirements.txt`
-(numpy / scipy / matplotlib / pyyaml / openpyxl — NumPy 1.x and 2.x both
+(numpy / scipy / matplotlib / pyyaml / openpyxl / grcwa — NumPy 1.x and 2.x both
 supported), then `pip install -e .`. Activate it with
 `source .venv/bin/activate`.
 
@@ -42,21 +41,22 @@ Equivalently, by hand:
 pip install -r requirements.txt && pip install -e .
 ```
 
-The RCWA optics stage additionally needs the **S4 Python module** (`import S4`),
-which is not on PyPI — `./install.sh --with-s4` installs the system libraries
-(FFTW, BLAS/LAPACK) and builds it from source. Everything else — the thermal
-stage, free-form optics, and resuming from existing `OUTPUTS4` files — works
-without it.
+The whole toolchain — including the RCWA optics stage (the pure-Python **grcwa**
+engine) — installs with plain `pip`; there is no compiled dependency to build.
 
 ## Run
 
 ```bash
-radcoolpv run configs/full.yaml                 # optics (S4) + thermal
+radcoolpv run configs/full.yaml                 # optics (grcwa RCWA) + thermal
 radcoolpv run configs/full.yaml --print-config  # just show resolved settings
-radcoolpv run configs/optics_only.yaml          # optics only (needs S4)
-radcoolpv run configs/freeform.yaml             # free-form optics + PV (no S4)
+radcoolpv run configs/optics_only.yaml          # optics only (grcwa RCWA)
+radcoolpv run configs/freeform.yaml             # free-form optics + PV
 radcoolpv run configs/test_perrakis_fig2.yaml   # validation: Perrakis 2020 Fig. 2
 ```
+
+Live RCWA of a *patterned* structure is pure-Python and therefore slower than
+the old C++ S4; for a quick run reduce `simulation.wavelength.n` or set
+`simulation.angles: normal`.
 
 Each run creates a timestamped folder under `results/` containing legacy
 MATLAB-style files (`OUTPUTS4-*.txt`, `opticalProps-PVcode.txt`,
@@ -72,9 +72,9 @@ See `configs/full.yaml` for the annotated reference. Key toggles:
 | --- | --- |
 | `run.optics` / `run.thermal` | turn each stage on/off (auto-coupled when both on) |
 | `run.plots` | generate figures |
-| `run.mode` | `standard` / `test` / `test2` (validation modes) |
+| `run.mode` | `standard` / `cooling_curve` / `test` / `spectral_compare` |
 | `run.outputs` | any of `legacy`, `clean` |
-| `geometry.source` | `s4` (RCWA) or `freeform` (read optimised data) |
+| `geometry.source` | `grcwa` (pure-Python RCWA) or `freeform` (read optimised data) |
 | `geometry.shape` | `flat` / `sphere` / `semisphere` / `triangle` / `cylinder` |
 | `thermal.equilibrium` | `auto` (fixed point) or `manual` (`emit_temp` + `vmpp`) |
 
@@ -107,11 +107,12 @@ PV run end-to-end.
 
 ```
 radcoolpv/
+  cli.py               `radcoolpv run ...` entry point
   config.py            YAML -> typed config + validation + derived helpers
   constants.py         physical constants / unit conversions
   pipeline.py          orchestrator (stage coupling, outputs, plots)
   materials/           registry + tabulated loader + analytic models + data/
-  optics/              geometry, s4_backend, directional, averages, freeform
+  optics/              geometry, grcwa_backend, directional, averages, freeform
   thermal/             spectra, radiative, pv, energy_balance
   io/                  results context + legacy/clean writers
   plotting/            figures
@@ -120,5 +121,8 @@ radcoolpv/
 configs/               example YAML configs
 scripts/               convert_permittivity.py
 tests/                 pytest suite
+comparison/            MATLAB vs Python validation: compare_plots.py generates
+                        side-by-side optics/IV/power/energy-balance/scalars
+                        plots from committed matlab_out/ and python_out/ runs
 ```
 ```

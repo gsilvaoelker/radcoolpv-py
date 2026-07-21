@@ -3,6 +3,7 @@
 import json
 import os
 
+import numpy as np
 import pytest
 
 from radcoolpv import config as cm
@@ -46,3 +47,16 @@ def test_run_json_has_scalars(freeform_ctx):
         record = json.load(fh)
     assert "thermal" in record and "optics" in record
     assert record["thermal"]["equilibrium_mode"] == "auto"
+
+
+def test_spectral_compare_mode_writes_overlay(tmp_path):
+    np.savetxt(tmp_path / "bare.txt", [[2.5, 0.9], [14.0, 0.9]])
+    cfg = cm.from_dict({
+        "run": {"optics": False, "thermal": False, "plots": True,
+                "mode": "spectral_compare", "results_dir": str(tmp_path / "results")},
+        "comparison": {"spectra": [{"label": "Bare", "file": "bare.txt", "color": "#ff7f0e"}]},
+    }, base_dir=str(tmp_path))
+
+    ctx = pipeline.run(cfg)
+
+    assert os.path.isfile(os.path.join(ctx.results_dir, "figures", "spectral_comparison.png"))
