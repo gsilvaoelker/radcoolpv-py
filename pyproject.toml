@@ -32,4 +32,8 @@ include = ["radcoolpv*"]
 [tool.setuptools.package-data]
 "radcoolpv.materials" = ["data/*.csv"]
 "radcoolpv" = ["data/*"]
-"radcoolpv.validation" = ["data/*.dat", "data/quartzValidations-4-30um/*.txt"]
+"radcoolpv.validation" = [
+    "data/*.dat",
+    "data/quartzValidations-4-30um/*.txt",
+    "data/matlab_patterned_ref/*.txt",
+]
