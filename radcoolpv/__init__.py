@@ -2,7 +2,7 @@
 
 Pure-Python port of the MATLAB+Lua/S4 ``radCoolPV`` toolchain. A single YAML
 config drives a two-stage pipeline: an optics stage (RCWA via the pure-Python
-``grcwa`` engine, or free-form data) and a thermal/electrical energy-balance
+S4 engine, or free-form data) and a thermal/electrical energy-balance
 stage. The two stages share one wavelength grid and are coupled in memory, so
 there is no manual connection to keep in sync.
 """

@@ -14,12 +14,13 @@ dependencies = [
     "matplotlib>=3.4",
     "pyyaml>=5.4",
     "openpyxl>=3.0",
-    "grcwa>=0.1.2",
 ]
 
-# The whole toolchain is pure Python. The live RCWA optics stage uses `grcwa`
-# (numpy + autograd); the thermal stage, free-form optics, and resuming from
-# existing OUTPUTS4 folders have no extra requirements.
+# The pip dependencies above are pure Python. The live RCWA optics stage
+# additionally needs the Stanford S4 module, which has no PyPI package and must
+# be built from source (see README); it is therefore not listed here. The
+# thermal stage, free-form optics, and resuming from existing OUTPUTS4 folders
+# need no optics engine at all.
 
 [project.scripts]
 radcoolpv = "radcoolpv.cli:main"

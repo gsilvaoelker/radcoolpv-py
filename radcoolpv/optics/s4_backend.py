@@ -1,18 +1,19 @@
 """RCWA optics via the Stanford S4 Python bindings.
 
 Calls the S4 Python module (``import S4``) directly, replacing the original
-MATLAB-writes-Lua-files-and-shell-calls-S4 dance. The structure is built **once**
-and only ``SetMaterial`` / ``SetFrequency`` are re-issued per wavelength, which
-is what makes S4 fast enough for optimisation loops.
+MATLAB-writes-Lua-files-and-shell-calls-S4 dance. The structure is built once
+and only ``SetMaterial`` / ``SetFrequency`` are re-issued per wavelength.
 
-Two things distinguish this backend from the pure-Python ``grcwa_backend``:
+That reuse saves only the geometry setup, not the solve: changing a material
+invalidates every layer's eigen-decomposition, so S4 redoes the expensive part
+for each wavelength anyway. Do not assume this backend is fast merely because
+it builds once - measured against the pure-Python grcwa engine it was ~2x
+faster on a small cylinder but ~1.4x *slower* on a 20um-pitch semisphere array.
+S4 is used here for accuracy and analytic shapes, not for speed.
 
-* Patterns are **analytic** (``SetRegionCircle`` / ``SetRegionRectangle``), not
-  rasterised onto a grid, so there is no staircase approximation and no
-  ``grid_nx/ny`` resolution knob.
-* The flux bookkeeping reproduces ``SiO2Spheres-v5.lua``: both the reflected and
-  the transmitted flux are normalised by the incident flux, so results are
-  directly comparable with the MATLAB toolchain's ``OUTPUTS4`` files.
+Patterns are **analytic** (``SetRegionCircle`` / ``SetRegionRectangle``) rather
+than rasterised onto a grid, so curved shapes carry no staircase approximation,
+and uniform layers are solved exactly (agreement with analytic TMM is ~5e-15).
 
 S4 is imported lazily so the rest of the package works without it.
 """

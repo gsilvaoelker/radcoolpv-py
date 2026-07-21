@@ -9,8 +9,9 @@
 # hermetic and works on managed system Pythons (Homebrew, PEP 668). If you are
 # already inside a virtual environment, that one is used.
 #
-# Everything is pure Python (including the grcwa RCWA optics engine), so a plain
-# pip install covers the whole toolchain.
+# The pip dependencies are pure Python. The live RCWA optics stage additionally
+# needs the Stanford S4 module, which has no PyPI package and is built from
+# source - see README. Everything else runs without it.
 #
 set -euo pipefail
 
@@ -67,7 +68,7 @@ echo "==> Verifying installation"
 "$PYTHON" - <<'PY'
 import importlib
 ok = True
-for m in ("numpy", "scipy", "matplotlib", "yaml", "openpyxl", "grcwa", "radcoolpv"):
+for m in ("numpy", "scipy", "matplotlib", "yaml", "openpyxl", "radcoolpv"):
     try:
         importlib.import_module(m)
         print(f"   [ok]   {m}")

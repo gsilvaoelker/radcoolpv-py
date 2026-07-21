@@ -1,4 +1,4 @@
-"""Tests for geometry construction, free-form input, and the grcwa backend."""
+"""Tests for geometry construction, free-form input, and the S4 backend."""
 
 import os
 
@@ -6,7 +6,7 @@ import numpy as np
 import pytest
 
 from radcoolpv import config as config_module
-from radcoolpv.optics import freeform, geometry, grcwa_backend
+from radcoolpv.optics import freeform, geometry, s4_backend
 
 PKG_DATA = os.path.join(os.path.dirname(__file__), "..", "radcoolpv", "data")
 CONFIGS = os.path.join(os.path.dirname(__file__), "..", "configs")
@@ -39,7 +39,7 @@ def test_cylinder_structure(full_cfg):
 def test_triangle_discretization():
     cfg = config_module.from_dict({
         "run": {"thermal": False},
-        "geometry": {"source": "grcwa", "shape": "triangle",
+        "geometry": {"source": "s4", "shape": "triangle",
                      "photonic_material": "sio2",
                      "lattice": {"type": "square", "x": 20.0},
                      "discretization_layers": 4,
@@ -66,16 +66,16 @@ def test_freeform_normal_result():
     assert np.all(np.isfinite(res.abs_silicon))
 
 
-def test_grcwa_backend_guard(full_cfg):
-    # If grcwa is missing, sweep must raise a clear, actionable error.
-    if grcwa_backend.is_available():
-        pytest.skip("grcwa is installed; guard not exercised.")
-    with pytest.raises(RuntimeError, match="grcwa module is not installed"):
-        grcwa_backend.sweep(full_cfg, np.linspace(0.3, 30.0, 10),
-                            full_cfg.angle_array_deg())
+def test_s4_backend_guard(full_cfg):
+    # If S4 is missing, sweep must raise an error naming the build steps.
+    if s4_backend.is_available():
+        pytest.skip("S4 is installed; guard not exercised.")
+    with pytest.raises(RuntimeError, match="S4 Python module is not installed"):
+        s4_backend.sweep(full_cfg, np.linspace(0.3, 30.0, 10),
+                         full_cfg.angle_array_deg())
 
 
 def test_resolve_eps(full_cfg):
-    funcs = grcwa_backend.resolve_eps(full_cfg)
+    funcs = s4_backend.resolve_eps(full_cfg)
     assert "vacuum" in funcs and "sio2" in funcs and "silicon" in funcs
     assert np.isclose(funcs["vacuum"](1.0), 1.0)

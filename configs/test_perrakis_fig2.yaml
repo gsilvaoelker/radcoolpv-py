@@ -18,7 +18,7 @@ simulation:
   rcwa_modes: 1
 
 geometry:
-  source: grcwa
+  source: s4                # s4 | freeform
   shape: flat
   photonic_material: sio2
 

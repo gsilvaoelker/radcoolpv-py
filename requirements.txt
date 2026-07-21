@@ -1,11 +1,13 @@
-# Python runtime dependencies for radcoolpv (pip-installable, all pure Python).
+# Python runtime dependencies for radcoolpv (pip-installable).
+#
+# NOT listed here: the Stanford S4 RCWA module, needed only for the live optics
+# stage. It has no PyPI package and is built from source - see README.
 numpy>=1.21
 scipy>=1.7
 matplotlib>=3.4
 pyyaml>=5.4
 openpyxl>=3.0
-grcwa>=0.1.2          # pure-Python RCWA engine for the live optics stage
 
 # Optional, for development/tests:
 pytest>=7.0
-tmm>=0.1.8            # analytic transfer-matrix reference for tests/test_grcwa_backend.py
+tmm>=0.1.8            # analytic transfer-matrix reference for tests/test_s4_backend.py

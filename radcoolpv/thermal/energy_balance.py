@@ -35,7 +35,6 @@ class ThermalResult:
     non_thermal_power: np.ndarray
     cool_power: np.ndarray
     equil_temp: float
-    equil_index: int
     vmpp: float
     isc: float = 0.0
     mpp_amb: float = 0.0
@@ -101,12 +100,12 @@ def run(cfg, optics: OpticsResult, solar: SolarSpectrum) -> ThermalResult:
     # --- PV-free cooling curve -------------------------------------------- #
     if is_test or is_cooling_curve:
         cool = rad_p - atm_power + conv_p - solar_power
-        equil_temp, equil_index = _zero_crossing(emit_temp, cool)
+        equil_temp, _ = _zero_crossing(emit_temp, cool)
         return ThermalResult(
             emit_temp=emit_temp, rad_power=rad_p, atm_power=atm_power, conv_power=conv_p,
             solar_power=solar_power, solar_power_am15=solar.total_am15,
             max_power_point=np.zeros_like(emit_temp), non_thermal_power=np.zeros_like(emit_temp),
-            cool_power=cool, equil_temp=equil_temp, equil_index=equil_index, vmpp=0.0,
+            cool_power=cool, equil_temp=equil_temp, vmpp=0.0,
             rad_power_equil=float(_at_equilibrium(rad_p, emit_temp, equil_temp)),
             optics=optics,
         )
@@ -123,14 +122,13 @@ def run(cfg, optics: OpticsResult, solar: SolarSpectrum) -> ThermalResult:
         vmpp = cfg.thermal.vmpp
         ntp, cool = assemble(vmpp)
         equil_temp = cfg.thermal.emit_temp
-        equil_index = int(np.argmin(np.abs(emit_temp - equil_temp)))
     else:
         # Fixed point: Vmpp -> non-thermal power -> equilibrium T -> Vmpp(T_eq).
         vmpp = 0.65
-        equil_temp, equil_index = t_amb, 0
+        equil_temp = t_amb
         for _ in range(50):
             ntp, cool = assemble(vmpp)
-            equil_temp, equil_index = _zero_crossing(emit_temp, cool)
+            equil_temp, _ = _zero_crossing(emit_temp, cool)
             power_equil = _at_equilibrium(iv.cell_power, emit_temp, equil_temp, axis=1)
             vmpp_new = float(iv.volt[np.argmax(power_equil)])
             if abs(vmpp_new - vmpp) < 1e-4:
@@ -140,7 +138,6 @@ def run(cfg, optics: OpticsResult, solar: SolarSpectrum) -> ThermalResult:
         ntp, cool = assemble(vmpp)
 
     # Report every equilibrium quantity at the same interpolated temperature.
-    # ``equil_index`` remains only for temperature-grid plots.
     mpp_amb = float(iv.cell_power[:, 0].max())
     power_equil = _at_equilibrium(iv.cell_power, emit_temp, equil_temp, axis=1)
     current_equil = _at_equilibrium(iv.current_dens, emit_temp, equil_temp, axis=0)
@@ -158,7 +155,7 @@ def run(cfg, optics: OpticsResult, solar: SolarSpectrum) -> ThermalResult:
         emit_temp=emit_temp, rad_power=rad_p, atm_power=atm_power, conv_power=conv_p,
         solar_power=solar_power, solar_power_am15=solar.total_am15,
         max_power_point=iv.max_power_point, non_thermal_power=ntp, cool_power=cool,
-        equil_temp=equil_temp, equil_index=equil_index, vmpp=vmpp, isc=iv.isc,
+        equil_temp=equil_temp, vmpp=vmpp, isc=iv.isc,
         mpp_amb=mpp_amb, mpp_equil=mpp_equil, voc_amb=voc_amb, voc_equil=voc_equil,
         ff_amb=ff_amb, ff_equil=ff_equil, beta_p=beta_p, efficiency_equil=efficiency_equil,
         rad_power_equil=rad_power_equil, current_equil=current_equil, power_equil=power_equil,

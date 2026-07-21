@@ -26,12 +26,3 @@ def perrakis_fig2(base: Optional[str] = None) -> Optional[np.ndarray]:
     """Cooling power vs temperature (Perrakis et al. 2020, Fig. 2)."""
     return _load("perrakis-h0.dat", base)
 
-
-def green_iv(base: Optional[str] = None) -> Optional[np.ndarray]:
-    """Current-voltage reference (Green, OPEX paper)."""
-    return _load("currentVoltageGreenOPEXPaper.txt", base)
-
-
-def perrakis_power(base: Optional[str] = None) -> Optional[np.ndarray]:
-    """Power-voltage reference (Perrakis)."""
-    return _load("powerVoltagePerrakis.txt", base)

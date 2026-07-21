@@ -35,7 +35,7 @@ def _quartz_cfg(mode):
         "run": {"optics": True, "thermal": True, "plots": False, "mode": mode},
         "simulation": {"wavelength": {"min": 4.0, "max": 30.0, "n": 2000},
                        "angles": "hemispherical"},
-        "geometry": {"source": "grcwa", "shape": "flat", "photonic_material": "sio2"},
+        "geometry": {"source": "s4", "shape": "flat", "photonic_material": "sio2"},
         "structure": [{"material": "silicon", "thickness": 250.0},
                       {"material": "substrate", "thickness": 0.0, "terminal": True}],
         "materials": {"sio2": "PalikKitamura_SiO2", "silicon": "SiliconNew",
@@ -80,7 +80,7 @@ def test_pv_path_is_sane_and_fixed_point_converges():
     cfg = cm.from_dict({
         "run": {"optics": True, "thermal": True, "plots": False, "mode": "standard"},
         "simulation": {"wavelength": {"min": 0.3, "max": 30.0, "n": 2000}, "angles": "normal"},
-        "geometry": {"source": "grcwa", "shape": "flat", "photonic_material": "sio2"},
+        "geometry": {"source": "s4", "shape": "flat", "photonic_material": "sio2"},
         "structure": [{"material": "silicon", "thickness": 250.0},
                       {"material": "substrate", "thickness": 0.0, "terminal": True}],
         "materials": {"sio2": "PalikKitamura_SiO2", "silicon": "SiliconNew",
@@ -110,7 +110,7 @@ def test_cooling_curve_mode_uses_configured_temperature_sweep():
     cfg = cm.from_dict({
         "run": {"optics": True, "thermal": True, "plots": False, "mode": "cooling_curve"},
         "simulation": {"wavelength": {"min": 0.3, "max": 30.0, "n": 2000}, "angles": "normal"},
-        "geometry": {"source": "grcwa", "shape": "flat", "photonic_material": "sio2"},
+        "geometry": {"source": "s4", "shape": "flat", "photonic_material": "sio2"},
         "structure": [{"material": "silicon", "thickness": 250.0},
                       {"material": "substrate", "thickness": 0.0, "terminal": True}],
         "materials": {"sio2": "PalikKitamura_SiO2", "silicon": "SiliconNew",

@@ -7,8 +7,8 @@ A single YAML config drives a two-stage pipeline:
 
 1. **Optics** — spectral / directional reflectance, transmittance, absorptance,
    and silicon-layer absorption of a photonic structure on a multilayer PV
-   stack, via RCWA (the pure-Python **grcwa** engine), free-form data, or a
-   resumed previous run.
+   stack, via RCWA (the **S4** engine), free-form data, or a resumed previous
+   run.
 2. **Thermal** — the energy balance (radiative, atmospheric, convective, solar,
    electrical, and luminescence terms), the steady-state cell temperature, and
    the PV I–V / MPP / Voc / FF / efficiency / temperature coefficient.
@@ -31,7 +31,7 @@ installed anywhere with no dependency on the original `radCoolPV` MATLAB tree.
 
 The installer creates a local virtual environment (`.venv`) so it works on
 managed system Pythons (Homebrew / PEP 668), installs `requirements.txt`
-(numpy / scipy / matplotlib / pyyaml / openpyxl / grcwa — NumPy 1.x and 2.x both
+(numpy / scipy / matplotlib / pyyaml / openpyxl — NumPy 1.x and 2.x both
 supported), then `pip install -e .`. Activate it with
 `source .venv/bin/activate`.
 
@@ -41,21 +41,43 @@ Equivalently, by hand:
 pip install -r requirements.txt && pip install -e .
 ```
 
-The whole toolchain — including the RCWA optics stage (the pure-Python **grcwa**
-engine) — installs with plain `pip`; there is no compiled dependency to build.
+### The S4 optics engine
+
+The **live RCWA optics stage additionally requires the Stanford S4 module.**
+Everything else — the thermal/PV stage, free-form optics, and resuming from an
+existing `OUTPUTS4` folder — runs without it.
+
+S4 has **no PyPI package** and must be compiled. Use the maintained fork; the
+upstream `victorliu/S4` Python binding still calls the Python 2 C API and no
+longer matches its own `libS4` signatures, so it will not build against
+Python 3.
+
+```bash
+brew install fftw suite-sparse openblas lapack boost   # macOS
+git clone https://github.com/phoebe-p/S4 && cd S4
+make -f Makefile.m1 S4_pyext      # Apple silicon
+make S4_pyext                     # Linux / Intel macOS
+```
+
+On Debian/Ubuntu the dependencies are
+`libopenblas-dev libfftw3-dev libsuitesparse-dev libboost-all-dev`.
+
+Verify with `python -c "import S4; print(S4)"`. If S4 is missing, any config
+with `geometry.source: s4` fails with a message repeating these steps.
 
 ## Run
 
 ```bash
-radcoolpv run configs/full.yaml                 # optics (grcwa RCWA) + thermal
+radcoolpv run configs/full.yaml                 # optics (S4 RCWA) + thermal
 radcoolpv run configs/full.yaml --print-config  # just show resolved settings
-radcoolpv run configs/optics_only.yaml          # optics only (grcwa RCWA)
+radcoolpv run configs/optics_only.yaml          # optics only (S4 RCWA)
 radcoolpv run configs/freeform.yaml             # free-form optics + PV
 radcoolpv run configs/test_perrakis_fig2.yaml   # validation: Perrakis 2020 Fig. 2
 ```
 
-Live RCWA of a *patterned* structure is pure-Python and therefore slower than
-the old C++ S4; for a quick run reduce `simulation.wavelength.n` or set
+A live RCWA sweep of a *patterned* structure is the expensive part of a run:
+cost scales with wavelengths x angles x `simulation.rcwa_modes`. For a quick
+run reduce `simulation.wavelength.n`, lower `rcwa_modes`, or set
 `simulation.angles: normal`.
 
 Each run creates a timestamped folder under `results/` containing legacy
@@ -74,7 +96,7 @@ See `configs/full.yaml` for the annotated reference. Key toggles:
 | `run.plots` | generate figures |
 | `run.mode` | `standard` / `cooling_curve` / `test` / `spectral_compare` |
 | `run.outputs` | any of `legacy`, `clean` |
-| `geometry.source` | `grcwa` (pure-Python RCWA) or `freeform` (read optimised data) |
+| `geometry.source` | `s4` (RCWA) or `freeform` (read optimised data) |
 | `geometry.shape` | `flat` / `sphere` / `semisphere` / `triangle` / `cylinder` |
 | `thermal.equilibrium` | `auto` (fixed point) or `manual` (`emit_temp` + `vmpp`) |
 
@@ -112,7 +134,7 @@ radcoolpv/
   constants.py         physical constants / unit conversions
   pipeline.py          orchestrator (stage coupling, outputs, plots)
   materials/           registry + tabulated loader + analytic models + data/
-  optics/              geometry, grcwa_backend, directional, averages, freeform
+  optics/              geometry, s4_backend, directional, averages, freeform
   thermal/             spectra, radiative, pv, energy_balance
   io/                  results context + legacy/clean writers
   plotting/            figures

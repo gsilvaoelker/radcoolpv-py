@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import os
 
-from .config import RCWA_BACKENDS, Config
+from .config import Config
 from .io.results import RunContext, make_results_dir
 
 
@@ -42,8 +42,6 @@ def print_resolved(cfg: Config) -> None:
 
 def _run_optics(cfg: Config, ctx: RunContext):
     """Run (or resume) the optics stage, returning an OpticsResult."""
-    import importlib
-
     from .optics import directional, freeform
 
     atmosphere = cfg.resolve_data(cfg.data.atmosphere)
@@ -62,17 +60,15 @@ def _run_optics(cfg: Config, ctx: RunContext):
         print(f"[optics]  reading free-form data: {os.path.basename(ff)}")
         return freeform.load(ff, n_lambda, atmosphere)
 
-    # Explicit backend dispatch: an unknown source must fail loudly here rather
-    # than fall through to whichever engine happens to be listed last. The
-    # import is lazy so an unbuilt engine only breaks the run that asks for it.
-    backend = importlib.import_module(
-        f".optics.{RCWA_BACKENDS[cfg.geometry.source]}", __package__)
+    # Imported here, not at module scope, so the rest of the package works
+    # without a compiled S4 (freeform and resume paths need no optics engine).
+    from .optics import s4_backend
 
     grid = cfg.wavelength_array()
     angles = cfg.angle_array_deg()
-    print(f"[optics]  {cfg.geometry.source} RCWA sweep: {len(grid)} wavelengths "
+    print(f"[optics]  S4 RCWA sweep: {len(grid)} wavelengths "
           f"x {len(angles)} angle(s)")
-    raw = backend.sweep(cfg, grid, angles)
+    raw = s4_backend.sweep(cfg, grid, angles)
     ctx.extras["raw"] = raw
     return directional.reduce(raw, atmosphere, lambda_grid=grid)
 

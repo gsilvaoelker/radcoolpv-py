@@ -20,6 +20,17 @@ class ConfigError(ValueError):
     """Raised when the YAML config is missing or inconsistent."""
 
 
+class _LinspaceSweep:
+    """Mixin for the ``min``/``max``/``n`` sweep sections.
+
+    Declares no fields, so subclasses stay plain dataclasses and remain free to
+    choose their own defaults (or require explicit values).
+    """
+
+    def array(self) -> np.ndarray:
+        return np.linspace(self.min, self.max, self.n)
+
+
 # --------------------------------------------------------------------------- #
 # Dataclasses (mirror the YAML structure).
 # --------------------------------------------------------------------------- #
@@ -29,29 +40,24 @@ class RunConfig:
     optics: bool = True
     thermal: bool = True
     plots: bool = True
-    mode: str = "standard"            # standard | test | test2 | cooling_curve
+    mode: str = "standard"            # standard | test | cooling_curve
     results_dir: str = "results"
     outputs: List[str] = field(default_factory=lambda: ["legacy", "clean"])
     optics_results: Optional[str] = None  # resume a prior optics run
 
 
 @dataclass
-class Wavelength:
+class Wavelength(_LinspaceSweep):
     min: float = 0.3
     max: float = 30.0
     n: int = 2000
-
-    def array(self) -> np.ndarray:
-        return np.linspace(self.min, self.max, self.n)
 
 
 @dataclass
 class SimulationConfig:
     wavelength: Wavelength = field(default_factory=Wavelength)
     angles: str = "hemispherical"     # normal | hemispherical
-    rcwa_modes: int = 10              # grcwa Fourier truncation (nG)
-    grid_nx: int = 128               # patterned-layer raster resolution (grcwa)
-    grid_ny: int = 128
+    rcwa_modes: int = 10              # S4 Fourier truncation (NumBasis)
 
     def angle_array_deg(self) -> np.ndarray:
         if self.angles == "normal":
@@ -71,7 +77,7 @@ class Lattice:
 
 @dataclass
 class GeometryConfig:
-    source: str = "grcwa"            # grcwa | freeform
+    source: str = "s4"               # s4 | freeform
     shape: str = "flat"              # flat | sphere | semisphere | triangle | cylinder
     photonic_material: str = "sio2"
     lattice: Lattice = field(default_factory=Lattice)
@@ -105,23 +111,17 @@ class PVConfig:
 
 
 @dataclass
-class VoltageSweep:
+class VoltageSweep(_LinspaceSweep):
     min: float = 0.1
     max: float = 0.8
     n: int = 100
 
-    def array(self) -> np.ndarray:
-        return np.linspace(self.min, self.max, self.n)
-
 
 @dataclass
-class TemperatureSweep:
+class TemperatureSweep(_LinspaceSweep):
     min: float
     max: float
     n: int
-
-    def array(self) -> np.ndarray:
-        return np.linspace(self.min, self.max, self.n)
 
 
 @dataclass
@@ -293,18 +293,13 @@ def load(path: str) -> Config:
 # --------------------------------------------------------------------------- #
 
 _SHAPES = {"flat", "sphere", "semisphere", "triangle", "cylinder"}
-
-# geometry.source values that mean "run a live RCWA sweep", mapped to the module
-# under radcoolpv.optics that implements them. Single source of truth: validate()
-# accepts these keys and pipeline dispatches on them.
-RCWA_BACKENDS = {"s4": "s4_backend", "grcwa": "grcwa_backend"}
-_SOURCES = set(RCWA_BACKENDS) | {"freeform"}
+_SOURCES = {"s4", "freeform"}
 
 
 def validate(cfg: Config) -> None:
-    if cfg.run.mode not in {"standard", "test", "test2", "cooling_curve", "spectral_compare"}:
+    if cfg.run.mode not in {"standard", "test", "cooling_curve", "spectral_compare"}:
         raise ConfigError(
-            f"run.mode must be standard|test|test2|cooling_curve|spectral_compare, got {cfg.run.mode!r}"
+            f"run.mode must be standard|test|cooling_curve|spectral_compare, got {cfg.run.mode!r}"
         )
     for o in cfg.run.outputs:
         if o not in {"legacy", "clean"}:
@@ -339,7 +334,7 @@ def validate(cfg: Config) -> None:
             f"geometry.source must be one of {sorted(_SOURCES)}, "
             f"got {cfg.geometry.source!r}")
 
-    if cfg.run.optics and cfg.geometry.source in RCWA_BACKENDS:
+    if cfg.run.optics and cfg.geometry.source == "s4":
         if cfg.geometry.shape not in _SHAPES:
             raise ConfigError(f"geometry.shape must be one of {sorted(_SHAPES)}, got {cfg.geometry.shape!r}")
         _require_shape_params(cfg.geometry)

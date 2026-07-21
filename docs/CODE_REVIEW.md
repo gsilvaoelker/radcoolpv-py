@@ -1,5 +1,25 @@
 # radcoolpv — code review
 
+> **SUPERSEDED — historical record, retained for provenance.**
+>
+> This review describes a state of the package that no longer exists: it was
+> written when the optics engine had just been swapped from S4 to the pure-Python
+> `grcwa`. That swap has since been **reversed** — S4 is again the only RCWA
+> backend and `grcwa_backend.py` has been removed.
+>
+> Two conclusions below are now known to be **wrong**:
+>
+> * *"S4 Python accessibility"* concluded the S4 pyext "was never built" and that
+>   building it was impractical. In fact the module builds fine from the
+>   maintained fork `github.com/phoebe-p/S4`; only *upstream* `victorliu/S4` fails,
+>   because its binding still calls the Python 2 C API and no longer matches its
+>   own `libS4` signatures. See the README for the working recipe.
+> * The claim that the toolchain has "no compiled dependency" no longer holds.
+>
+> Findings 2 (`test2`), 5 (`emit_atm` column) and the dead-reference loaders have
+> since been fixed or removed. Findings 1, 3, 5 (bandgap scalar), 6 and 7 were
+> still open at the time of writing.
+
 Scope: the `radcoolpv` package as of this change set (pure-Python optics via
 `grcwa`). Report only; no code was changed for the sake of the review. The one
 functional change in this session — replacing the S4 backend with `grcwa` — is

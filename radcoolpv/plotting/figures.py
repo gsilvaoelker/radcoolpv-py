@@ -2,7 +2,7 @@
 
 Uses a non-interactive backend and writes PNGs into ``<results>/figures``. Which
 figures are produced depends on which stages ran (optics and/or thermal) and the
-run mode (test/test2 add literature overlays).
+run mode (test adds a literature overlay).
 """
 
 from __future__ import annotations
@@ -18,7 +18,7 @@ from ..io.results import RunContext
 from ..validation import references
 
 
-def make_all(ctx: RunContext, lit_base: str = None) -> list:
+def make_all(ctx: RunContext) -> list:
     """Create all applicable figures; return the list of file paths written."""
     out_dir = os.path.join(ctx.results_dir, "figures")
     os.makedirs(out_dir, exist_ok=True)
@@ -37,7 +37,7 @@ def make_all(ctx: RunContext, lit_base: str = None) -> list:
         if ctx.config.run.mode == "cooling_curve":
             paths.append(_cooling_power_curve(out_dir, thermal, ctx.config))
         elif ctx.config.run.mode == "test":
-            paths.append(_cooling_power_validation(out_dir, thermal, lit_base))
+            paths.append(_cooling_power_validation(out_dir, thermal))
         else:
             paths.append(_energy_balance_terms(out_dir, thermal))
         if thermal.iv is not None:
@@ -117,10 +117,10 @@ def _energy_balance_terms(out_dir, t):
     return _save(fig, os.path.join(out_dir, "energy_balance_terms.png"))
 
 
-def _cooling_power_validation(out_dir, t, lit_base):
+def _cooling_power_validation(out_dir, t):
     fig, ax = plt.subplots(figsize=(7, 4))
     ax.plot(t.emit_temp, t.cool_power, label="This code")
-    ref = references.perrakis_fig2(lit_base)
+    ref = references.perrakis_fig2()
     if ref is not None:
         ax.plot(ref[:, 0], ref[:, 1], "o--", label="Perrakis et al.")
     ax.axhline(0.0, color="k", lw=0.8)
