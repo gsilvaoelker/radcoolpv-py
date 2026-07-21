@@ -9,6 +9,7 @@ mode reproduces the exact MATLAB values when needed for validation.
 
 from __future__ import annotations
 
+import warnings
 from dataclasses import dataclass, field
 from typing import Optional
 
@@ -21,6 +22,8 @@ from .radiative import rad_power
 from .spectra import SolarSpectrum
 
 _TEST_SOLAR_POWER = 620.0   # W/m^2, absorbed-solar override for the Perrakis Fig.2 test
+_MAX_FIXED_POINT_ITERS = 50
+_VMPP_TOL = 1e-5            # V; Vmpp is refined off-grid, so this is meaningful
 
 
 @dataclass
@@ -52,13 +55,28 @@ class ThermalResult:
     optics: Optional[OpticsResult] = None
 
 
-def _zero_crossing(x: np.ndarray, y: np.ndarray) -> tuple:
-    """First x where y crosses from negative to non-negative (linear interp)."""
+def _zero_crossing(x: np.ndarray, y: np.ndarray, what: str = "equilibrium") -> tuple:
+    """First x where y crosses from negative to non-negative (linear interp).
+
+    If the crossing lies outside the swept range the result is clamped to an
+    endpoint, which is a real answer only by coincidence - so warn rather than
+    return it silently. The PV temperature sweep is a hard-coded T_amb..T_amb+49
+    (`pv._N_TEMP`), and a poorly cooled module under full sun can equilibrate
+    above that.
+    """
     if y[0] >= 0:
+        warnings.warn(
+            f"{what}: the balance is already non-negative at the lowest swept "
+            f"point ({x[0]:g}); the true crossing lies below the range and the "
+            f"result is clamped to it.", RuntimeWarning, stacklevel=2)
         return float(x[0]), 0
     idx = np.where(y >= 0)[0]
     if idx.size == 0:
-        return float(x[-1]), len(x) - 1          # never cools; clamp to hottest
+        warnings.warn(
+            f"{what}: no zero crossing within {x[0]:g}-{x[-1]:g}; the result is "
+            f"clamped to the upper end and is NOT the true crossing.",
+            RuntimeWarning, stacklevel=2)
+        return float(x[-1]), len(x) - 1
     i = idx[0]
     x0, x1, y0, y1 = x[i - 1], x[i], y[i - 1], y[i]
     xc = x0 + (x1 - x0) * (0.0 - y0) / (y1 - y0)
@@ -100,7 +118,7 @@ def run(cfg, optics: OpticsResult, solar: SolarSpectrum) -> ThermalResult:
     # --- PV-free cooling curve -------------------------------------------- #
     if is_test or is_cooling_curve:
         cool = rad_p - atm_power + conv_p - solar_power
-        equil_temp, _ = _zero_crossing(emit_temp, cool)
+        equil_temp, _ = _zero_crossing(emit_temp, cool, "equilibrium temperature")
         return ThermalResult(
             emit_temp=emit_temp, rad_power=rad_p, atm_power=atm_power, conv_power=conv_p,
             solar_power=solar_power, solar_power_am15=solar.total_am15,
@@ -124,24 +142,35 @@ def run(cfg, optics: OpticsResult, solar: SolarSpectrum) -> ThermalResult:
         equil_temp = cfg.thermal.emit_temp
     else:
         # Fixed point: Vmpp -> non-thermal power -> equilibrium T -> Vmpp(T_eq).
+        # Vmpp is refined off-grid, so a genuine tolerance is meaningful here.
+        # (With the old argmax it could only take grid values, and a tolerance
+        # finer than the 7 mV step could never be met while the iteration
+        # alternated between two adjacent points.)
         vmpp = 0.65
         equil_temp = t_amb
-        for _ in range(50):
+        converged = False
+        for _ in range(_MAX_FIXED_POINT_ITERS):
             ntp, cool = assemble(vmpp)
-            equil_temp, _ = _zero_crossing(emit_temp, cool)
+            equil_temp, _ = _zero_crossing(emit_temp, cool, "equilibrium temperature")
             power_equil = _at_equilibrium(iv.cell_power, emit_temp, equil_temp, axis=1)
-            vmpp_new = float(iv.volt[np.argmax(power_equil)])
-            if abs(vmpp_new - vmpp) < 1e-4:
-                vmpp = vmpp_new
+            vmpp_new = pv.refine_peak(iv.volt, power_equil)[0]
+            if abs(vmpp_new - vmpp) < _VMPP_TOL:
+                converged = True
                 break
             vmpp = vmpp_new
+        if not converged:
+            warnings.warn(
+                f"Vmpp fixed point did not settle in {_MAX_FIXED_POINT_ITERS} "
+                f"iterations (last two: {vmpp:g} V); it is likely alternating "
+                f"between adjacent points of the thermal.voltage grid. Results "
+                f"use the final value.", RuntimeWarning, stacklevel=2)
         ntp, cool = assemble(vmpp)
 
     # Report every equilibrium quantity at the same interpolated temperature.
-    mpp_amb = float(iv.cell_power[:, 0].max())
+    mpp_amb = pv.refine_peak(iv.volt, iv.cell_power[:, 0])[1]
     power_equil = _at_equilibrium(iv.cell_power, emit_temp, equil_temp, axis=1)
     current_equil = _at_equilibrium(iv.current_dens, emit_temp, equil_temp, axis=0)
-    mpp_equil = float(power_equil.max())
+    mpp_equil = pv.refine_peak(iv.volt, power_equil)[1]
     voc_amb = pv.open_circuit_voltage(iv.current_dens[0, :], iv.volt)
     voc_equil = pv.open_circuit_voltage(current_equil, iv.volt)
     ff_amb = mpp_amb / (iv.isc * voc_amb) if (iv.isc and voc_amb) else 0.0

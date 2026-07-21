@@ -134,7 +134,7 @@ def solve_iv(cfg, optics: OpticsResult, photon_flux_sun: np.ndarray) -> IVResult
             id0 = idn
 
         cell_power[:, it] = -current_dens[it, :] * volt
-        max_power_point[it] = cell_power[:, it].max()
+        max_power_point[it] = refine_peak(volt, cell_power[:, it])[1]
 
     return IVResult(
         emit_temp=emit_temp, volt=volt, current_dens=current_dens, cell_power=cell_power,
@@ -161,9 +161,65 @@ def non_thermal_power(iv: IVResult, optics: OpticsResult, vmpp: float) -> np.nda
     return out
 
 
+def refine_peak(x: np.ndarray, y: np.ndarray) -> tuple:
+    """Sub-grid maximum of ``y(x)`` by a parabola through the peak and its
+    neighbours, returning ``(x_peak, y_peak)``.
+
+    ``max()`` over a sampled curve reports the largest *sample*, not the peak,
+    so both Pmpp and Vmpp would otherwise inherit the resolution of
+    ``thermal.voltage``. The power curve is smooth and near-parabolic around
+    the maximum, so three points recover it to well below the grid step.
+
+    Falls back to the raw sample when the maximum sits on a boundary or the
+    three points are collinear. Assumes locally uniform spacing, which holds -
+    the voltage grid is a linspace.
+    """
+    x = np.asarray(x, dtype=float)
+    y = np.asarray(y, dtype=float)
+    i = int(np.argmax(y))
+    if i == 0 or i == len(y) - 1:
+        return float(x[i]), float(y[i])
+
+    y0, y1, y2 = y[i - 1], y[i], y[i + 1]
+    denom = y0 - 2.0 * y1 + y2
+    if denom == 0.0:
+        return float(x[i]), float(y[i])
+
+    delta = 0.5 * (y0 - y2) / denom            # in grid steps, within [-0.5, 0.5]
+    step = x[i + 1] - x[i]
+    return float(x[i] + delta * step), float(y1 - 0.25 * (y0 - y2) * delta)
+
+
 def open_circuit_voltage(current_dens_row: np.ndarray, volt: np.ndarray) -> float:
-    """First voltage where the output current (-J) goes negative (port of MATLAB find)."""
-    neg = np.where(-current_dens_row < 0)[0]
-    if neg.size == 0 or neg[0] == 0:
-        return float(volt[-1])
-    return float(volt[neg[0] - 1])
+    """Voltage where the output current ``-J`` crosses zero.
+
+    The MATLAB original used ``find`` and returned the last grid point *before*
+    the crossing, which quantises Voc to the voltage grid and biases it low by
+    up to one step (7 mV on the default 0.1-0.8 V, n=100 sweep). This
+    interpolates the crossing instead, so Voc no longer depends on how finely
+    ``thermal.voltage`` happens to be sampled.
+
+    Raises if the sweep does not bracket Voc. The previous behaviour returned
+    ``volt[-1]`` in that case, which is silently wrong in both directions: too
+    low when Voc lies above the sweep, and wildly too high when it lies below
+    (it returned the maximum voltage for a cell already past open circuit).
+    """
+    out = -np.asarray(current_dens_row, dtype=float)
+    volt = np.asarray(volt, dtype=float)
+
+    if out[0] < 0.0:
+        raise ValueError(
+            f"Output current is already negative at the lowest swept voltage "
+            f"({volt[0]:g} V), so Voc lies below the sweep. Lower "
+            f"thermal.voltage.min."
+        )
+    neg = np.where(out < 0.0)[0]
+    if neg.size == 0:
+        raise ValueError(
+            f"Output current never crosses zero within {volt[0]:g}-{volt[-1]:g} V, "
+            f"so Voc lies above the sweep. Raise thermal.voltage.max."
+        )
+
+    i = int(neg[0])
+    y0, y1 = out[i - 1], out[i]
+    return float(volt[i - 1] + (volt[i] - volt[i - 1]) * y0 / (y0 - y1))
