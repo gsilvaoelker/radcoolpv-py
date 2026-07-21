@@ -127,27 +127,34 @@ def _photonic_layers(cfg: Config) -> List[S4Layer]:
                 if hexa:
                     pats.append(Pattern("circle", mat, corner, radius=xs[i]))
                 layers.append(S4Layer(f"Layer_{i + 1}", delta, "vacuum", pats))
-        else:  # semisphere: lower half only (matches the MATLAB writing loop)
-            # MATLAB's round() rounds half AWAY FROM ZERO, Python's rounds half
-            # TO EVEN, so a literal round(n/2) silently drops the equatorial
-            # slab whenever n is odd and n//2 is even (n = 5, 9, 21, ...). The
-            # dome then came out delta short - 4.0 um instead of 5.0 at n = 5.
-            # ceil() is what MATLAB's round(n/2) means for positive n.
-            half = (n + 1) // 2
+        else:
+            # Semisphere: the dome is the upper half of that sphere, so it must
+            # span exactly `rad` for any n. Where the equator falls decides how
+            # the middle slab is treated:
+            #
+            #   n even -> the equator lands on a slab BOUNDARY, so the top n/2
+            #             slabs are whole:      (n/2) * delta            = rad
+            #   n odd  -> the equator bisects the middle slab, so that one
+            #             counts half:  ((n-1)/2 + 1/2) * delta          = rad
+            #
+            # The MATLAB original wrote this as round(n/2) and only ever claimed
+            # to support odd n ("Use odd numbers for semipsheres"). Transcribing
+            # that round() was a bug twice over: Python rounds half TO EVEN
+            # rather than AWAY FROM ZERO, dropping the equatorial slab for
+            # n = 5, 9, 21..., and n = 1 (the default) produced no layers at all.
+            n_full = n // 2
             for i in range(n):
                 idx = i + 1
-                if idx < n / 2:
+                if idx <= n_full:
                     thick = delta
-                elif idx == half:
-                    thick = delta * 0.5
+                elif n % 2 == 1 and idx == n_full + 1:
+                    thick = delta * 0.5          # slab straddling the equator
                 else:
                     break
                 pats = [Pattern("circle", mat, (0.0, 0.0), radius=xs[i])]
                 if hexa:
                     pats.append(Pattern("circle", mat, corner, radius=xs[i]))
                 layers.append(S4Layer(f"Layer_{idx}", thick, "vacuum", pats))
-                if idx == half:
-                    break
         return layers
 
     if g.shape == "triangle":
