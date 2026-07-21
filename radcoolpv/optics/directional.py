@@ -50,6 +50,49 @@ class RawOptics:
         return len(self.lambda_um)
 
 
+# --- helpers shared by the RCWA backends -----------------------------------
+#
+# Both backends run the same (angle, polarisation, wavelength) sweep and pack
+# the same accumulator into RawOptics. Keeping that here means a new backend
+# cannot silently disagree with an existing one about TE/TM conventions or
+# about when TM is computed at all.
+
+def polarisations(angles_deg: np.ndarray):
+    """Return ``(normal, pols)`` for an angle list.
+
+    At normal incidence TE and TM are degenerate, so only TE is swept - matching
+    the MATLAB driver. ``pols`` entries are ``(name, s_amplitude, p_amplitude)``
+    with TE = s-polarised and TM = p-polarised.
+    """
+    angles = np.asarray(angles_deg, dtype=float)
+    normal = (len(angles) == 1) and np.isclose(angles[0], 0.0)
+    pols = [("te", 1.0, 0.0)] if normal else [("te", 1.0, 0.0), ("tm", 0.0, 1.0)]
+    return normal, pols
+
+
+def new_accumulator(pols, n_lambda: int, n_theta: int):
+    """Zeroed ``{pol: {quantity: (n_lambda, n_theta) array}}`` accumulator."""
+    return {p[0]: {k: np.zeros((n_lambda, n_theta)) for k in
+                   ("ref", "tran", "abs", "abs_si")} for p in pols}
+
+
+def pack_raw(out, angles_deg: np.ndarray, lambda_grid: np.ndarray,
+             normal: bool) -> "RawOptics":
+    """Turn a backend accumulator into a :class:`RawOptics`."""
+    raw = RawOptics(
+        theta_deg=np.asarray(angles_deg, dtype=float),
+        lambda_um=np.asarray(lambda_grid, dtype=float),
+        ref_te=out["te"]["ref"], tran_te=out["te"]["tran"],
+        abs_te=out["te"]["abs"], abs_si_te=out["te"]["abs_si"],
+    )
+    if not normal:
+        raw.ref_tm = out["tm"]["ref"]
+        raw.tran_tm = out["tm"]["tran"]
+        raw.abs_tm = out["tm"]["abs"]
+        raw.abs_si_tm = out["tm"]["abs_si"]
+    return raw
+
+
 def _read_output_file(path: str, n_lambda: int) -> np.ndarray:
     """Read an OUTPUTS4 file as (n_theta, n_lambda, 6)."""
     data = np.loadtxt(path)

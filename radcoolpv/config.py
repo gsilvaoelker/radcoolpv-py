@@ -294,6 +294,12 @@ def load(path: str) -> Config:
 
 _SHAPES = {"flat", "sphere", "semisphere", "triangle", "cylinder"}
 
+# geometry.source values that mean "run a live RCWA sweep", mapped to the module
+# under radcoolpv.optics that implements them. Single source of truth: validate()
+# accepts these keys and pipeline dispatches on them.
+RCWA_BACKENDS = {"s4": "s4_backend", "grcwa": "grcwa_backend"}
+_SOURCES = set(RCWA_BACKENDS) | {"freeform"}
+
 
 def validate(cfg: Config) -> None:
     if cfg.run.mode not in {"standard", "test", "test2", "cooling_curve", "spectral_compare"}:
@@ -328,16 +334,17 @@ def validate(cfg: Config) -> None:
         raise ConfigError("simulation.wavelength.n must be >= 2.")
     cfg.simulation.angle_array_deg()  # raises if angles invalid
 
-    if cfg.run.optics and cfg.geometry.source not in {"grcwa", "freeform"}:
+    if cfg.run.optics and cfg.geometry.source not in _SOURCES:
         raise ConfigError(
-            f"geometry.source must be 'grcwa' or 'freeform', got {cfg.geometry.source!r}")
+            f"geometry.source must be one of {sorted(_SOURCES)}, "
+            f"got {cfg.geometry.source!r}")
 
-    if cfg.run.optics and cfg.geometry.source == "grcwa":
+    if cfg.run.optics and cfg.geometry.source in RCWA_BACKENDS:
         if cfg.geometry.shape not in _SHAPES:
             raise ConfigError(f"geometry.shape must be one of {sorted(_SHAPES)}, got {cfg.geometry.shape!r}")
         _require_shape_params(cfg.geometry)
         if not cfg.structure:
-            raise ConfigError("`structure` must list at least the terminal layer when running grcwa optics.")
+            raise ConfigError("`structure` must list at least the terminal layer when running RCWA optics.")
         if not any(l.terminal for l in cfg.structure):
             raise ConfigError("`structure` must mark exactly one layer as terminal: true (the substrate).")
         # Photonic + structure materials must be declared in `materials`.

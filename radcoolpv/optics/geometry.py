@@ -2,21 +2,23 @@
 
 Ports the geometry blocks of ``mainOpticalMatlabS4_v11.m`` (the discretisation
 of spheres/semispheres/triangles/cylinders and the flat layer stack). Produces a
-solver-agnostic description that ``grcwa_backend`` turns into RCWA calls; this
+solver-agnostic description that an optics backend turns into RCWA calls; this
 keeps the geometry math independent of the optics engine. The ``S4Structure`` /
 ``S4Layer`` names are retained from the original port for continuity.
 
 All lengths are in micrometres. Material names are the *logical* names from the
-config (e.g. ``sio2``, ``silicon``, ``vacuum``); the backend maps them to eps.
+config (e.g. ``sio2``, ``silicon``, ``vacuum``); :func:`resolve_eps` maps them to
+permittivity callables for whichever backend is running.
 """
 
 from __future__ import annotations
 
 import math
 from dataclasses import dataclass, field
-from typing import List, Optional, Tuple
+from typing import Callable, Dict, List, Optional, Tuple
 
 from ..config import Config
+from ..materials import analytic, registry
 
 LatticeVectors = Tuple[Tuple[float, float], Tuple[float, float]]
 
@@ -46,6 +48,28 @@ class S4Structure:
     silicon_layer: Optional[str]    # layer name used for the Si-absorption probe
     bottom_layer: str               # terminal layer name (transmission probe)
     top_layer: str = "layerVacuumTop"
+
+
+def resolve_eps(cfg: Config) -> Dict[str, Callable]:
+    """Map each logical material name to its ``eps(lambda_um)`` callable.
+
+    Shared by every RCWA backend, so they cannot drift apart in how a config
+    material name is turned into permittivity.
+    """
+    funcs: Dict[str, Callable] = {"vacuum": analytic.vacuum}
+    for logical, model in cfg.materials.items():
+        funcs[logical] = registry.get(model)
+    return funcs
+
+
+def used_materials(structure: S4Structure) -> List[str]:
+    """Every logical material appearing anywhere in the structure, sorted."""
+    names = {"vacuum"}
+    for layer in structure.layers:
+        names.add(layer.background)
+        for pat in layer.patterns:
+            names.add(pat.material)
+    return sorted(names)
 
 
 def _lattice(cfg: Config) -> LatticeVectors:

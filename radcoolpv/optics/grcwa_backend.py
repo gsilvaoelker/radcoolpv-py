@@ -27,9 +27,9 @@ from typing import Callable, Dict, List, Tuple
 import numpy as np
 
 from ..config import Config
-from ..materials import analytic, registry
+from . import directional
 from .directional import RawOptics
-from .geometry import S4Structure, build_structure
+from .geometry import S4Structure, build_structure, resolve_eps  # noqa: F401
 
 
 def is_available() -> bool:
@@ -39,14 +39,6 @@ def is_available() -> bool:
         return True
     except Exception:
         return False
-
-
-def resolve_eps(cfg: Config) -> Dict[str, Callable]:
-    """Map each logical material name to its ``eps(lambda_um)`` callable."""
-    funcs: Dict[str, Callable] = {"vacuum": analytic.vacuum}
-    for logical, model in cfg.materials.items():
-        funcs[logical] = registry.get(model)
-    return funcs
 
 
 def _pattern_masks(structure: S4Structure, nx: int, ny: int):
@@ -110,12 +102,8 @@ def sweep(cfg: Config, lambda_grid: np.ndarray, angles_deg: np.ndarray) -> RawOp
 
     angles = np.asarray(angles_deg, dtype=float)
     n_theta, n_lambda = len(angles), len(lambda_grid)
-    normal = (n_theta == 1) and np.isclose(angles[0], 0.0)
-    # (name, s_amp, p_amp): TE = s-polarised, TM = p-polarised.
-    pols = [("te", 1.0, 0.0)] if normal else [("te", 1.0, 0.0), ("tm", 0.0, 1.0)]
-
-    out = {p[0]: {k: np.zeros((n_lambda, n_theta)) for k in
-                  ("ref", "tran", "abs", "abs_si")} for p in pols}
+    normal, pols = directional.polarisations(angles)
+    out = directional.new_accumulator(pols, n_lambda, n_theta)
 
     for it, theta_deg in enumerate(angles):
         theta = np.deg2rad(theta_deg)
@@ -156,17 +144,7 @@ def sweep(cfg: Config, lambda_grid: np.ndarray, angles_deg: np.ndarray) -> RawOp
                 d["abs"][il, it] = A
                 d["abs_si"][il, it] = a_si
 
-    raw = RawOptics(
-        theta_deg=angles, lambda_um=np.asarray(lambda_grid, dtype=float),
-        ref_te=out["te"]["ref"], tran_te=out["te"]["tran"],
-        abs_te=out["te"]["abs"], abs_si_te=out["te"]["abs_si"],
-    )
-    if not normal:
-        raw.ref_tm = out["tm"]["ref"]
-        raw.tran_tm = out["tm"]["tran"]
-        raw.abs_tm = out["tm"]["abs"]
-        raw.abs_si_tm = out["tm"]["abs_si"]
-    return raw
+    return directional.pack_raw(out, angles, lambda_grid, normal)
 
 
 def _layer_absorption(obj, get_flux, layer_idx: int) -> float:

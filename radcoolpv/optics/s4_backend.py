@@ -1,0 +1,153 @@
+"""RCWA optics via the Stanford S4 Python bindings.
+
+Calls the S4 Python module (``import S4``) directly, replacing the original
+MATLAB-writes-Lua-files-and-shell-calls-S4 dance. The structure is built **once**
+and only ``SetMaterial`` / ``SetFrequency`` are re-issued per wavelength, which
+is what makes S4 fast enough for optimisation loops.
+
+Two things distinguish this backend from the pure-Python ``grcwa_backend``:
+
+* Patterns are **analytic** (``SetRegionCircle`` / ``SetRegionRectangle``), not
+  rasterised onto a grid, so there is no staircase approximation and no
+  ``grid_nx/ny`` resolution knob.
+* The flux bookkeeping reproduces ``SiO2Spheres-v5.lua``: both the reflected and
+  the transmitted flux are normalised by the incident flux, so results are
+  directly comparable with the MATLAB toolchain's ``OUTPUTS4`` files.
+
+S4 is imported lazily so the rest of the package works without it.
+"""
+
+from __future__ import annotations
+
+from typing import Dict
+
+import numpy as np
+
+from ..config import Config
+from . import directional
+from .directional import RawOptics
+from .geometry import S4Structure, build_structure, resolve_eps, used_materials
+
+_INSTALL_HINT = (
+    "The S4 Python module is not installed. S4 has no PyPI package and must be "
+    "built from source:\n"
+    "    brew install fftw suite-sparse openblas lapack boost\n"
+    "    git clone https://github.com/phoebe-p/S4 && cd S4\n"
+    "    make -f Makefile.m1 S4_pyext      # Apple silicon; else: make S4_pyext\n"
+    "Alternatively use geometry.source: freeform, or resume from a pre-computed "
+    "optics results folder."
+)
+
+
+def is_available() -> bool:
+    """True if the S4 Python module can be imported."""
+    try:
+        import S4  # noqa: F401
+        return True
+    except Exception:
+        return False
+
+
+def _build_sim(structure: S4Structure, num_basis: int, eps0: Dict[str, complex]):
+    """Construct the S4 simulation once, with placeholder (first-wavelength) eps."""
+    import S4
+
+    sim = S4.New(Lattice=structure.lattice, NumBasis=int(num_basis))
+    for name in used_materials(structure):
+        sim.SetMaterial(Name=name, Epsilon=complex(eps0[name]))
+    for layer in structure.layers:
+        sim.AddLayer(Name=layer.name, Thickness=float(layer.thickness),
+                     Material=layer.background)
+        for pat in layer.patterns:
+            if pat.kind == "circle":
+                sim.SetRegionCircle(Layer=layer.name, Material=pat.material,
+                                    Center=pat.center, Radius=float(pat.radius))
+            elif pat.kind == "rectangle":
+                sim.SetRegionRectangle(Layer=layer.name, Material=pat.material,
+                                       Center=pat.center, Angle=float(pat.angle),
+                                       Halfwidths=pat.halfwidths)
+            else:
+                raise ValueError(f"unknown pattern kind {pat.kind!r}")
+    return sim
+
+
+def _fluxes(sim, structure: S4Structure):
+    """R, T, A and silicon absorptance at the current (lambda, angle).
+
+    Every flux is normalised by the incident flux.
+
+    This is a deliberate, documented **divergence from the MATLAB reference**.
+    ``SiO2Spheres-v5.lua`` normalises R and the per-layer absorptances but not T::
+
+        reflection_flux_vacuum   = (-1) * reflection_flux_vacuum / incidence_flux
+        transmission_flux        = S:GetPoyntingFlux('layerBottom', 0.0)
+        transmission_flux_vacuum = transmission_flux / incidence_flux   -- never used
+        absorption_flux          = 1 - reflection_flux_vacuum - transmission_flux
+
+    so the Lua mixes a normalised R with a raw T, both in the T column it writes
+    and in ``A = 1 - R - T``. Incident flux through a z-plane carries cos(theta),
+    making the raw column correct only at normal incidence and low by cos(theta)
+    elsewhere - a factor of ~11 at the 85 degree end of a hemispherical sweep.
+
+    The practical impact on the published results is negligible because those
+    stacks are opaque: in the committed ``OUTPUTS4`` reference the T column peaks
+    at 5.4e-3 and averages 2.6e-5, bounding the error in A by |T|(1 - cos theta).
+    Normalising here is therefore strictly more correct and numerically
+    indistinguishable for opaque structures, but it does matter for any
+    transmissive stack, which is why the engine does it properly.
+    """
+    inc, refl = sim.GetPowerFlux(Layer=structure.top_layer, zOffset=0)
+    inc, refl = np.real(inc), np.real(refl)
+    t_fwd = np.real(sim.GetPowerFlux(Layer=structure.bottom_layer, zOffset=0)[0]) / inc
+
+    R = -refl / inc
+    A = 1.0 - R - t_fwd
+
+    a_si = 0.0
+    if structure.silicon_layer is not None:
+        # Absorptance inside the Si layer = net flux entering it minus the net
+        # flux still present at the terminal layer.
+        f_si, b_si = sim.GetPowerFlux(Layer=structure.silicon_layer, zOffset=0)
+        f_b, b_b = sim.GetPowerFlux(Layer=structure.bottom_layer, zOffset=0)
+        a_si = (np.real(f_si) + np.real(b_si) - np.real(f_b) - np.real(b_b)) / inc
+
+    return R, t_fwd, A, a_si
+
+
+def sweep(cfg: Config, lambda_grid: np.ndarray, angles_deg: np.ndarray) -> RawOptics:
+    """Run the S4 RCWA sweep and return per-(wavelength, angle) raw optics."""
+    if not is_available():
+        raise RuntimeError(_INSTALL_HINT)
+
+    structure = build_structure(cfg)
+    eps_funcs = resolve_eps(cfg)
+    mats = used_materials(structure)
+
+    angles = np.asarray(angles_deg, dtype=float)
+    n_lambda, n_theta = len(lambda_grid), len(angles)
+    normal, pols = directional.polarisations(angles)
+    out = directional.new_accumulator(pols, n_lambda, n_theta)
+
+    # Pre-evaluate eps for every material over the whole grid (vectorised), then
+    # build the simulation once using the first wavelength's values.
+    eps_grid = {m: np.asarray(eps_funcs[m](lambda_grid), dtype=complex) for m in mats}
+    sim = _build_sim(structure, cfg.simulation.rcwa_modes,
+                     {m: eps_grid[m][0] for m in mats})
+
+    for it, theta in enumerate(angles):
+        for pol_name, s_amp, p_amp in pols:
+            sim.SetExcitationPlanewave(IncidenceAngles=(float(theta), 0.0),
+                                       sAmplitude=s_amp, pAmplitude=p_amp, Order=0)
+            for il, lam in enumerate(lambda_grid):
+                for m in mats:
+                    sim.SetMaterial(Name=m, Epsilon=complex(eps_grid[m][il]))
+                sim.SetFrequency(1.0 / lam)   # S4 frequency = 1/lambda (lattice in um)
+
+                R, t_fwd, A, a_si = _fluxes(sim, structure)
+                d = out[pol_name]
+                d["ref"][il, it] = R
+                d["tran"][il, it] = t_fwd
+                d["abs"][il, it] = A
+                d["abs_si"][il, it] = a_si
+
+    return directional.pack_raw(out, angles, lambda_grid, normal)
