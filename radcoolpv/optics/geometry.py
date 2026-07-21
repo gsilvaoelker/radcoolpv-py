@@ -171,6 +171,22 @@ def _photonic_layers(cfg: Config) -> List[S4Layer]:
             layers.append(S4Layer(f"Layer_{i + 1}", delta, "vacuum", pats))
         return layers
 
+    if g.shape == "grating":
+        # 1D lamellar grating: `photonic_material` ridges of period `lattice.x`
+        # separated by vacuum grooves, invariant along y. The groove is a single
+        # rectangle of the full cell height in y, so the layer is a stripe
+        # pattern - S4 solves the true 1D grating (no y structure).
+        period = g.lattice.x
+        depth = g.grating["depth"]
+        duty = g.grating["duty"]                 # fraction of the period that is ridge
+        groove_half_x = (1.0 - duty) * period / 2.0
+        # Half-height = half the y-period, so the groove spans the whole cell in
+        # y and the layer is a true 1D grating.
+        groove = Pattern("rectangle", "vacuum", (0.0, 0.0),
+                         halfwidths=(groove_half_x, g.lattice.y / 2.0), angle=0.0)
+        layers.append(S4Layer("Layer_1", depth, mat, [groove]))
+        return layers
+
     raise ValueError(f"Unsupported geometry.shape: {g.shape!r}")
 
 

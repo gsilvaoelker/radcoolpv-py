@@ -2,16 +2,21 @@
 
 This folder holds literature-reproduction checks for `radcoolpv`.
 
-**Trusted (verified to run):** Validations A, B and E.
+**Trusted (verified to run):** Validations A, B, C and E.
 
 * **A** and **B** resume from precomputed spectra (`run.optics: false`) and so
   validate the **thermal / PV** stage independently of the optics engine.
-* **E** additionally runs the **S4 RCWA optics** engine end to end — it is the
-  only validation that computes a patterned structure's emissivity from first
-  principles and feeds it to the thermal balance.
+* **C** and **E** additionally run the **S4 RCWA optics** engine end to end,
+  computing a patterned structure's emissivity from first principles and feeding
+  it to the thermal balance — **C** a 1-D silica micro-grating, **E** a 2-D
+  microcylinder array.
 
-Validations C and D (reference papers with no runnable configs) remain in the
-gitignored `../archive/` folder.
+Validation **D** (Li et al., ACS Photonics 2017) **cannot be reproduced** and
+stays in the gitignored `../archive/` folder: its photonic cooler is an aperiodic
+multilayer whose thicknesses are in a supplementary table not included with the
+paper, two of its materials (Al₂O₃, TiO₂) are not in the bundled material set,
+and its thermal model is a multilayer conduction FDM rather than radcoolpv's
+lumped balance. See `../archive/validation D/README.md`.
 
 Source papers are **not** redistributed with this repository — they are
 copyrighted publisher PDFs. Each validation below names its paper; cite by DOI.
@@ -92,17 +97,29 @@ done
 
 ---
 
+## Validation C — Zhao et al. (Renewable Energy 2022), silica micro-grating
+
+A 1-D silica micro-grating (period 7 µm, ridge 1.4 µm, depth 10 µm) etched into
+a silica cooler, the first validation to run radcoolpv's `grating` shape.
+`build_optics_s4.py` computes the planar and grating emissivity with S4; the
+`cell_*.yaml` configs run the `cooling_curve` balance. The grating fills silica's
+9 µm reststrahlen dip, raising the window emissivity to 0.93 (paper ~0.9), and
+the grating-silica cell lands at 37.8 °C above ambient (paper 37.5 °C). See
+`validation C/README.md` for the bare-cell / silicon-model caveat.
+
+```bash
+cd "validation C" && python run_validation.py          # rebuild optics + validate
+python run_validation.py --no-build                     # reuse committed spectra
+```
+
 ## Validation E — Akerboom et al. (ACS Photonics 2022), silica microcylinders
 
 Silica-microcylinder module glass for radiative cooling of a Si solar module.
-The **only** validation that runs the optics engine: `build_optics_s4.py`
-computes the flat and microcylinder emissivity with S4 RCWA, and the
-`stack_*.yaml` configs feed it to the `cooling_curve` balance. Reproduces the
-paper's band-averaged emissivity to ≤0.6 pp and every equilibrium temperature to
-≤0.6 K. See `validation E/README.md` for the two method caveats (RCWA vs the
+`build_optics_s4.py` computes the flat and microcylinder emissivity with S4 RCWA,
+and the `stack_*.yaml` configs feed it to the `cooling_curve` balance. Reproduces
+the paper's band-averaged emissivity to ≤0.6 pp and every equilibrium temperature
+to ≤0.6 K. See `validation E/README.md` for the two method caveats (RCWA vs the
 paper's FDTD on the Mie-resonant cylinders; Ag vs Au back mirror).
-
-Run:
 
 ```bash
 cd "validation E" && python run_validation.py          # rebuild optics + validate
@@ -111,7 +128,7 @@ python run_validation.py --no-build                     # reuse committed spectr
 
 ## Archived
 
-Moved to `../archive/` (local, gitignored): validation C and D (reference papers
-only, no runnable configs), the earlier fitted-optics version of the
-Akerboom reproduction (superseded by the S4 Validation E above), and the source
-PDFs for all of these plus Validation A.
+Moved to `../archive/` (local, gitignored): Validation **D** (see its README for
+why it cannot be reproduced), the earlier fitted-optics version of the Akerboom
+reproduction (superseded by the S4 Validation E above), and the source PDFs for
+all of these plus Validations A and C.

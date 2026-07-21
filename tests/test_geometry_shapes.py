@@ -35,7 +35,8 @@ LATTICE = 20.0
 
 def _structure(shape, n_layers=3, **shape_kw):
     block = {"sphere": "sphere", "semisphere": "sphere",
-             "triangle": "triangle", "cylinder": "cylinder"}.get(shape)
+             "triangle": "triangle", "cylinder": "cylinder",
+             "grating": "grating"}.get(shape)
     geom = {"source": "s4", "shape": shape, "photonic_material": "sio2",
             "lattice": {"type": "square", "x": LATTICE, "y": LATTICE},
             "discretization_layers": n_layers}
@@ -169,6 +170,43 @@ def test_cylinder_is_one_layer_of_its_height():
     assert len(_photonic(s)) == 1
     assert _height(s) == pytest.approx(3.0)
     assert _max_radius(s) == pytest.approx(2.0)
+
+
+# --- grating (1-D lamellar) -----------------------------------------------
+
+def test_grating_is_one_stripe_layer_of_its_depth():
+    s = _structure("grating", duty=0.2, depth=10.0)
+    pl = _photonic(s)
+    assert len(pl) == 1
+    assert _height(s) == pytest.approx(10.0)
+    layer = pl[0]
+    assert layer.background == "sio2"          # ridge is the photonic material
+    assert len(layer.patterns) == 1
+    groove = layer.patterns[0]
+    assert groove.kind == "rectangle"
+    assert groove.material == "vacuum"         # groove is empty
+
+
+@pytest.mark.parametrize("duty,ridge_w", [(0.2, 4.0), (0.5, 10.0), (0.8, 16.0)])
+def test_grating_duty_sets_the_ridge_width(duty, ridge_w):
+    """duty is the ridge (photonic-material) fraction of the period; for the
+    LATTICE period 20 um that gives ridge width duty*20."""
+    s = _structure("grating", duty=duty, depth=5.0)
+    groove = _photonic(s)[0].patterns[0]
+    groove_w = 2 * groove.halfwidths[0]
+    assert LATTICE - groove_w == pytest.approx(ridge_w)     # ridge = period - groove
+    assert groove.halfwidths[1] == pytest.approx(LATTICE / 2)  # spans full cell in y
+
+
+@pytest.mark.parametrize("bad", [0.0, 1.0, -0.1, 1.5])
+def test_grating_rejects_out_of_range_duty(bad):
+    with pytest.raises(ConfigError, match="duty"):
+        _structure("grating", duty=bad, depth=5.0)
+
+
+def test_grating_rejects_nonpositive_depth():
+    with pytest.raises(ConfigError, match="depth"):
+        _structure("grating", duty=0.2, depth=0.0)
 
 
 def test_flat_has_no_photonic_layers():

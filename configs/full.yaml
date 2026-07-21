@@ -22,7 +22,7 @@ simulation:                 # shared by both stages -> no manual drift
 
 geometry:
   source: s4                # s4 | freeform
-  shape: cylinder           # flat | sphere | semisphere | triangle | cylinder
+  shape: cylinder           # flat | sphere | semisphere | triangle | cylinder | grating
   photonic_material: sio2
   lattice: {type: square, x: 20.0, y: 20.0}
   discretization_layers: 1

@@ -78,13 +78,14 @@ class Lattice:
 @dataclass
 class GeometryConfig:
     source: str = "s4"               # s4 | freeform
-    shape: str = "flat"              # flat | sphere | semisphere | triangle | cylinder
+    shape: str = "flat"              # flat | sphere | semisphere | triangle | cylinder | grating
     photonic_material: str = "sio2"
     lattice: Lattice = field(default_factory=Lattice)
     discretization_layers: int = 1
     sphere: Dict[str, float] = field(default_factory=dict)
     triangle: Dict[str, float] = field(default_factory=dict)
     cylinder: Dict[str, float] = field(default_factory=dict)
+    grating: Dict[str, float] = field(default_factory=dict)  # {duty, depth}; period = lattice.x
     freeform: Dict[str, str] = field(default_factory=dict)
 
 
@@ -292,7 +293,7 @@ def load(path: str) -> Config:
 # Validation (light, fail fast with clear messages).
 # --------------------------------------------------------------------------- #
 
-_SHAPES = {"flat", "sphere", "semisphere", "triangle", "cylinder"}
+_SHAPES = {"flat", "sphere", "semisphere", "triangle", "cylinder", "grating"}
 _SOURCES = {"s4", "freeform"}
 
 
@@ -373,6 +374,7 @@ def _require_shape_params(geom: GeometryConfig) -> None:
         "semisphere": (geom.sphere, ["radius"]),
         "triangle": (geom.triangle, ["base", "height"]),
         "cylinder": (geom.cylinder, ["radius", "height"]),
+        "grating": (geom.grating, ["duty", "depth"]),
         "flat": ({}, []),
     }
     block, keys = needed[geom.shape]
@@ -386,3 +388,12 @@ def _require_shape_params(geom: GeometryConfig) -> None:
                 f"geometry.discretization_layers must be >= 1 for shape "
                 f"{geom.shape!r} (got {geom.discretization_layers})."
             )
+
+    if geom.shape == "grating":
+        duty = geom.grating["duty"]
+        if not 0.0 < duty < 1.0:
+            raise ConfigError(
+                f"geometry.grating.duty must be strictly between 0 and 1 "
+                f"(ridge fraction of the period); got {duty}.")
+        if geom.grating["depth"] <= 0.0:
+            raise ConfigError("geometry.grating.depth must be > 0.")

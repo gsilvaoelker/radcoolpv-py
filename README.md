@@ -97,7 +97,7 @@ See `configs/full.yaml` for the annotated reference. Key toggles:
 | `run.mode` | `standard` / `cooling_curve` / `test` / `spectral_compare` |
 | `run.outputs` | any of `legacy`, `clean` |
 | `geometry.source` | `s4` (RCWA) or `freeform` (read optimised data) |
-| `geometry.shape` | `flat` / `sphere` / `semisphere` / `triangle` / `cylinder` |
+| `geometry.shape` | `flat` / `sphere` / `semisphere` / `triangle` / `cylinder` / `grating` |
 | `thermal.equilibrium` | `auto` (fixed point) or `manual` (`emit_temp` + `vmpp`) |
 
 `structure` is an ordered list of flat layers below the photonic structure; the
