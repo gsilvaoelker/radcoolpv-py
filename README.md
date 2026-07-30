@@ -111,7 +111,9 @@ Each output-enabled run writes:
 - `optics.csv`: the requested directional or hemispherically reduced spectrum;
 - `iv.csv`, `power.csv`, or `cooling_power.csv`, when applicable;
 - `run.json`: full resolved YAML, runtime information, Git revision, S4 binary
-  hash, input hashes, and scalar results;
+  hash, input hashes, and scalar results. `Voc` and fill factor are reported at
+  both the ambient and the equilibrium operating point; the ambient pair is
+  `null` if the voltage sweep did not reach the (higher) ambient `Voc`;
 - `figures/`, when `run.plots: true`.
 
 Live S4 runs additionally write `optics_directional.csv` with every computed

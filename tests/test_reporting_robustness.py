@@ -7,6 +7,7 @@ displayed) aborted a calculation that was otherwise perfectly well posed.
 
 import io
 import contextlib
+import json
 import os
 
 import pytest
@@ -47,8 +48,7 @@ def test_voltage_sweep_bracketing_only_the_equilibrium_point_still_runs():
 
     Ambient Voc is the largest in the sweep. A range that brackets the
     equilibrium operating point but stops below the ambient one used to raise,
-    losing every result for a number that is neither returned to the caller nor
-    written to run.json.
+    losing every result for the sake of one diagnostic.
     """
     cfg = cm.load(os.path.join(CONFIGS, "freeform.yaml"))
     cfg.run.plots = False
@@ -65,7 +65,47 @@ def test_voltage_sweep_bracketing_only_the_equilibrium_point_still_runs():
         narrow = pipeline.run(cfg2).thermal
 
     assert narrow.equil_temp == pytest.approx(full.equil_temp, abs=0.5)
-    assert narrow.voc_amb == 0.0                  # degraded, not fatal
+    # None rather than 0.0: run.json must not present an undetermined Voc as a
+    # genuine zero-volt measurement.
+    assert narrow.voc_amb is None
+    assert narrow.ff_amb is None
+
+
+def test_run_json_reports_both_ambient_and_equilibrium_operating_points(tmp_path):
+    """A reported diagnostic is worth computing; an unreported one is not.
+
+    voc_amb and ff_amb were previously calculated and discarded. They are now in
+    the manifest alongside their equilibrium counterparts, so the ambient and
+    operating points can be compared without re-running anything.
+    """
+    cfg = cm.load(os.path.join(CONFIGS, "freeform.yaml"))
+    cfg.run.results_dir = str(tmp_path)
+    cfg.run.plots = False
+    with contextlib.redirect_stdout(io.StringIO()):
+        ctx = pipeline.run(cfg)
+    block = json.load(open(os.path.join(ctx.results_dir, "run.json")))["thermal_results"]
+
+    for key in ("voc_ambient_V", "voc_equilibrium_V",
+                "fill_factor_ambient", "fill_factor_equilibrium"):
+        assert key in block, f"run.json is missing {key}"
+
+    # A cell is hotter at equilibrium than at ambient, so it must be the worse
+    # operating point on both counts. This also catches the two being swapped.
+    assert block["voc_ambient_V"] > block["voc_equilibrium_V"]
+    assert block["fill_factor_ambient"] > block["fill_factor_equilibrium"]
+
+
+def test_undetermined_ambient_voc_is_null_in_run_json(tmp_path):
+    cfg = cm.load(os.path.join(CONFIGS, "freeform.yaml"))
+    cfg.run.results_dir = str(tmp_path)
+    cfg.run.plots = False
+    cfg.thermal.voltage.max = 0.74          # brackets equilibrium Voc, not ambient
+    with contextlib.redirect_stdout(io.StringIO()):
+        ctx = pipeline.run(cfg)
+    block = json.load(open(os.path.join(ctx.results_dir, "run.json")))["thermal_results"]
+    assert block["voc_ambient_V"] is None
+    assert block["fill_factor_ambient"] is None
+    assert block["voc_equilibrium_V"] is not None
 
 
 def test_equilibrium_voc_outside_the_sweep_still_raises():

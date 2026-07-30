@@ -122,7 +122,11 @@ def write_run_json(folder: str, cfg: Config, optics: Optional[OpticsResult],
             "short_circuit_current_A_per_m2": thermal.isc,
             "mpp_ambient_W_per_m2": thermal.mpp_amb,
             "mpp_equilibrium_W_per_m2": thermal.mpp_equil,
+            # Ambient pair is null when the voltage sweep did not reach the
+            # ambient Voc, which is the highest in the sweep.
+            "voc_ambient_V": thermal.voc_amb,
             "voc_equilibrium_V": thermal.voc_equil,
+            "fill_factor_ambient": thermal.ff_amb,
             "fill_factor_equilibrium": thermal.ff_equil,
             "atmospheric_power_W_per_m2": thermal.atm_power,
             "absorbed_solar_power_W_per_m2": thermal.solar_power,

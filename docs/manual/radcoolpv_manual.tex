@@ -684,6 +684,13 @@ MATLAB-style output compatibility has been removed. New runs write:
   \item figures when \code{run.plots: true}.
 \end{itemize}
 
+The \code{thermal\_results} block reports \(V_{\mathrm{oc}}\) and the fill
+factor at both the ambient and the equilibrium operating point, so the cost of
+running hot can be read off directly. The ambient pair is \code{null} when the
+voltage sweep did not reach the ambient \(V_{\mathrm{oc}}\), which is the
+highest in the sweep; that is distinct from a genuine zero, and it does not
+stop the run, because the equilibrium point is the result.
+
 Set \code{run.write\_outputs: false} for tests or programmatic validation.
 Historical MATLAB files remain only as read-only parity fixtures and under the
 gitignored \code{archive/}; they are never emitted by the active package.

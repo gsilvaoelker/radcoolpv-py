@@ -43,9 +43,11 @@ class ThermalResult:
     isc: float = 0.0
     mpp_amb: float = 0.0
     mpp_equil: float = 0.0
-    voc_amb: float = 0.0
+    # None (not 0.0) when the voltage sweep did not bracket the ambient Voc, so
+    # run.json can distinguish "not determined" from a genuine zero.
+    voc_amb: Optional[float] = 0.0
     voc_equil: float = 0.0
-    ff_amb: float = 0.0
+    ff_amb: Optional[float] = 0.0
     ff_equil: float = 0.0
     beta_p: float = 0.0
     efficiency_equil: float = 0.0
@@ -172,16 +174,19 @@ def run(cfg, optics: OpticsResult, solar: SolarSpectrum) -> ThermalResult:
     current_equil = _at_equilibrium(iv.current_dens, emit_temp, equil_temp, axis=0)
     mpp_equil = pv.refine_peak(iv.volt, power_equil)[1]
     voc_equil = pv.open_circuit_voltage(current_equil, iv.volt)
-    # Ambient Voc is a diagnostic: nothing downstream reads it and it is not
-    # written to run.json. It is also the *highest* Voc in the sweep, so a
-    # voltage range that legitimately brackets the equilibrium operating point
-    # may not reach it. Failing the whole run for a number nobody sees would be
-    # wrong, so it degrades to 0.0 while voc_equil above still raises.
+    # Ambient Voc is reported but not used downstream. It is also the *highest*
+    # Voc in the sweep, so a voltage range that legitimately brackets the
+    # equilibrium operating point may not reach it. That must not fail the run,
+    # so it becomes None and is reported as null; voc_equil above still raises,
+    # because that one is the result.
     try:
         voc_amb = pv.open_circuit_voltage(iv.current_dens[0, :], iv.volt)
     except ValueError:
-        voc_amb = 0.0
-    ff_amb = mpp_amb / (iv.isc * voc_amb) if (iv.isc and voc_amb) else 0.0
+        voc_amb = None
+    if voc_amb is None:
+        ff_amb = None
+    else:
+        ff_amb = mpp_amb / (iv.isc * voc_amb) if (iv.isc and voc_amb) else 0.0
     ff_equil = mpp_equil / (iv.isc * voc_equil) if (iv.isc and voc_equil) else 0.0
     denom = (t_amb - equil_temp)
     beta_p = ((mpp_amb - mpp_equil) / denom * (100.0 / mpp_amb)) if (denom and mpp_amb) else 0.0
