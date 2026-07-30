@@ -29,7 +29,7 @@ FLAT_TOL = 1e-9      # S4 is exact for uniform layers
 PATTERNED_TOL = 1e-6
 
 
-def _cfg(photonic="vacuum", shape="flat", cyl=None):
+def _cfg(photonic="vacuum", shape="flat", cyl=None, grating=None):
     raw = {
         "run": {"optics": True, "thermal": False, "plots": False},
         "simulation": {"wavelength": {"min": 8.0, "max": 10.0, "n": 3},
@@ -45,6 +45,8 @@ def _cfg(photonic="vacuum", shape="flat", cyl=None):
     }
     if cyl is not None:
         raw["geometry"]["cylinder"] = cyl
+    if grating is not None:
+        raw["geometry"]["grating"] = grating
     return config_module.from_dict(raw, base_dir="radcoolpv")
 
 
@@ -111,6 +113,45 @@ def test_patterned_energy_conservation():
     for arr in (raw.ref_te, raw.tran_te, raw.abs_te, raw.abs_si_te):
         assert np.all(arr[:, 0] >= -1e-6)
         assert np.all(arr[:, 0] <= 1.0 + 1e-6)
+
+
+def test_normal_grating_computes_both_polarizations():
+    cfg = _cfg(
+        photonic="sio2", shape="grating",
+        grating={"duty": 0.3, "depth": 2.0})
+    raw = s4_backend.sweep(cfg, LAMBDAS, np.array([0.0]))
+    assert raw.ref_te is not None
+    assert raw.ref_tm is not None
+    assert not np.allclose(raw.ref_te, raw.ref_tm, atol=1e-5)
+
+
+def test_silicon_absorption_uses_its_own_two_interfaces():
+    raw_cfg = {
+        "run": {"optics": True, "thermal": False, "plots": False},
+        "simulation": {
+            "wavelength": {"min": 8.0, "max": 10.0, "n": 3},
+            "angles": "normal", "polarization": "TE", "rcwa_modes": 1,
+        },
+        "geometry": {
+            "source": "s4", "shape": "flat",
+            "photonic_material": "vacuum",
+        },
+        "structure": [
+            # Deliberately lossless logical silicon followed by lossy PDMS.
+            {"material": "silicon", "thickness": 1.0},
+            {"material": "pdms", "thickness": 20.0},
+            {"material": "substrate", "thickness": 0.0, "terminal": True},
+        ],
+        "materials": {
+            "silicon": "Vacuum",
+            "pdms": "GuptaQuerry_PDMS",
+            "substrate": "Hagemann_Ag",
+        },
+    }
+    cfg = config_module.from_dict(raw_cfg, base_dir="radcoolpv")
+    raw = s4_backend.sweep(cfg, LAMBDAS)
+    assert np.max(raw.abs_te) > 0.1
+    assert np.max(np.abs(raw.abs_si_te)) < 1e-8
 
 
 def test_resolve_eps_is_shared():

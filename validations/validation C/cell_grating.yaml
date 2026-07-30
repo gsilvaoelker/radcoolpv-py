@@ -11,8 +11,9 @@ run:
   plots: false
   mode: cooling_curve
   results_dir: results/grating
-  outputs: [clean]
+  write_outputs: true
   optics_results: data/optics/cell_grating.txt
+  optics_results_angles: normal
 
 simulation:
   wavelength: {min: 0.3, max: 30.0, n: 900}

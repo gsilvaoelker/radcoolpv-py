@@ -4,13 +4,6 @@ Calls the S4 Python module (``import S4``) directly, replacing the original
 MATLAB-writes-Lua-files-and-shell-calls-S4 dance. The structure is built once
 and only ``SetMaterial`` / ``SetFrequency`` are re-issued per wavelength.
 
-That reuse saves only the geometry setup, not the solve: changing a material
-invalidates every layer's eigen-decomposition, so S4 redoes the expensive part
-for each wavelength anyway. Do not assume this backend is fast merely because
-it builds once - measured against the pure-Python grcwa engine it was ~2x
-faster on a small cylinder but ~1.4x *slower* on a 20um-pitch semisphere array.
-S4 is used here for accuracy and analytic shapes, not for speed.
-
 Patterns are **analytic** (``SetRegionCircle`` / ``SetRegionRectangle``) rather
 than rasterised onto a grid, so curved shapes carry no staircase approximation,
 and uniform layers are solved exactly (agreement with analytic TMM is ~5e-15).
@@ -106,17 +99,25 @@ def _fluxes(sim, structure: S4Structure):
 
     a_si = 0.0
     if structure.silicon_layer is not None:
-        # Absorptance inside the Si layer = net flux entering it minus the net
-        # flux still present at the terminal layer.
+        # Absorptance inside Si is the net flux difference between its own two
+        # interfaces. Using terminal-layer flux would incorrectly attribute any
+        # downstream absorbing layer to silicon.
         f_si, b_si = sim.GetPowerFlux(Layer=structure.silicon_layer, zOffset=0)
-        f_b, b_b = sim.GetPowerFlux(Layer=structure.bottom_layer, zOffset=0)
+        f_b, b_b = sim.GetPowerFlux(
+            Layer=structure.silicon_layer,
+            zOffset=structure.silicon_thickness)
         a_si = (np.real(f_si) + np.real(b_si) - np.real(f_b) - np.real(b_b)) / inc
 
     return R, t_fwd, A, a_si
 
 
-def sweep(cfg: Config, lambda_grid: np.ndarray, angles_deg: np.ndarray) -> RawOptics:
-    """Run the S4 RCWA sweep and return per-(wavelength, angle) raw optics."""
+def sweep(cfg: Config, lambda_grid: np.ndarray,
+          angles_deg: np.ndarray = None) -> RawOptics:
+    """Run S4 and return per-(wavelength, direction) raw optics.
+
+    ``angles_deg`` is retained only for compact solver-level tests and MATLAB
+    parity. Production runs obtain polar angle, azimuth, and weights from YAML.
+    """
     if not is_available():
         raise RuntimeError(_INSTALL_HINT)
 
@@ -124,10 +125,19 @@ def sweep(cfg: Config, lambda_grid: np.ndarray, angles_deg: np.ndarray) -> RawOp
     eps_funcs = resolve_eps(cfg)
     mats = used_materials(structure)
 
-    angles = np.asarray(angles_deg, dtype=float)
-    n_lambda, n_theta = len(lambda_grid), len(angles)
-    normal, pols = directional.polarisations(angles)
-    out = directional.new_accumulator(pols, n_lambda, n_theta)
+    if angles_deg is None:
+        theta, phi, weights = cfg.direction_arrays()
+        mode = cfg.simulation.angles
+    else:
+        theta = np.asarray(angles_deg, dtype=float)
+        phi = np.zeros_like(theta)
+        weights = np.ones_like(theta)
+        mode = ("normal" if len(theta) == 1 and np.isclose(theta[0], 0.0)
+                else "specific")
+    pols = directional.polarisations(
+        cfg.simulation.polarization_names())
+    n_lambda, n_direction = len(lambda_grid), len(theta)
+    out = directional.new_accumulator(pols, n_lambda, n_direction)
 
     # Pre-evaluate eps for every material over the whole grid (vectorised), then
     # build the simulation once using the first wavelength's values.
@@ -135,9 +145,10 @@ def sweep(cfg: Config, lambda_grid: np.ndarray, angles_deg: np.ndarray) -> RawOp
     sim = _build_sim(structure, cfg.simulation.rcwa_modes,
                      {m: eps_grid[m][0] for m in mats})
 
-    for it, theta in enumerate(angles):
+    for it, (polar, azimuth) in enumerate(zip(theta, phi)):
         for pol_name, s_amp, p_amp in pols:
-            sim.SetExcitationPlanewave(IncidenceAngles=(float(theta), 0.0),
+            sim.SetExcitationPlanewave(
+                                       IncidenceAngles=(float(polar), float(azimuth)),
                                        sAmplitude=s_amp, pAmplitude=p_amp, Order=0)
             for il, lam in enumerate(lambda_grid):
                 for m in mats:
@@ -151,4 +162,6 @@ def sweep(cfg: Config, lambda_grid: np.ndarray, angles_deg: np.ndarray) -> RawOp
                 d["abs"][il, it] = A
                 d["abs_si"][il, it] = a_si
 
-    return directional.pack_raw(out, angles, lambda_grid, normal)
+    return directional.pack_raw(
+        out, theta, phi, weights, lambda_grid, mode,
+        cfg.simulation.polarization)

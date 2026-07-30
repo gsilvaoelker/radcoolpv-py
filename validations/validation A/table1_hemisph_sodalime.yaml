@@ -18,7 +18,7 @@ run:
   plots: true
   results_dir: results/hemisph_sodalime
   mode: standard
-  outputs: []
+  write_outputs: false
   optics_results: data/Fig. 3B blue/opticalProps-PVcode.txt
 
 simulation:

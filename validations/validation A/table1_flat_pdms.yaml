@@ -17,7 +17,7 @@ run:
   plots: true
   results_dir: results/flat_pdms
   mode: standard
-  outputs: []
+  write_outputs: false
   optics_results: data/Fig. 3C red/opticalProps-PVcode.txt
 
 simulation:

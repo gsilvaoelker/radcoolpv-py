@@ -38,7 +38,8 @@ class OpticsResult:
     ref_norm: np.ndarray = None
     emit_norm: np.ndarray = None
     abs_silicon_norm: np.ndarray = None
-    angles: str = "normal"                # normal | hemispherical
+    angles: str = "normal"                # normal | specific | hemispherical
+    polarization: str = "unpolarized"
 
     def __post_init__(self) -> None:
         if self.ref_norm is None:
@@ -62,8 +63,8 @@ class RunContext:
 def make_results_dir(parent: str, prefix: str) -> str:
     """Create a timestamped results subfolder and return its path.
 
-    The legacy MATLAB code named folders ``results_<date>_<HH:MM:SS>``; we keep
-    the same flavour but use filesystem-safe separators.
+    The timestamp keeps independent runs separate and uses filesystem-safe
+    separators.
     """
     stamp = datetime.now().strftime("%d-%b-%Y_%H-%M-%S")
     path = os.path.join(parent, f"{prefix}_{stamp}")

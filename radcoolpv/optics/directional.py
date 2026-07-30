@@ -1,10 +1,9 @@
-"""Reduce per-angle S4 results to spectral optical properties.
+"""Reduce directional S4 results to spectral optical properties.
 
 Ports ``normalPropsFunc.m`` and ``hemisphPropsFunc.m``. The raw input is the
-reflectance/transmittance/absorptance/silicon-absorptance for each
-(wavelength, angle, polarisation), exactly as written to ``OUTPUTS4-TE.txt`` /
-``OUTPUTS4-TM.txt``. It can come from a live S4 sweep (in memory) or from those
-files (resume / parity testing).
+reflectance/transmittance/absorptance/silicon-absorptance for each wavelength,
+direction, and polarization. It can come from a live S4 sweep or a historical
+MATLAB/S4 folder used for parity testing.
 
 Output is an :class:`~radcoolpv.io.results.OpticsResult`: the hemispherical (or
 normal) spectral properties plus the normal-incidence copies the thermal stage
@@ -25,25 +24,35 @@ from ..thermal.spectra import load_atmosphere
 
 @dataclass
 class RawOptics:
-    """Per-(wavelength, angle) optical fluxes, TE always present, TM optional.
+    """Per-(wavelength, direction) optical fluxes.
 
-    Each field below is shape ``(n_lambda, n_theta)``.
+    Each optical field is shape ``(n_lambda, n_direction)``. A field is
+    ``None`` when that polarization was not requested.
     """
 
-    theta_deg: np.ndarray   # (n_theta,)
-    lambda_um: np.ndarray   # (n_lambda,)
-    ref_te: np.ndarray
-    tran_te: np.ndarray
-    abs_te: np.ndarray
-    abs_si_te: np.ndarray
+    theta_deg: np.ndarray
+    phi_deg: np.ndarray
+    direction_weight: np.ndarray
+    lambda_um: np.ndarray
+    ref_te: Optional[np.ndarray] = None
+    tran_te: Optional[np.ndarray] = None
+    abs_te: Optional[np.ndarray] = None
+    abs_si_te: Optional[np.ndarray] = None
     ref_tm: Optional[np.ndarray] = None
     tran_tm: Optional[np.ndarray] = None
     abs_tm: Optional[np.ndarray] = None
     abs_si_tm: Optional[np.ndarray] = None
+    mode: str = "normal"
+    polarization: str = "unpolarized"
+
+    @property
+    def n_directions(self) -> int:
+        return len(self.theta_deg)
 
     @property
     def n_theta(self) -> int:
-        return len(self.theta_deg)
+        """Historical alias used by the MATLAB parity fixtures."""
+        return self.n_directions
 
     @property
     def n_lambda(self) -> int:
@@ -57,17 +66,13 @@ class RawOptics:
 # cannot silently disagree with an existing one about TE/TM conventions or
 # about when TM is computed at all.
 
-def polarisations(angles_deg: np.ndarray):
-    """Return ``(normal, pols)`` for an angle list.
-
-    At normal incidence TE and TM are degenerate, so only TE is swept - matching
-    the MATLAB driver. ``pols`` entries are ``(name, s_amplitude, p_amplitude)``
-    with TE = s-polarised and TM = p-polarised.
-    """
-    angles = np.asarray(angles_deg, dtype=float)
-    normal = (len(angles) == 1) and np.isclose(angles[0], 0.0)
-    pols = [("te", 1.0, 0.0)] if normal else [("te", 1.0, 0.0), ("tm", 0.0, 1.0)]
-    return normal, pols
+def polarisations(names):
+    """Return S4 excitation tuples for the requested polarization names."""
+    available = {
+        "te": ("te", 1.0, 0.0),
+        "tm": ("tm", 0.0, 1.0),
+    }
+    return [available[name] for name in names]
 
 
 def new_accumulator(pols, n_lambda: int, n_theta: int):
@@ -76,20 +81,21 @@ def new_accumulator(pols, n_lambda: int, n_theta: int):
                    ("ref", "tran", "abs", "abs_si")} for p in pols}
 
 
-def pack_raw(out, angles_deg: np.ndarray, lambda_grid: np.ndarray,
-             normal: bool) -> "RawOptics":
+def pack_raw(out, theta_deg: np.ndarray, phi_deg: np.ndarray,
+             direction_weight: np.ndarray, lambda_grid: np.ndarray,
+             mode: str, polarization: str) -> "RawOptics":
     """Turn a backend accumulator into a :class:`RawOptics`."""
     raw = RawOptics(
-        theta_deg=np.asarray(angles_deg, dtype=float),
+        theta_deg=np.asarray(theta_deg, dtype=float),
+        phi_deg=np.asarray(phi_deg, dtype=float),
+        direction_weight=np.asarray(direction_weight, dtype=float),
         lambda_um=np.asarray(lambda_grid, dtype=float),
-        ref_te=out["te"]["ref"], tran_te=out["te"]["tran"],
-        abs_te=out["te"]["abs"], abs_si_te=out["te"]["abs_si"],
+        mode=mode,
+        polarization=polarization,
     )
-    if not normal:
-        raw.ref_tm = out["tm"]["ref"]
-        raw.tran_tm = out["tm"]["tran"]
-        raw.abs_tm = out["tm"]["abs"]
-        raw.abs_si_tm = out["tm"]["abs_si"]
+    for pol in out:
+        for quantity in ("ref", "tran", "abs", "abs_si"):
+            setattr(raw, f"{quantity}_{pol}", out[pol][quantity])
     return raw
 
 
@@ -118,9 +124,13 @@ def from_folder(path: str, n_lambda: int) -> RawOptics:
     theta_deg = te[:, 0, 0]
     lambda_um = te[0, :, 1]
     raw = RawOptics(
-        theta_deg=theta_deg, lambda_um=lambda_um,
+        theta_deg=theta_deg, phi_deg=np.zeros_like(theta_deg),
+        direction_weight=np.zeros_like(theta_deg), lambda_um=lambda_um,
         ref_te=te[:, :, 2].T, tran_te=te[:, :, 3].T,
         abs_te=te[:, :, 4].T, abs_si_te=te[:, :, 5].T,
+        mode="normal" if len(theta_deg) == 1 and np.isclose(theta_deg[0], 0.0)
+        else "hemispherical",
+        polarization="unpolarized",
     )
     tm_path = os.path.join(path, "OUTPUTS4-TM.txt")
     if os.path.isfile(tm_path) and os.path.getsize(tm_path) > 0:
@@ -129,13 +139,26 @@ def from_folder(path: str, n_lambda: int) -> RawOptics:
         raw.tran_tm = tm[:, :, 3].T
         raw.abs_tm = tm[:, :, 4].T
         raw.abs_si_tm = tm[:, :, 5].T
+    if raw.mode == "normal":
+        raw.direction_weight[:] = 1.0
+    else:
+        theta_rad = np.deg2rad(theta_deg)
+        dtheta = theta_rad[1] - theta_rad[0]
+        # Preserve the MATLAB polar-only quadrature for the read-only historical
+        # fixtures. New live hemispherical runs use normalized theta-phi
+        # Gauss-Legendre weights from SimulationConfig.directions().
+        raw.direction_weight = 2.0 * np.cos(theta_rad) * np.sin(theta_rad) * dtheta
     return raw
 
 
-def from_reduced_file(path: str, atmosphere_path: str) -> OpticsResult:
-    """Load a previously hemispherically reduced optical-property spectrum.
+def from_reduced_file(path: str, atmosphere_path: str,
+                      angles: str = "hemispherical",
+                      emittance_column: Optional[int] = None) -> OpticsResult:
+    """Load a previously reduced normal or hemispherical optical spectrum.
 
-    Accepted columns are either the five-column ``HEMSIPH`` form
+    With ``emittance_column``, the selected zero-based column is treated as
+    hemispherical emittance for an opaque surface. Otherwise, accepted columns
+    are either the five-column ``HEMSIPH`` form
     ``lambda, R, T, emit, abs_si`` or the seven-column ``PVcode`` form
     ``lambda, emit, emit_normal, R, R_normal, abs_si, abs_si_normal``.
     These files retain no directional information, so their atmospheric term
@@ -145,7 +168,15 @@ def from_reduced_file(path: str, atmosphere_path: str) -> OpticsResult:
     if data.ndim == 1:
         data = data[None, :]
     lam = data[:, 0]
-    if data.shape[1] == 5:
+    if emittance_column is not None:
+        if emittance_column >= data.shape[1]:
+            raise ValueError(
+                f"{path}: emittance column {emittance_column} is outside "
+                f"the {data.shape[1]}-column table.")
+        emit = data[:, emittance_column]
+        ref, tran, abs_si = 1.0 - emit, np.zeros_like(emit), np.zeros_like(emit)
+        ref_norm = emit_norm = abs_si_norm = None
+    elif data.shape[1] == 5:
         ref, tran, emit, abs_si = data[:, 1], data[:, 2], data[:, 3], data[:, 4]
         ref_norm = emit_norm = abs_si_norm = None
     elif data.shape[1] == 7:
@@ -163,13 +194,28 @@ def from_reduced_file(path: str, atmosphere_path: str) -> OpticsResult:
         lambda_um=lam, ref=ref, tran=tran, emit=emit, abs_silicon=abs_si,
         emit_atm=emit_atm, emitt_spec_times_emit_atm=emit_atm * emit,
         ref_norm=ref_norm, emit_norm=emit_norm, abs_silicon_norm=abs_si_norm,
-        angles="hemispherical",
+        angles=angles,
     )
+
+
+def _selected(raw: RawOptics, quantity: str) -> np.ndarray:
+    """Return the requested polarization, averaging TE/TM if unpolarized."""
+    if raw.polarization.lower() == "unpolarized":
+        te = getattr(raw, f"{quantity}_te")
+        tm = getattr(raw, f"{quantity}_tm")
+        if te is None or tm is None:
+            raise ValueError("Unpolarized reduction requires both TE and TM data.")
+        return 0.5 * (te + tm)
+    value = getattr(raw, f"{quantity}_{raw.polarization.lower()}")
+    if value is None:
+        raise ValueError(
+            f"{raw.polarization} reduction requested but its data are absent.")
+    return value
 
 
 def reduce(raw: RawOptics, atmosphere_path: str,
            lambda_grid: Optional[np.ndarray] = None) -> OpticsResult:
-    """Reduce raw per-angle data to spectral properties (normal or hemispherical).
+    """Reduce directional data to selected or hemispherical spectra.
 
     ``lambda_grid`` is the canonical simulation wavelength grid
     (``linspace(min, max, n)``). MATLAB uses this exact grid for the atmospheric
@@ -179,54 +225,55 @@ def reduce(raw: RawOptics, atmosphere_path: str,
     """
     lam = raw.lambda_um if lambda_grid is None else np.asarray(lambda_grid, dtype=float)
     theta_deg = raw.theta_deg
-    n_theta = raw.n_theta
     atm = load_atmosphere(atmosphere_path, lam)   # atmospheric transmittance
+    ref_dir = _selected(raw, "ref")
+    tran_dir = _selected(raw, "tran")
+    emit_dir = _selected(raw, "abs")
+    abs_si_dir = _selected(raw, "abs_si")
 
-    is_normal = (n_theta == 1) and np.isclose(theta_deg[0], 0.0)
-
-    if is_normal:
-        ref = raw.ref_te[:, 0]
-        tran = raw.tran_te[:, 0]
-        emit = raw.abs_te[:, 0]
-        abs_si = raw.abs_si_te[:, 0]
-        emit_atm = 1.0 - atm                       # no cosine for normal emissivity
+    if raw.mode != "hemispherical":
+        if raw.n_directions != 1:
+            raise ValueError(
+                "Normal/specific reduction requires exactly one direction.")
+        ref = ref_dir[:, 0]
+        tran = tran_dir[:, 0]
+        emit = emit_dir[:, 0]
+        abs_si = abs_si_dir[:, 0]
+        cos_t = np.cos(np.deg2rad(theta_deg[0]))
+        emit_atm = 1.0 - atm ** (1.0 / cos_t)
         product = emit_atm * emit
         return OpticsResult(
             lambda_um=lam, ref=ref, tran=tran, emit=emit, abs_silicon=abs_si,
-            emit_atm=emit_atm, emitt_spec_times_emit_atm=product, angles="normal",
+            emit_atm=emit_atm, emitt_spec_times_emit_atm=product,
+            angles=raw.mode, polarization=raw.polarization,
         )
 
-    # ----- hemispherical integration --------------------------------------- #
-    if raw.ref_tm is None:
-        raise ValueError("Hemispherical reduction requires TM data (OUTPUTS4-TM.txt).")
-    theta_rad = np.deg2rad(theta_deg)
-    dtheta = theta_rad[1] - theta_rad[0]
-    cos_t = np.cos(theta_rad)
-    cs = cos_t * np.sin(theta_rad)                  # (n_theta,) integration weight
+    # The weights integrate cos(theta) dOmega / pi and therefore sum to one for
+    # new live runs. The explicit normal probe has zero weight.
+    weights = raw.direction_weight
+    ref = np.sum(ref_dir * weights[None, :], axis=1)
+    tran = np.sum(tran_dir * weights[None, :], axis=1)
+    emit = np.sum(emit_dir * weights[None, :], axis=1)
+    abs_si = np.sum(abs_si_dir * weights[None, :], axis=1)
 
-    def hemi(te, tm):
-        # sum_theta cos*sin*(te+tm) * dtheta  -> (n_lambda,)
-        return np.sum(cs[None, :] * (te + tm), axis=1) * dtheta
-
-    ref = hemi(raw.ref_te, raw.ref_tm)
-    tran = hemi(raw.tran_te, raw.tran_tm)
-    emit = hemi(raw.abs_te, raw.abs_tm)
-    abs_si = hemi(raw.abs_si_te, raw.abs_si_tm)
-
-    # Atmospheric emissivity per angle: 1 - tau^(1/cos theta). (n_lambda, n_theta)
+    cos_t = np.cos(np.deg2rad(theta_deg))
     emit_atm_2d = 1.0 - atm[:, None] ** (1.0 / cos_t[None, :])
-    emit_atm = np.sum(emit_atm_2d, axis=1) * dtheta          # unweighted (matches MATLAB)
-    emis_per_theta = cs[None, :] * (raw.abs_te + raw.abs_tm)  # weighted emissivity per angle
-    product = np.sum(emit_atm_2d * emis_per_theta, axis=1) * dtheta
+    emit_atm = np.sum(emit_atm_2d * weights[None, :], axis=1)
+    product = np.sum(
+        emit_atm_2d * emit_dir * weights[None, :], axis=1)
 
-    # Normal-incidence copies (the theta == 0 TE column).
-    ref_norm = raw.ref_te[:, 0]
-    emit_norm = raw.abs_te[:, 0]
-    abs_si_norm = raw.abs_si_te[:, 0]
+    normal = np.where(np.isclose(theta_deg, 0.0))[0]
+    if normal.size == 0:
+        raise ValueError(
+            "Hemispherical data require an explicit normal-incidence probe.")
+    i0 = normal[0]
+    ref_norm = ref_dir[:, i0]
+    emit_norm = emit_dir[:, i0]
+    abs_si_norm = abs_si_dir[:, i0]
 
     return OpticsResult(
         lambda_um=lam, ref=ref, tran=tran, emit=emit, abs_silicon=abs_si,
         emit_atm=emit_atm, emitt_spec_times_emit_atm=product,
         ref_norm=ref_norm, emit_norm=emit_norm, abs_silicon_norm=abs_si_norm,
-        angles="hemispherical",
+        angles="hemispherical", polarization=raw.polarization,
     )

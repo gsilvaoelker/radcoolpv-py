@@ -109,17 +109,15 @@ def test_zero_crossing_interpolates():
     assert xc == pytest.approx(322.4)
 
 
-def test_zero_crossing_warns_when_it_clamps_high():
+def test_zero_crossing_rejects_unbracketed_high_root():
     x = np.arange(300.0, 350.0)
     y = -50.0 + 0.5 * (x - 300.0)                  # would cross near 400 K
-    with pytest.warns(RuntimeWarning, match="no zero crossing"):
-        xc, _ = _zero_crossing(x, y)
-    assert xc == pytest.approx(x[-1])
+    with pytest.raises(ValueError, match="no zero crossing"):
+        _zero_crossing(x, y)
 
 
-def test_zero_crossing_warns_when_it_clamps_low():
+def test_zero_crossing_rejects_unbracketed_low_root():
     x = np.arange(300.0, 350.0)
     y = np.ones_like(x)                            # already non-negative
-    with pytest.warns(RuntimeWarning, match="already non-negative"):
-        xc, _ = _zero_crossing(x, y)
-    assert xc == pytest.approx(x[0])
+    with pytest.raises(ValueError, match="already non-negative"):
+        _zero_crossing(x, y)

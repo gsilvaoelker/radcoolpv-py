@@ -1,13 +1,15 @@
-"""Clean, tidy output files: CSV with headers + a JSON run record.
-
-Same physical data as the legacy writers, in formats that are easy to consume
-downstream (pandas, plotting, etc.).
-"""
+"""Clean CSV outputs and a reproducibility manifest."""
 
 from __future__ import annotations
 
+import csv
+from dataclasses import asdict
+import hashlib
 import json
 import os
+import platform
+import subprocess
+import sys
 from typing import Optional
 
 import numpy as np
@@ -24,6 +26,36 @@ def write_optics_csv(folder: str, optics: OpticsResult) -> None:
     ])
     np.savetxt(os.path.join(folder, "optics.csv"), cols, delimiter=",",
                header=header, comments="", fmt="%.8g")
+
+
+def write_directional_csv(folder: str, raw) -> None:
+    """Write every S4 direction and polarization without MATLAB conventions."""
+    path = os.path.join(folder, "optics_directional.csv")
+    with open(path, "w", newline="") as fh:
+        writer = csv.writer(fh)
+        writer.writerow([
+            "lambda_um", "polar_angle_deg", "azimuth_angle_deg",
+            "polarization", "angular_weight", "ref", "tran", "abs",
+            "abs_silicon",
+        ])
+        for pol in ("te", "tm"):
+            ref = getattr(raw, f"ref_{pol}")
+            if ref is None:
+                continue
+            tran = getattr(raw, f"tran_{pol}")
+            absorb = getattr(raw, f"abs_{pol}")
+            absorb_si = getattr(raw, f"abs_si_{pol}")
+            for direction, (theta, phi, weight) in enumerate(zip(
+                    raw.theta_deg, raw.phi_deg, raw.direction_weight)):
+                for wavelength, lam in enumerate(raw.lambda_um):
+                    writer.writerow([
+                        f"{lam:.10g}", f"{theta:.10g}", f"{phi:.10g}",
+                        pol.upper(), f"{weight:.10g}",
+                        f"{ref[wavelength, direction]:.10g}",
+                        f"{tran[wavelength, direction]:.10g}",
+                        f"{absorb[wavelength, direction]:.10g}",
+                        f"{absorb_si[wavelength, direction]:.10g}",
+                    ])
 
 
 def write_iv_csv(folder: str, thermal) -> None:
@@ -51,29 +83,21 @@ def write_cooling_curve_csv(folder: str, thermal) -> None:
 
 def write_run_json(folder: str, cfg: Config, optics: Optional[OpticsResult],
                    thermal) -> None:
-    """A single JSON record of the run: key inputs + scalar results."""
+    """Write the resolved case, input hashes, runtime, and scalar results."""
     record = {
-        "run": {"optics": cfg.run.optics, "thermal": cfg.run.thermal,
-                "mode": cfg.run.mode},
-        "simulation": {
-            "wavelength": {"min": cfg.simulation.wavelength.min,
-                           "max": cfg.simulation.wavelength.max,
-                           "n": cfg.simulation.wavelength.n},
-            "angles": cfg.simulation.angles,
-            "rcwa_modes": cfg.simulation.rcwa_modes,
-        },
-        "geometry": {"source": cfg.geometry.source, "shape": cfg.geometry.shape,
-                     "photonic_material": cfg.geometry.photonic_material},
+        "resolved_config": asdict(cfg),
+        "provenance": _provenance(cfg),
     }
     if optics is not None:
-        record["optics"] = {"angles": optics.angles, "n_lambda": int(len(optics.lambda_um))}
+        record["optics"] = {
+            "angles": optics.angles,
+            "polarization": optics.polarization,
+            "n_lambda": int(len(optics.lambda_um)),
+        }
     if thermal is not None:
-        record["thermal"] = {
-            "ambient_temperature": cfg.thermal.ambient_temperature,
-            "convection_coefficient": cfg.thermal.convection_coefficient,
-            "solar_irradiance_W_per_m2": cfg.thermal.solar_irradiance,
-            "equilibrium_mode": cfg.thermal.equilibrium,
+        record["thermal_results"] = {
             "equilibrium_temperature_K": thermal.equil_temp,
+            "temperature_reduction_K": thermal.temperature_reduction,
             "vmpp_V": thermal.vmpp,
             "short_circuit_current_A_per_m2": thermal.isc,
             "mpp_ambient_W_per_m2": thermal.mpp_amb,
@@ -87,3 +111,55 @@ def write_run_json(folder: str, cfg: Config, optics: Optional[OpticsResult],
         }
     with open(os.path.join(folder, "run.json"), "w") as fh:
         json.dump(record, fh, indent=2)
+
+
+def _sha256(path: str) -> str:
+    digest = hashlib.sha256()
+    with open(path, "rb") as fh:
+        for block in iter(lambda: fh.read(1024 * 1024), b""):
+            digest.update(block)
+    return digest.hexdigest()
+
+
+def _git_value(repo: str, *args: str) -> Optional[str]:
+    result = subprocess.run(
+        ["git", "-C", repo, *args], capture_output=True, text=True)
+    return result.stdout.strip() if result.returncode == 0 else None
+
+
+def _provenance(cfg: Config) -> dict:
+    package_root = os.path.abspath(
+        os.path.join(os.path.dirname(__file__), "..", ".."))
+    paths = {
+        "config": cfg.config_path,
+        "solar_spectrum": cfg.resolve_data(cfg.data.solar_spectrum),
+        "atmosphere": cfg.resolve_data(cfg.data.atmosphere),
+        "iqe": cfg.resolve_data(cfg.thermal.pv.iqe_file),
+        "optics_results": cfg.resolve_data(cfg.run.optics_results),
+    }
+    if cfg.geometry.source == "freeform":
+        paths["freeform"] = cfg.resolve_data(
+            cfg.geometry.freeform.get("file"))
+    inputs = {
+        name: {"path": path, "sha256": _sha256(path)}
+        for name, path in paths.items()
+        if path and os.path.isfile(path)
+    }
+    s4 = None
+    if cfg.run.optics and cfg.geometry.source == "s4":
+        import S4
+        s4 = {
+            "module_path": S4.__file__,
+            "sha256": _sha256(S4.__file__),
+        }
+    dirty = _git_value(package_root, "status", "--porcelain",
+                       "--untracked-files=no", "--", ".")
+    record = {
+        "python": sys.version,
+        "platform": platform.platform(),
+        "git_commit": _git_value(package_root, "rev-parse", "HEAD"),
+        "git_dirty": bool(dirty),
+        "inputs": inputs,
+        "s4": s4,
+    }
+    return record

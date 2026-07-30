@@ -29,14 +29,17 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
 
     if args.command == "run":
         try:
-            cfg = config_module.load(args.config)
+            configs = config_module.load_cases(args.config)
         except ConfigError as exc:
             print(f"error: {exc}", file=sys.stderr)
             return 2
-        if args.print_config:
-            pipeline.print_resolved(cfg)
-            return 0
-        pipeline.run(cfg)
+        for cfg in configs:
+            if len(configs) > 1:
+                print(f"\n=== case: {cfg.case_name} ===")
+            if args.print_config:
+                pipeline.print_resolved(cfg)
+            else:
+                pipeline.run(cfg)
         return 0
 
     parser.error("unknown command")  # pragma: no cover

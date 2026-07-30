@@ -46,6 +46,7 @@ class S4Structure:
     lattice: LatticeVectors
     layers: List[S4Layer]
     silicon_layer: Optional[str]    # layer name used for the Si-absorption probe
+    silicon_thickness: float
     bottom_layer: str               # terminal layer name (transmission probe)
     top_layer: str = "layerVacuumTop"
 
@@ -196,6 +197,7 @@ def build_structure(cfg: Config) -> S4Structure:
     layers.extend(_photonic_layers(cfg))
 
     silicon_layer = None
+    silicon_thickness = 0.0
     bottom_layer = "layerBottom"
     for i, layer in enumerate(cfg.structure):
         if layer.terminal:
@@ -204,11 +206,15 @@ def build_structure(cfg: Config) -> S4Structure:
         elif layer.material == "silicon":
             name = "layerSilicon"
             silicon_layer = name
+            silicon_thickness = layer.thickness
+        elif layer.thickness == 0.0:
+            continue
         else:
             name = f"layer_{i}_{layer.material}"
         layers.append(S4Layer(name, layer.thickness, layer.material, []))
 
     return S4Structure(
         lattice=_lattice(cfg), layers=layers,
-        silicon_layer=silicon_layer, bottom_layer=bottom_layer,
+        silicon_layer=silicon_layer, silicon_thickness=silicon_thickness,
+        bottom_layer=bottom_layer,
     )

@@ -44,11 +44,12 @@ B. Cell temperature (Fig. 3) — cooling_curve, 800 W/m², hc = 6, Ta = 300 K
    + grating cooler          37.5 C     37.8 C
 ```
 
-**The grating raises the window emissivity to 0.93 (paper ~0.9) and the
-grating-silica cell reaches 37.8 °C above ambient — matching the paper's 37.5 °C
-to within 0.3 °C.** The grating (via the new `grating` shape) is a genuine RCWA
-computation, well converged (emissivity flat to <0.003 over 10–120 Fourier
-modes, since a 1-D grating only needs modes along the grating vector).
+The grating raises the window emittance to 0.938 (paper approximately 0.9), and
+the coupled model gives 37.8 °C above ambient versus the paper's 37.5 °C. This
+numeric agreement is conditional: the grating spectrum is a genuine RCWA
+calculation, but the solar absorptance is prescribed and the normal spectrum is
+used as angle-independent thermal input. Both normal-incidence polarizations
+are evaluated. The checked 20–80-mode window average varies by less than 0.001.
 
 ## How to run
 
@@ -61,6 +62,9 @@ python run_validation.py --no-build # reuse the committed data/optics/*.txt
 
 `pytest tests/test_validation_zhao_grating.py` checks the committed spectra.
 
+The four `optics_*.yaml` files contain every S4 geometry, material, wavelength,
+polarization, and mode setting used by `build_optics_s4.py`.
+
 ## Documented caveats
 
 * **Bare-cell temperature is model-sensitive.** The paper's Fig. 3 models a
@@ -69,10 +73,10 @@ python run_validation.py --no-build # reuse the committed data/optics/*.txt
   temperature — is set almost entirely by the silicon optical model, not by the
   cooler. It runs hotter here (93.9 °C vs 77.5 °C above ambient), consistent with
   a less mid-IR-absorbing (undoped) silicon than the paper's cell. The **grating**
-  result is robust precisely because the strong silica emissivity (93 %)
-  dominates and is independent of the silicon model — which is why it matches to
-  <1 °C. The test asserts the grating temperature tightly and the bare only as a
-  large relative cooling.
+  result is dominated by the strong silica emissivity (93 %). The test checks
+  the grating temperature tightly and the bare case only as a large relative
+  cooling; it does not convert this conditional comparison into a full
+  angular/solar validation.
 * **Fixed solar absorptivity.** A bare 200 µm Si slab without the cell's
   antireflection and texturing absorbs only ~0.5 of AM1.5 (vs the paper's cell
   ~0.95, Fig. 2d), which would understate the absorbed solar. `build_optics_s4.py`
@@ -80,6 +84,9 @@ python run_validation.py --no-build # reuse the committed data/optics/*.txt
   isolating the grating's mid-IR emissivity effect — the paper's actual result —
   from that front-surface artefact. The cooler-alone spectra (Fig. 1c) are left
   untouched.
+* **Angular approximation.** The calculated spectrum is normal-incidence,
+  unpolarized. The thermal adapter treats it as angle-independent; it is not a
+  hemispherical S4 calculation.
 * **Back mirror.** Silver (`Hagemann_Ag`) replaces any real cell back contact;
   it only matters for the below-bandgap tail (T ≈ 0 in the mid-IR).
 * **Atmosphere.** The paper uses MODTRAN; the bundled Cerro-Pachón transmittance

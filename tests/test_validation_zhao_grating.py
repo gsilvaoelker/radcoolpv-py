@@ -42,7 +42,7 @@ def _band_average(path):
 def _equil(yaml_name):
     cfg = cm.load(os.path.join(VC, yaml_name))
     cfg.run.plots = False
-    cfg.run.outputs = []
+    cfg.run.write_outputs = False
     return pipeline.run(cfg).thermal.equil_temp
 
 

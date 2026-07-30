@@ -9,7 +9,7 @@ run:
   plots: true
   mode: test
   results_dir: results
-  outputs: [legacy, clean]
+  write_outputs: true
   optics_results: quartzValidations-4-30um   # bundled in the package (validation data)
 
 simulation:
@@ -39,4 +39,3 @@ thermal:
 data:
   solar_spectrum: data/astmg173.xlsx
   atmosphere: data/cptrans_nq_100_15.dat
-

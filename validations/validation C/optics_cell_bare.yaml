@@ -1,0 +1,25 @@
+run:
+  optics: true
+  thermal: false
+  plots: false
+  write_outputs: false
+
+simulation:
+  wavelength: {min: 0.3, max: 30.0, n: 899}
+  angles: normal
+  polarization: unpolarized
+  rcwa_modes: 1
+
+geometry:
+  source: s4
+  shape: flat
+  photonic_material: vacuum
+  lattice: {type: square, x: 7.0, y: 7.0}
+
+structure:
+  - {material: silicon, thickness: 200.0}
+  - {material: substrate, thickness: 0.0, terminal: true}
+
+materials:
+  silicon: SiliconNew
+  substrate: Hagemann_Ag

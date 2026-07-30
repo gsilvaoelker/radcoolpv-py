@@ -29,10 +29,17 @@ def test_unknown_model_raises():
 
 @pytest.mark.parametrize("name", [m for m in USED_MODELS if m != "DrudeSi3N4"])
 def test_tabulated_covers_simulation_range_without_nan(name):
-    lam = np.linspace(0.3, 30.0, 500)
+    csv = os.path.join(DATA_DIR, f"{name}.csv")
+    lam_t, _, _ = tabulated.load_table(csv)
+    lam = np.linspace(lam_t[0], lam_t[-1], 500)
     eps = registry.get(name)(lam)
     assert eps.shape == lam.shape
-    assert np.all(np.isfinite(eps)), f"{name} produced non-finite eps in 0.3-30 um"
+    assert np.all(np.isfinite(eps)), f"{name} produced non-finite eps in its table"
+
+
+def test_tabulated_rejects_out_of_range_wavelengths():
+    with pytest.raises(ValueError, match="outside tabulated range"):
+        registry.get("Jaramillo_NILresist")(30.0)
 
 
 def test_tabulated_matches_nk_formula_at_node_and_midpoint():
@@ -57,6 +64,21 @@ def test_silicon_known_first_node():
     # SiliconNew first row: 0.28  2.919769  5.28592321
     eps = registry.get("SiliconNew")(0.28)
     assert np.isclose(eps, (2.919769 + 5.28592321j) ** 2, rtol=1e-9)
+
+
+def test_refractiveindex_info_olmon_ev_gold():
+    eps = registry.get("RII_Olmon_2012_ev_Au")(0.3)
+    assert np.isclose(eps, (1.596 + 1.888j) ** 2, rtol=1e-12)
+    with pytest.raises(ValueError, match="outside tabulated range"):
+        registry.get("RII_Olmon_2012_ev_Au")(25.0)
+
+
+def test_akerboom_silicon_uses_inherited_index_without_ir_loss():
+    eps = registry.get("Akerboom_Si_lossless")(
+        np.array([2.0, 8.0, 16.0]))
+    assert np.all(np.isreal(eps))
+    assert np.sqrt(eps) == pytest.approx(
+        [3.449085553844084, 3.4221846985472157, 3.41981831086898])
 
 
 def test_drude_si3n4_is_lossy_in_ir():

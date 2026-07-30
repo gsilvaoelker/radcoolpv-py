@@ -1,8 +1,8 @@
 """Top-level orchestrator.
 
 Reads the ``run`` toggles and runs the optics and/or thermal stages, coupling
-them in memory (no manual results-folder path to keep in sync). Outputs and
-plots are gated by ``run.outputs`` / ``run.plots``.
+them in memory (no manual results-folder path to keep in sync). Clean outputs
+and plots are gated by ``run.write_outputs`` / ``run.plots``.
 """
 
 from __future__ import annotations
@@ -16,18 +16,23 @@ from .io.results import RunContext, make_results_dir
 def print_resolved(cfg: Config) -> None:
     """Print the resolved settings (defaults applied, derived values computed)."""
     w = cfg.simulation.wavelength
-    angles = cfg.angle_array_deg()
     print("radcoolpv — resolved configuration")
     print("-" * 50)
     print(f"  run.optics   : {cfg.run.optics}")
     print(f"  run.thermal  : {cfg.run.thermal}")
     print(f"  run.plots    : {cfg.run.plots}")
     print(f"  run.mode     : {cfg.run.mode}")
-    print(f"  run.outputs  : {cfg.run.outputs}")
+    print(f"  write outputs: {cfg.run.write_outputs}")
     print(f"  results_dir  : {cfg.resolve(cfg.run.results_dir)}")
     print(f"  wavelength   : {w.min}-{w.max} um, n={w.n}")
-    print(f"  angles       : {cfg.simulation.angles} "
-          f"({len(angles)} angle(s): {angles[0]}..{angles[-1]} deg)")
+    if cfg.run.mode == "spectral_compare":
+        print(f"  comparison   : {len(cfg.comparison.spectra)} series")
+    elif not cfg.run.optics and cfg.run.optics_results:
+        print(f"  optics input : reduced/resumed {cfg.run.optics_results_angles} spectrum")
+    else:
+        theta, _, _ = cfg.direction_arrays()
+        print(f"  directions   : {cfg.simulation.angles} "
+              f"({len(theta)} direction(s), {cfg.simulation.polarization})")
     if cfg.run.optics:
         print(f"  geometry     : source={cfg.geometry.source}, shape={cfg.geometry.shape}, "
               f"photonic={cfg.geometry.photonic_material}")
@@ -48,10 +53,13 @@ def _run_optics(cfg: Config, ctx: RunContext):
     n_lambda = cfg.simulation.wavelength.n
 
     if not cfg.run.optics:
-        # Resume either raw per-angle OUTPUTS4 files or a reduced spectrum.
+        # Historical MATLAB/S4 folders remain readable only for parity and
+        # archived validation inputs. New runs write clean CSV.
         source = cfg.resolve_data(cfg.run.optics_results)
         if os.path.isfile(source):
-            return directional.from_reduced_file(source, atmosphere)
+            return directional.from_reduced_file(
+                source, atmosphere, cfg.run.optics_results_angles,
+                cfg.run.optics_results_emittance_column)
         raw = directional.from_folder(source, n_lambda)
         return directional.reduce(raw, atmosphere, lambda_grid=cfg.wavelength_array())
 
@@ -65,50 +73,31 @@ def _run_optics(cfg: Config, ctx: RunContext):
     from .optics import s4_backend
 
     grid = cfg.wavelength_array()
-    angles = cfg.angle_array_deg()
     print(f"[optics]  S4 RCWA sweep: {len(grid)} wavelengths "
-          f"x {len(angles)} angle(s)")
-    raw = s4_backend.sweep(cfg, grid, angles)
+          f"x {len(cfg.direction_arrays()[0])} direction(s) "
+          f"x {len(cfg.simulation.polarization_names())} polarization(s)")
+    raw = s4_backend.sweep(cfg, grid)
     ctx.extras["raw"] = raw
     return directional.reduce(raw, atmosphere, lambda_grid=grid)
 
 
 def _write_outputs(cfg: Config, ctx: RunContext) -> None:
-    from .io import clean_writers, legacy_writers
-    from .optics import averages
+    from .io import clean_writers
 
     optics, thermal = ctx.optics, ctx.thermal
-    opt_avg = pv_avg = None
+    if not cfg.run.write_outputs:
+        return
     if optics is not None:
-        opt_avg = averages.optical_band_averages(
-            optics.lambda_um, optics.ref, optics.emit, optics.abs_silicon)
+        clean_writers.write_optics_csv(ctx.results_dir, optics)
+    if "raw" in ctx.extras:
+        clean_writers.write_directional_csv(
+            ctx.results_dir, ctx.extras["raw"])
     if thermal is not None and thermal.iv is not None:
-        solar_per_um = ctx.extras.get("solar_per_um")
-        if solar_per_um is not None:
-            pv_avg = averages.pv_band_averages(
-                optics.lambda_um, optics.abs_silicon, optics.ref, optics.emit,
-                solar_per_um, thermal.equil_temp)
-
-    if "legacy" in cfg.run.outputs:
-        if "raw" in ctx.extras:
-            legacy_writers.write_raw_optics(ctx.results_dir, ctx.extras["raw"])
-        if optics is not None:
-            legacy_writers.write_optical_log(ctx.results_dir, cfg, optics, opt_avg)
-            legacy_writers.write_pv_optical_props(ctx.results_dir, optics)
-        if thermal is not None and thermal.iv is not None:
-            legacy_writers.write_iv(ctx.results_dir, thermal)
-            legacy_writers.write_power(ctx.results_dir, thermal)
-            legacy_writers.write_pv_log(ctx.results_dir, cfg, thermal, pv_avg)
-
-    if "clean" in cfg.run.outputs:
-        if optics is not None:
-            clean_writers.write_optics_csv(ctx.results_dir, optics)
-        if thermal is not None and thermal.iv is not None:
-            clean_writers.write_iv_csv(ctx.results_dir, thermal)
-            clean_writers.write_power_csv(ctx.results_dir, thermal)
-        elif thermal is not None and cfg.run.mode == "cooling_curve":
-            clean_writers.write_cooling_curve_csv(ctx.results_dir, thermal)
-        clean_writers.write_run_json(ctx.results_dir, cfg, optics, thermal)
+        clean_writers.write_iv_csv(ctx.results_dir, thermal)
+        clean_writers.write_power_csv(ctx.results_dir, thermal)
+    elif thermal is not None and cfg.run.mode == "cooling_curve":
+        clean_writers.write_cooling_curve_csv(ctx.results_dir, thermal)
+    clean_writers.write_run_json(ctx.results_dir, cfg, optics, thermal)
 
 
 def run(cfg: Config) -> RunContext:
@@ -132,8 +121,13 @@ def run(cfg: Config) -> RunContext:
         ctx.extras["solar_per_um"] = solar.irradiance_per_um
         print("[thermal] energy balance + equilibrium solve")
         ctx.thermal = energy_balance.run(cfg, ctx.optics, solar)
-        print(f"[thermal] T_eq = {ctx.thermal.equil_temp:.2f} K, "
-              f"Vmpp = {ctx.thermal.vmpp:.4f} V, MPP = {ctx.thermal.mpp_equil:.2f} W/m2")
+        if cfg.run.mode == "cooling_curve":
+            print(f"[thermal] zero cooling power at T = "
+                  f"{ctx.thermal.equil_temp:.2f} K")
+        else:
+            print(f"[thermal] T_eq = {ctx.thermal.equil_temp:.2f} K, "
+                  f"Vmpp = {ctx.thermal.vmpp:.4f} V, "
+                  f"MPP = {ctx.thermal.mpp_equil:.2f} W/m2")
 
     # --- outputs + plots -------------------------------------------------- #
     _write_outputs(cfg, ctx)

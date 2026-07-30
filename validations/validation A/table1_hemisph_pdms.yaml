@@ -18,7 +18,7 @@ run:
   plots: true
   results_dir: results/hemisph_pdms
   mode: standard
-  outputs: []
+  write_outputs: false
   optics_results: data/Fig. 3C blue/opticalProps-PVcode.txt
 
 simulation:

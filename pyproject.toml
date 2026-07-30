@@ -16,11 +16,9 @@ dependencies = [
     "openpyxl>=3.0",
 ]
 
-# The pip dependencies above are pure Python. The live RCWA optics stage
-# additionally needs the Stanford S4 module, which has no PyPI package and must
-# be built from source (see README); it is therefore not listed here. The
-# thermal stage, free-form optics, and resuming from existing OUTPUTS4 folders
-# need no optics engine at all.
+# The live RCWA optics stage additionally needs the Stanford S4 module, which
+# has no PyPI package and must be built from source (see README); it is therefore
+# not listed here. Thermal calculations and spectrum readers need no S4 build.
 
 [project.scripts]
 radcoolpv = "radcoolpv.cli:main"
@@ -30,7 +28,7 @@ where = ["."]
 include = ["radcoolpv*"]
 
 [tool.setuptools.package-data]
-"radcoolpv.materials" = ["data/*.csv"]
+"radcoolpv.materials" = ["data/*.csv", "data/*.yml", "SOURCES.md"]
 "radcoolpv" = ["data/*"]
 "radcoolpv.validation" = [
     "data/*.dat",

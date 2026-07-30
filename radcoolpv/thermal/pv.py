@@ -25,7 +25,7 @@ from ..io.results import OpticsResult
 _AUGER_T = np.array([195.0, 252.0, 294.0, 333.0, 372.0])
 _AUGER_A = np.array([3.03e-31, 3.51e-31, 3.88e-31, 4.15e-31, 4.55e-31])
 
-_N_TEMP = 50  # number of emitter temperatures swept (T_amb .. T_amb + 49)
+_N_TEMP = 151  # standard PV sweep: T_amb .. T_amb + 150 K
 
 
 @dataclass

@@ -2,9 +2,9 @@
 # balance, auto-coupled. Mirrors the MATLAB default (a SiO2 cylinder array on a
 # Si3N4/Si/Ag stack).
 #
-# NOTE: a live patterned RCWA sweep at this resolution (2000 wavelengths x 18
-# angles) is expensive in pure Python; reduce wavelength.n / use angles: normal
-# for a quick check.
+# NOTE: the compiled S4 solve at this resolution is expensive. For an optics-only
+# check, reduce wavelength.n or use angles: normal. Thermal runs require
+# hemispherical optics.
 
 run:
   optics: true
@@ -12,12 +12,15 @@ run:
   plots: true
   mode: standard            # standard | cooling_curve | test | spectral_compare
   results_dir: results
-  outputs: [legacy, clean]
+  write_outputs: true
   optics_results: null
 
 simulation:                 # shared by both stages -> no manual drift
   wavelength: {min: 0.3, max: 30.0, n: 2000}
-  angles: hemispherical     # normal | hemispherical (= 18 angles, 0..85 deg)
+  angles: hemispherical     # normal | specific | hemispherical
+  polarization: unpolarized # TE | TM | unpolarized
+  hemisphere_theta_points: 8
+  hemisphere_azimuth_points: 12
   rcwa_modes: 100           # S4 Fourier truncation (NumBasis); patterned layers need ~100+
 
 geometry:

@@ -76,9 +76,8 @@ def main():
         dt = _equil(yaml_name) - T_AMB
         print(f"   {label:<22}{paper_dt:>9.1f}C{dt:>9.1f}C")
 
-    print("\nSee README.md: the grating-silica cell matches the paper to <1 C; the "
-          "bare\ncell runs hotter because its emissivity is set by the 200 um Si "
-          "MIR model.")
+    print("\nSee README.md: the grating temperature agrees within 1 K only under")
+    print("the prescribed-solar and angle-independent-optics approximations.")
 
 
 if __name__ == "__main__":

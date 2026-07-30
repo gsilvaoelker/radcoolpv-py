@@ -30,7 +30,7 @@ def make_all(ctx: RunContext) -> list:
         return [_spectral_comparison(out_dir, ctx.config)]
 
     if optics is not None:
-        paths.append(_optical_properties(out_dir, optics))
+        paths.append(_optical_properties(out_dir, optics, ctx.config))
 
     if thermal is not None:
         paths.append(_cooler_emissivity(out_dir, optics))
@@ -60,13 +60,18 @@ def _positive_y_limit(*curves) -> float:
     return 1.1 * largest if largest > 0.0 else 1.0
 
 
-def _optical_properties(out_dir, optics):
+def _optical_properties(out_dir, optics, cfg):
     fig, ax = plt.subplots(figsize=(7, 4))
     lam = optics.lambda_um
     ax.plot(lam, optics.ref, label="Ref.")
     ax.plot(lam, optics.tran, label="Tran.")
     ax.plot(lam, optics.emit, label="Emiss.")
     ax.plot(lam, optics.abs_silicon, label="Abs. Si")
+    for series in cfg.comparison.spectra:
+        data = np.loadtxt(cfg.resolve_data(series["file"]))
+        column = int(series.get("column", 1))
+        ax.plot(data[:, 0], data[:, column], "--",
+                color=series.get("color"), label=series["label"])
     ax.set_xlabel(r"Wavelength ($\mu$m)")
     ax.set_ylabel("Absorp., Reflect., Trans.")
     ax.set_xlim(lam[0], lam[-1]); ax.set_ylim(0, 1)
@@ -136,10 +141,12 @@ def _cooling_power_curve(out_dir, t, cfg):
     if path:
         with open(path) as fh:
             lines = [line for line in fh if not line.startswith("#")]
-        data = np.genfromtxt(lines[1:], missing_values="NA", filling_values=np.nan)
+        data = np.genfromtxt(lines, missing_values="NA", filling_values=np.nan)
+        if data.ndim == 1:
+            data = data[None, :]
         column = cfg.thermal.reference_curve_column
         y = data[:, column]
-        valid = np.isfinite(y)
+        valid = np.isfinite(data[:, 0]) & np.isfinite(y)
         ax.plot(data[valid, 0], y[valid], "o", ms=3, mfc="white", label="Digitized reference")
     ax.axhline(0.0, color="0.5", lw=0.8)
     ax.axvline(t.equil_temp, ls="--", color="0.5", label=fr"$T_{{eq}}={t.equil_temp:.1f}$ K")

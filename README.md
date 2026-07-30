@@ -1,151 +1,175 @@
 # radcoolpv
 
-YAML-driven radiative-cooling photovoltaics simulator — a modular Python port of
-the MATLAB + Lua/S4 `radCoolPV` toolchain.
+YAML-driven optical, thermal, and electrical modelling of photonic
+radiative-cooling PV structures. The implementation is based on the
+MATLAB+Lua/S4 `matlab-radCoolPV` model, with direct lazy use of the Stanford S4
+Python extension and automatic coupling between optics and the PV energy
+balance.
 
-A single YAML config drives a two-stage pipeline:
+## Capabilities
 
-1. **Optics** — spectral / directional reflectance, transmittance, absorptance,
-   and silicon-layer absorption of a photonic structure on a multilayer PV
-   stack, via RCWA (the **S4** engine), free-form data, or a resumed previous
-   run.
-2. **Thermal** — the energy balance (radiative, atmospheric, convective, solar,
-   electrical, and luminescence terms), the steady-state cell temperature, and
-   the PV I–V / MPP / Voc / FF / efficiency / temperature coefficient.
+- S4 RCWA reflectance, transmittance, total absorptance/emittance, and
+  silicon-layer absorptance.
+- Normal incidence, one arbitrary polar/azimuthal direction, or a
+  hemispherical theta-phi quadrature.
+- TE, TM, or unpolarized illumination.
+- Steady-state operating temperature, diode I-V characteristics, MPP, output
+  power, efficiency, and temperature reduction relative to a YAML-defined
+  reference temperature.
+- Clean CSV outputs and a JSON reproducibility manifest. MATLAB-style output
+  compatibility has been removed.
 
-The two stages share one wavelength grid and are coupled **in memory**, so there
-is no manual results-folder path to keep in sync. The old manual two-step ritual
-(read the equilibrium temperature and MPP voltage off a plot, paste them back,
-re-run) is replaced by an automatic fixed-point solve.
+S4 is the only live optical solver. Free-form and reduced-spectrum inputs are
+readers for external or historical data, not alternative solvers.
 
-`radcoolpv-py/` is **fully self-contained**: all material, spectral, and
-validation reference data is bundled inside the package, so it can be copied or
-installed anywhere with no dependency on the original `radCoolPV` MATLAB tree.
-
-## Install
+## Installation
 
 ```bash
-./install.sh             # creates a .venv and installs everything into it
-./install.sh --system    # install into the current Python instead of a venv
+./install.sh
+source .venv/bin/activate
 ```
 
-The installer creates a local virtual environment (`.venv`) so it works on
-managed system Pythons (Homebrew / PEP 668), installs `requirements.txt`
-(numpy / scipy / matplotlib / pyyaml / openpyxl — NumPy 1.x and 2.x both
-supported), then `pip install -e .`. Activate it with
-`source .venv/bin/activate`.
-
-Equivalently, by hand:
+The thermal/electrical path and spectrum readers require only the Python
+dependencies installed by `install.sh`. Live optics additionally requires the
+compiled S4 Python module:
 
 ```bash
-pip install -r requirements.txt && pip install -e .
-```
-
-### The S4 optics engine
-
-The **live RCWA optics stage additionally requires the Stanford S4 module.**
-Everything else — the thermal/PV stage, free-form optics, and resuming from an
-existing `OUTPUTS4` folder — runs without it.
-
-S4 has **no PyPI package** and must be compiled. Use the maintained fork; the
-upstream `victorliu/S4` Python binding still calls the Python 2 C API and no
-longer matches its own `libS4` signatures, so it will not build against
-Python 3.
-
-```bash
-brew install fftw suite-sparse openblas lapack boost   # macOS
-git clone https://github.com/phoebe-p/S4 && cd S4
+brew install fftw suite-sparse openblas lapack boost
+git clone https://github.com/phoebe-p/S4
+cd S4
 make -f Makefile.m1 S4_pyext      # Apple silicon
-make S4_pyext                     # Linux / Intel macOS
 ```
 
-On Debian/Ubuntu the dependencies are
-`libopenblas-dev libfftw3-dev libsuitesparse-dev libboost-all-dev`.
+S4 is imported only when `geometry.source: s4` is executed. Verify the active
+interpreter with:
 
-Verify with `python -c "import S4; print(S4)"`. If S4 is missing, any config
-with `geometry.source: s4` fails with a message repeating these steps.
+```bash
+python -c "import S4; print(S4.__file__)"
+```
+
+## YAML directions and polarization
+
+Normal, unpolarized:
+
+```yaml
+simulation:
+  wavelength: {min: 0.3, max: 30.0, n: 2000}
+  angles: normal
+  polarization: unpolarized
+  rcwa_modes: 100
+```
+
+One directional TE case:
+
+```yaml
+simulation:
+  wavelength: {min: 8.0, max: 13.0, n: 300}
+  angles: specific
+  polar_angle_deg: 35.0
+  azimuth_angle_deg: 90.0
+  polarization: TE
+  rcwa_modes: 100
+```
+
+Hemispherical, unpolarized:
+
+```yaml
+simulation:
+  wavelength: {min: 3.0, max: 30.0, n: 1000}
+  angles: hemispherical
+  polarization: unpolarized
+  hemisphere_theta_points: 8
+  hemisphere_azimuth_points: 12
+  rcwa_modes: 100
+```
+
+Hemispherical runs include one zero-weight normal-incidence probe plus
+`theta_points * azimuth_points` quadrature directions. Increase both angular
+counts and `rcwa_modes` until the reported quantity is converged.
+
+Live S4 thermal runs require hemispherical optics. A resumed normal-incidence
+spectrum can still drive the thermal model when
+`run.optics_results_angles: normal`; this is an explicit angle-independent
+approximation, not a hemispherical optical calculation.
 
 ## Run
 
 ```bash
-radcoolpv run configs/full.yaml                 # optics (S4 RCWA) + thermal
-radcoolpv run configs/full.yaml --print-config  # just show resolved settings
-radcoolpv run configs/optics_only.yaml          # optics only (S4 RCWA)
-radcoolpv run configs/freeform.yaml             # free-form optics + PV
-radcoolpv run configs/test_perrakis_fig2.yaml   # validation: Perrakis 2020 Fig. 2
+radcoolpv run configs/full.yaml
+radcoolpv run configs/optics_only.yaml
+radcoolpv run configs/freeform.yaml
+radcoolpv run configs/full.yaml --print-config
 ```
 
-A live RCWA sweep of a *patterned* structure is the expensive part of a run:
-cost scales with wavelengths x angles x `simulation.rcwa_modes`. For a quick
-run reduce `simulation.wavelength.n`, lower `rcwa_modes`, or set
-`simulation.angles: normal`.
+One YAML may contain a top-level `cases:` list. The CLI executes those named
+cases in order. Validation E uses this form so students configure one file
+without running helper scripts.
 
-Each run creates a timestamped folder under `results/` containing legacy
-MATLAB-style files (`OUTPUTS4-*.txt`, `opticalProps-PVcode.txt`,
-`IV-PVcode.txt`, `Power-PVcode.txt`, `simulParam*.log`), clean files
-(`optics.csv`, `iv.csv`, `power.csv`, `run.json`), and `figures/` (gated by
-`run.plots`).
+Each output-enabled run writes:
 
-## Configuration
+- `optics.csv`: the requested directional or hemispherically reduced spectrum;
+- `iv.csv`, `power.csv`, or `cooling_power.csv`, when applicable;
+- `run.json`: full resolved YAML, runtime information, Git revision, S4 binary
+  hash, input hashes, and scalar results;
+- `figures/`, when `run.plots: true`.
 
-See `configs/full.yaml` for the annotated reference. Key toggles:
+Live S4 runs additionally write `optics_directional.csv` with every computed
+direction and polarization.
 
-| Key | Meaning |
-| --- | --- |
-| `run.optics` / `run.thermal` | turn each stage on/off (auto-coupled when both on) |
-| `run.plots` | generate figures |
-| `run.mode` | `standard` / `cooling_curve` / `test` / `spectral_compare` |
-| `run.outputs` | any of `legacy`, `clean` |
-| `geometry.source` | `s4` (RCWA) or `freeform` (read optimised data) |
-| `geometry.shape` | `flat` / `sphere` / `semisphere` / `triangle` / `cylinder` / `grating` |
-| `thermal.equilibrium` | `auto` (fixed point) or `manual` (`emit_temp` + `vmpp`) |
+Set `run.write_outputs: false` for programmatic validation runs.
 
-`structure` is an ordered list of flat layers below the photonic structure; the
-silicon layer there is the single source of truth for the cell thickness, so the
-optics and thermal stages cannot disagree.
+For temperature reduction relative to a known reference:
 
-## Materials
+```yaml
+thermal:
+  reference_temperature: 360.0
+```
 
-`materials` maps a logical name (e.g. `sio2`) to a model in the registry
-(`radcoolpv/materials`). Tabulated models live as CSVs in
-`radcoolpv/materials/data` (converted from the MATLAB tables by
-`scripts/convert_permittivity.py`); analytic Drude/Lorentz models live in
-`radcoolpv/materials/analytic.py`. Adding a material is a one-liner: drop a CSV,
-or register a function.
+The result is `reference_temperature - equilibrium_temperature`. The reference
+must be physically defined by the user; the library does not invent a baseline.
 
-## Tests
+## Scientific status
+
+The test suite includes:
+
+- S4 against analytic TMM for flat TE/TM stacks;
+- patterned-structure energy conservation;
+- layer-resolved silicon absorption with a lossy downstream layer;
+- archived MATLAB/Lua/S4 patterned-case parity;
+- theta-phi quadrature and polarization handling;
+- thermal and PV unit/regression checks;
+- literature diagnostics in `validations/`.
+
+Run:
 
 ```bash
-pytest -q
+PYTHONPATH=. python -m pytest -q
 ```
 
-The suite validates the material models against the MATLAB tables, the
-directional reduction + band averages against the committed quartz `OUTPUTS4`
-log (to all digits), the radiative term against Stefan–Boltzmann, the energy
-balance against Perrakis 2020 Fig. 2 (to a few W/m²), and a full free-form +
-PV run end-to-end.
+Validation A is a thermal/PV regression using pre-reduced published spectra.
+Validation B uses digitized optical or cooling curves; its Figure 5d case is not
+an independent calculation. Validation C has YAML-defined S4 optics and
+reproduces the grating result, but its paper-prescribed solar absorptance and
+normal-spectrum thermal approximation remain explicit limitations. Validation E
+uses one YAML for live S4 emittance, paper-stated cooling-power cases, and
+calibrated cooling-power reproduction. It matches the 7.5–16 µm calculated
+emittance band, while its full 2–16 µm silica spectra remain conditional on a
+boundary-condition mismatch. The paper-stated `h = 6.0 W/m²/K` fails both its
+reported temperatures and an independent zero-emitter check. Separate YAML
+cases use a documented joint fit `h_total = 12.54 W/m²/K` and label the
+resulting temperatures as calibrated reproduction, not independent convection
+validation.
 
-## Layout
+See `docs/manual/radcoolpv_manual.pdf` for equations, conventions, validation
+tables, and complete examples.
 
+## Repository layout
+
+```text
+radcoolpv/       active package
+configs/         runnable YAML examples
+tests/           automated checks
+validations/     active, evidence-labelled validation cases
+docs/manual/     source and compiled manual
+archive/         local historical MATLAB and superseded code; gitignored
 ```
-radcoolpv/
-  cli.py               `radcoolpv run ...` entry point
-  config.py            YAML -> typed config + validation + derived helpers
-  constants.py         physical constants / unit conversions
-  pipeline.py          orchestrator (stage coupling, outputs, plots)
-  materials/           registry + tabulated loader + analytic models + data/
-  optics/              geometry, s4_backend, directional, averages, freeform
-  thermal/             spectra, radiative, pv, energy_balance
-  io/                  results context + legacy/clean writers
-  plotting/            figures
-  validation/          literature reference loaders + bundled data/
-  data/                bundled solar / atmosphere / IQE / free-form example
-configs/               example YAML configs
-scripts/               convert_permittivity.py
-tests/                 pytest suite
-validations/           literature reproductions (see validations/README.md)
-```
-
-Not tracked: `archive/` holds the original MATLAB toolchain, the one-off
-MATLAB-vs-Python comparison, untrusted validations, and the non-redistributable
-source PDFs. It is gitignored — see `archive/README.md`.

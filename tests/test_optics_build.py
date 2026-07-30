@@ -32,8 +32,8 @@ def test_cylinder_structure(full_cfg):
     assert s.silicon_layer == "layerSilicon"
     assert s.bottom_layer == "layerBottom"
     assert s.layers[-1].name == "layerBottom" and s.layers[-1].background == "substrate"
-    # 1 vacuum top + 1 cylinder + 7 structure layers.
-    assert len(s.layers) == 1 + 1 + len(full_cfg.structure)
+    # Zero-thickness non-terminal layers are omitted.
+    assert len(s.layers) == 6
 
 
 def test_triangle_discretization():

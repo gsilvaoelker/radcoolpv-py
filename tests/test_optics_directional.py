@@ -44,9 +44,10 @@ def test_reduced_in_physical_range(reduced):
         assert np.all(np.isfinite(arr))
     # Surface emittance is a true 0..1 fraction.
     assert res.emit.min() >= -1e-9 and res.emit.max() <= 1.0 + 1e-3
-    # emit_atm is MATLAB's *unweighted* angular integral: it maxes at n_theta*dtheta ~ pi/2.
+    # Atmospheric emissivity is reduced with the same normalized solid-angle
+    # weights as the surface properties.
     assert res.emit_atm.min() >= -1e-9
-    assert res.emit_atm.max() <= np.pi / 2 + 1e-6
+    assert res.emit_atm.max() <= 1.0 + 1e-6
 
 
 def test_band_averages_match_matlab_log(reduced):
@@ -71,3 +72,20 @@ def test_reduced_pvcode_file_loads_directly(tmp_path):
     assert np.allclose(res.emit, data[:, 1])
     assert np.allclose(res.ref, data[:, 3])
     assert np.allclose(res.abs_silicon_norm, data[:, 6])
+
+
+def test_digitized_emittance_column_loads_as_opaque_surface(tmp_path):
+    path = tmp_path / "digitized.txt"
+    data = np.array([
+        [2.0, 0.1, 0.8],
+        [16.0, 0.2, 0.9],
+    ])
+    np.savetxt(path, data)
+
+    res = directional.from_reduced_file(
+        str(path), ATMOS, "hemispherical", emittance_column=2)
+
+    assert np.allclose(res.emit, data[:, 2])
+    assert np.allclose(res.ref, 1.0 - data[:, 2])
+    assert np.allclose(res.tran, 0.0)
+    assert np.allclose(res.abs_silicon, 0.0)

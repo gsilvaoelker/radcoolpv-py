@@ -20,7 +20,7 @@ run:
   plots: true
   results_dir: results/reference
   mode: standard
-  outputs: []
+  write_outputs: false
   optics_results: data/Fig. 1D/HEMSIPH-PVCELLENCAPSULATED.txt
 
 simulation:

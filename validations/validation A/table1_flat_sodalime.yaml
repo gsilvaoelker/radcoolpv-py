@@ -17,7 +17,7 @@ run:
   plots: true
   results_dir: results/flat_sodalime
   mode: standard
-  outputs: []
+  write_outputs: false
   optics_results: data/Fig. 3B red/opticalProps-PVcode.txt
 
 simulation:

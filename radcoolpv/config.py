@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass, field, replace
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 import yaml
@@ -40,10 +40,12 @@ class RunConfig:
     optics: bool = True
     thermal: bool = True
     plots: bool = True
-    mode: str = "standard"            # standard | test | cooling_curve
+    mode: str = "standard"  # standard | test | cooling_curve | spectral_compare
     results_dir: str = "results"
-    outputs: List[str] = field(default_factory=lambda: ["legacy", "clean"])
+    write_outputs: bool = True
     optics_results: Optional[str] = None  # resume a prior optics run
+    optics_results_angles: str = "hemispherical"
+    optics_results_emittance_column: Optional[int] = None
 
 
 @dataclass
@@ -56,16 +58,63 @@ class Wavelength(_LinspaceSweep):
 @dataclass
 class SimulationConfig:
     wavelength: Wavelength = field(default_factory=Wavelength)
-    angles: str = "hemispherical"     # normal | hemispherical
+    angles: str = "hemispherical"     # normal | specific | hemispherical
+    polar_angle_deg: float = 0.0
+    azimuth_angle_deg: float = 0.0
+    polarization: str = "unpolarized"  # TE | TM | unpolarized
+    hemisphere_theta_points: int = 8
+    hemisphere_azimuth_points: int = 12
     rcwa_modes: int = 10              # S4 Fourier truncation (NumBasis)
 
-    def angle_array_deg(self) -> np.ndarray:
+    def directions(self) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+        """Return polar angles, azimuths, and normalized angular weights.
+
+        A hemispherical run uses Gauss-Legendre nodes in
+        ``u = sin(theta)^2`` and a uniform periodic azimuth rule. The first
+        direction is an explicit zero-weight normal-incidence probe used by the
+        PV luminescence model.
+        """
         if self.angles == "normal":
-            return np.array([0.0])
+            return (np.array([0.0]), np.array([self.azimuth_angle_deg]),
+                    np.array([1.0]))
+        if self.angles == "specific":
+            return (np.array([self.polar_angle_deg]),
+                    np.array([self.azimuth_angle_deg]), np.array([1.0]))
         if self.angles == "hemispherical":
-            # Matches MATLAB: round(linspace(0,85,18),1).
-            return np.round(np.linspace(0.0, 85.0, 18), 1)
-        raise ConfigError(f"simulation.angles must be 'normal' or 'hemispherical', got {self.angles!r}")
+            nodes, weights = np.polynomial.legendre.leggauss(
+                self.hemisphere_theta_points)
+            u = 0.5 * (nodes + 1.0)
+            u_weights = 0.5 * weights
+            theta = np.rad2deg(np.arcsin(np.sqrt(u)))
+            phi = np.arange(self.hemisphere_azimuth_points, dtype=float)
+            phi *= 360.0 / self.hemisphere_azimuth_points
+            theta_grid, phi_grid = np.meshgrid(theta, phi, indexing="ij")
+            angular_weights = np.repeat(
+                u_weights / self.hemisphere_azimuth_points,
+                self.hemisphere_azimuth_points)
+            return (
+                np.concatenate(([0.0], theta_grid.ravel())),
+                np.concatenate(([0.0], phi_grid.ravel())),
+                np.concatenate(([0.0], angular_weights)),
+            )
+        raise ConfigError(
+            "simulation.angles must be normal|specific|hemispherical, "
+            f"got {self.angles!r}")
+
+    def angle_array_deg(self) -> np.ndarray:
+        return self.directions()[0]
+
+    def polarization_names(self) -> List[str]:
+        value = self.polarization.lower()
+        if value == "te":
+            return ["te"]
+        if value == "tm":
+            return ["tm"]
+        if value == "unpolarized":
+            return ["te", "tm"]
+        raise ConfigError(
+            "simulation.polarization must be TE|TM|unpolarized, "
+            f"got {self.polarization!r}")
 
 
 @dataclass
@@ -128,13 +177,15 @@ class TemperatureSweep(_LinspaceSweep):
 @dataclass
 class ThermalConfig:
     ambient_temperature: float = 298.0
-    convection_coefficient: float = 12.0
+    convection_coefficient: float = 12.0  # total effective h for the chosen area
     voltage: VoltageSweep = field(default_factory=VoltageSweep)
     equilibrium: str = "auto"        # auto | manual
     cooling_temperature: Optional[TemperatureSweep] = None
     solar_irradiance: Optional[float] = None  # W/m2; cooling_curve-only normalization
+    absorbed_solar_power: Optional[float] = None  # W/m2; direct paper/model input
     reference_curve_file: Optional[str] = None
     reference_curve_column: int = 1
+    reference_temperature: Optional[float] = None
     emit_temp: float = 319.0         # used only if manual
     vmpp: float = 0.6586             # used only if manual
     pv: PVConfig = field(default_factory=PVConfig)
@@ -167,7 +218,9 @@ class Config:
     thermal: ThermalConfig = field(default_factory=ThermalConfig)
     data: DataConfig = field(default_factory=DataConfig)
     comparison: ComparisonConfig = field(default_factory=ComparisonConfig)
+    case_name: Optional[str] = None
     base_dir: str = "."              # directory the config was loaded from
+    config_path: Optional[str] = None
 
     # ----- derived helpers ------------------------------------------------- #
     def wavelength_array(self) -> np.ndarray:
@@ -175,6 +228,9 @@ class Config:
 
     def angle_array_deg(self) -> np.ndarray:
         return self.simulation.angle_array_deg()
+
+    def direction_arrays(self) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+        return self.simulation.directions()
 
     def thick_si(self) -> float:
         """Silicon thickness taken from the structure (single source of truth)."""
@@ -280,13 +336,38 @@ def from_dict(raw: Dict[str, Any], base_dir: str = ".") -> Config:
     return cfg
 
 
-def load(path: str) -> Config:
-    """Load a YAML config file into a validated :class:`Config`."""
+def load_cases(path: str) -> List[Config]:
+    """Load one config or a list of named configs from one YAML file."""
     if not os.path.isfile(path):
         raise ConfigError(f"Config file not found: {path}")
     with open(path, "r") as fh:
         raw = yaml.safe_load(fh)
-    return from_dict(raw, base_dir=os.path.dirname(os.path.abspath(path)))
+    absolute = os.path.abspath(path)
+    raw = raw or {}
+    cases = raw.get("cases")
+    if cases is None:
+        cases = [raw]
+    elif not isinstance(cases, list) or not cases:
+        raise ConfigError("`cases` must be a non-empty list.")
+
+    configs = []
+    for index, case in enumerate(cases, start=1):
+        if not isinstance(case, dict):
+            raise ConfigError(f"cases[{index - 1}] must be a mapping.")
+        cfg = from_dict(case, base_dir=os.path.dirname(absolute))
+        cfg.case_name = case.get("name") or f"case_{index}"
+        cfg.config_path = absolute
+        configs.append(cfg)
+    return configs
+
+
+def load(path: str) -> Config:
+    """Load a YAML file containing exactly one simulation config."""
+    configs = load_cases(path)
+    if len(configs) != 1:
+        raise ConfigError(
+            f"Config contains {len(configs)} cases; use load_cases().")
+    return configs[0]
 
 
 # --------------------------------------------------------------------------- #
@@ -302,9 +383,6 @@ def validate(cfg: Config) -> None:
         raise ConfigError(
             f"run.mode must be standard|test|cooling_curve|spectral_compare, got {cfg.run.mode!r}"
         )
-    for o in cfg.run.outputs:
-        if o not in {"legacy", "clean"}:
-            raise ConfigError(f"run.outputs items must be 'legacy' or 'clean', got {o!r}")
     if not (cfg.run.optics or cfg.run.thermal or cfg.run.mode == "spectral_compare"):
         raise ConfigError("Nothing to do: run.optics and run.thermal are both false.")
 
@@ -325,10 +403,37 @@ def validate(cfg: Config) -> None:
             "run.thermal is true but run.optics is false: set run.optics_results "
             "to a previous optics results folder."
         )
+    if cfg.run.optics_results_angles not in {"normal", "hemispherical"}:
+        raise ConfigError(
+            "run.optics_results_angles must be normal|hemispherical.")
+    column = cfg.run.optics_results_emittance_column
+    if column is not None and column < 1:
+        raise ConfigError(
+            "run.optics_results_emittance_column must be >= 1 because "
+            "column 0 is wavelength.")
 
-    if cfg.simulation.wavelength.n < 2:
+    wave = cfg.simulation.wavelength
+    if wave.n < 2:
         raise ConfigError("simulation.wavelength.n must be >= 2.")
-    cfg.simulation.angle_array_deg()  # raises if angles invalid
+    if wave.min <= 0.0 or wave.max <= wave.min:
+        raise ConfigError(
+            "simulation.wavelength requires 0 < min < max.")
+    if cfg.simulation.rcwa_modes < 1:
+        raise ConfigError("simulation.rcwa_modes must be >= 1.")
+    if not 0.0 <= cfg.simulation.azimuth_angle_deg < 360.0:
+        raise ConfigError(
+            "simulation.azimuth_angle_deg must be in [0, 360).")
+    if cfg.simulation.angles == "specific":
+        if not 0.0 <= cfg.simulation.polar_angle_deg < 90.0:
+            raise ConfigError(
+                "simulation.polar_angle_deg must be in [0, 90) for a "
+                "specific direction.")
+    if cfg.simulation.hemisphere_theta_points < 1:
+        raise ConfigError("simulation.hemisphere_theta_points must be >= 1.")
+    if cfg.simulation.hemisphere_azimuth_points < 1:
+        raise ConfigError("simulation.hemisphere_azimuth_points must be >= 1.")
+    cfg.simulation.directions()
+    cfg.simulation.polarization_names()
 
     if cfg.run.optics and cfg.geometry.source not in _SOURCES:
         raise ConfigError(
@@ -336,13 +441,30 @@ def validate(cfg: Config) -> None:
             f"got {cfg.geometry.source!r}")
 
     if cfg.run.optics and cfg.geometry.source == "s4":
+        if cfg.run.thermal and cfg.simulation.angles != "hemispherical":
+            raise ConfigError(
+                "Live S4 thermal runs require simulation.angles: "
+                "hemispherical. Directional spectra are insufficient for the "
+                "radiative energy balance.")
         if cfg.geometry.shape not in _SHAPES:
             raise ConfigError(f"geometry.shape must be one of {sorted(_SHAPES)}, got {cfg.geometry.shape!r}")
         _require_shape_params(cfg.geometry)
         if not cfg.structure:
             raise ConfigError("`structure` must list at least the terminal layer when running RCWA optics.")
-        if not any(l.terminal for l in cfg.structure):
+        if sum(l.terminal for l in cfg.structure) != 1:
             raise ConfigError("`structure` must mark exactly one layer as terminal: true (the substrate).")
+        if not cfg.structure[-1].terminal:
+            raise ConfigError("The terminal layer must be last in `structure`.")
+        if cfg.structure[-1].thickness != 0.0:
+            raise ConfigError(
+                "The terminal S4 layer is semi-infinite and must have "
+                "thickness: 0.")
+        if any(l.thickness < 0.0 for l in cfg.structure):
+            raise ConfigError("structure layer thicknesses must be >= 0.")
+        if sum(l.material == "silicon" for l in cfg.structure) > 1:
+            raise ConfigError("`structure` may contain at most one silicon layer.")
+        if cfg.geometry.lattice.x <= 0.0 or cfg.geometry.lattice.y <= 0.0:
+            raise ConfigError("geometry.lattice x and y must be > 0.")
         # Photonic + structure materials must be declared in `materials`.
         used = {cfg.geometry.photonic_material} | {l.material for l in cfg.structure}
         missing = sorted(m for m in used if m not in cfg.materials and m != "vacuum")
@@ -354,6 +476,9 @@ def validate(cfg: Config) -> None:
             raise ConfigError("geometry.source is 'freeform' but geometry.freeform.file is not set.")
 
     if cfg.run.thermal:
+        if (cfg.thermal.reference_temperature is not None
+                and cfg.thermal.reference_temperature <= 0.0):
+            raise ConfigError("thermal.reference_temperature must be > 0 K.")
         if cfg.thermal.equilibrium not in {"auto", "manual"}:
             raise ConfigError(f"thermal.equilibrium must be auto|manual, got {cfg.thermal.equilibrium!r}")
         if cfg.thermal.voltage.n < 2:
@@ -366,6 +491,10 @@ def validate(cfg: Config) -> None:
                 )
             if cfg.thermal.solar_irradiance is not None and cfg.thermal.solar_irradiance <= 0.0:
                 raise ConfigError("thermal.solar_irradiance must be positive when set.")
+            if (cfg.thermal.absorbed_solar_power is not None
+                    and cfg.thermal.absorbed_solar_power <= 0.0):
+                raise ConfigError(
+                    "thermal.absorbed_solar_power must be positive when set.")
 
 
 def _require_shape_params(geom: GeometryConfig) -> None:
@@ -388,6 +517,16 @@ def _require_shape_params(geom: GeometryConfig) -> None:
                 f"geometry.discretization_layers must be >= 1 for shape "
                 f"{geom.shape!r} (got {geom.discretization_layers})."
             )
+
+    for block, key in (
+        (geom.sphere, "radius"),
+        (geom.triangle, "base"),
+        (geom.triangle, "height"),
+        (geom.cylinder, "radius"),
+        (geom.cylinder, "height"),
+    ):
+        if key in block and block[key] <= 0.0:
+            raise ConfigError(f"geometry parameter {key!r} must be > 0.")
 
     if geom.shape == "grating":
         duty = geom.grating["duty"]

@@ -39,6 +39,7 @@ class ThermalResult:
     cool_power: np.ndarray
     equil_temp: float
     vmpp: float
+    temperature_reduction: Optional[float] = None
     isc: float = 0.0
     mpp_amb: float = 0.0
     mpp_equil: float = 0.0
@@ -58,25 +59,17 @@ class ThermalResult:
 def _zero_crossing(x: np.ndarray, y: np.ndarray, what: str = "equilibrium") -> tuple:
     """First x where y crosses from negative to non-negative (linear interp).
 
-    If the crossing lies outside the swept range the result is clamped to an
-    endpoint, which is a real answer only by coincidence - so warn rather than
-    return it silently. The PV temperature sweep is a hard-coded T_amb..T_amb+49
-    (`pv._N_TEMP`), and a poorly cooled module under full sun can equilibrate
-    above that.
+    A value outside the swept range is unresolved, not an endpoint solution.
     """
     if y[0] >= 0:
-        warnings.warn(
+        raise ValueError(
             f"{what}: the balance is already non-negative at the lowest swept "
-            f"point ({x[0]:g}); the true crossing lies below the range and the "
-            f"result is clamped to it.", RuntimeWarning, stacklevel=2)
-        return float(x[0]), 0
+            f"point ({x[0]:g}); extend the temperature range downward.")
     idx = np.where(y >= 0)[0]
     if idx.size == 0:
-        warnings.warn(
+        raise ValueError(
             f"{what}: no zero crossing within {x[0]:g}-{x[-1]:g}; the result is "
-            f"clamped to the upper end and is NOT the true crossing.",
-            RuntimeWarning, stacklevel=2)
-        return float(x[-1]), len(x) - 1
+            "unresolved. Extend the temperature range upward.")
     i = idx[0]
     x0, x1, y0, y1 = x[i - 1], x[i], y[i - 1], y[i]
     xc = x0 + (x1 - x0) * (0.0 - y0) / (y1 - y0)
@@ -102,6 +95,10 @@ def run(cfg, optics: OpticsResult, solar: SolarSpectrum) -> ThermalResult:
     is_test = (cfg.run.mode == "test")
     is_cooling_curve = (cfg.run.mode == "cooling_curve")
 
+    def reduction(temperature):
+        reference = cfg.thermal.reference_temperature
+        return None if reference is None else reference - temperature
+
     emit_temp = (cfg.thermal.cooling_temperature.array() if is_cooling_curve
                  else t_amb + np.arange(pv._N_TEMP, dtype=float))
     atm_power = np.pi * rad_power(lam, optics.emitt_spec_times_emit_atm, t_amb)
@@ -110,6 +107,8 @@ def run(cfg, optics: OpticsResult, solar: SolarSpectrum) -> ThermalResult:
 
     if is_test:
         solar_power = _TEST_SOLAR_POWER
+    elif is_cooling_curve and cfg.thermal.absorbed_solar_power is not None:
+        solar_power = cfg.thermal.absorbed_solar_power
     else:
         solar_power = float(trapz(optics.emit * solar.irradiance_per_um, lam))
         if is_cooling_curve and cfg.thermal.solar_irradiance is not None:
@@ -124,6 +123,7 @@ def run(cfg, optics: OpticsResult, solar: SolarSpectrum) -> ThermalResult:
             solar_power=solar_power, solar_power_am15=solar.total_am15,
             max_power_point=np.zeros_like(emit_temp), non_thermal_power=np.zeros_like(emit_temp),
             cool_power=cool, equil_temp=equil_temp, vmpp=0.0,
+            temperature_reduction=reduction(equil_temp),
             rad_power_equil=float(_at_equilibrium(rad_p, emit_temp, equil_temp)),
             optics=optics,
         )
@@ -185,6 +185,7 @@ def run(cfg, optics: OpticsResult, solar: SolarSpectrum) -> ThermalResult:
         solar_power=solar_power, solar_power_am15=solar.total_am15,
         max_power_point=iv.max_power_point, non_thermal_power=ntp, cool_power=cool,
         equil_temp=equil_temp, vmpp=vmpp, isc=iv.isc,
+        temperature_reduction=reduction(equil_temp),
         mpp_amb=mpp_amb, mpp_equil=mpp_equil, voc_amb=voc_amb, voc_equil=voc_equil,
         ff_amb=ff_amb, ff_equil=ff_equil, beta_p=beta_p, efficiency_equil=efficiency_equil,
         rad_power_equil=rad_power_equil, current_equil=current_equil, power_equil=power_equil,

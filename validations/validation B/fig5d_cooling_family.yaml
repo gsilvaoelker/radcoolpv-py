@@ -9,7 +9,7 @@ run:
   plots: true
   mode: spectral_compare
   results_dir: results/fig5d_cooling_family
-  outputs: []
+  write_outputs: false
 
 comparison:
   xlim: [310.0, 390.0]

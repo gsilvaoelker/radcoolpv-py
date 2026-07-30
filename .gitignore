@@ -14,6 +14,9 @@ dist/
 results/
 configs/results/
 
+# Local historical sources and superseded implementations
+archive/
+
 # Editor / tooling
 .claude/
 .idea/
@@ -25,6 +28,13 @@ htmlcov/
 *.asv
 *.fig
 *.pov
+docs/manual/*.aux
+docs/manual/*.fdb_latexmk
+docs/manual/*.fls
+docs/manual/*.log
+docs/manual/*.out
+docs/manual/*.synctex.gz
+docs/manual/*.toc
 
 # OS
 .DS_Store

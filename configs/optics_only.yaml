@@ -2,8 +2,7 @@
 # spectral/directional properties of a SiO2 cylinder array on the Si3N4/Si/Ag
 # stack. The thermal stage is off, so no energy balance is run.
 #
-# NOTE: a live RCWA sweep of a patterned structure is expensive in pure Python.
-# This full 2000-wavelength x 18-angle sweep is a reference; for a quick check
+# NOTE: this full compiled S4 sweep is expensive. For a quick optics check,
 # reduce simulation.wavelength.n and set simulation.angles: normal.
 
 run:
@@ -12,11 +11,14 @@ run:
   plots: true
   mode: standard
   results_dir: results
-  outputs: [legacy, clean]
+  write_outputs: true
 
 simulation:
   wavelength: {min: 0.3, max: 30.0, n: 2000}
   angles: hemispherical
+  polarization: unpolarized
+  hemisphere_theta_points: 8
+  hemisphere_azimuth_points: 12
   rcwa_modes: 100          # S4 Fourier truncation (NumBasis); patterned layers need ~100+
 
 geometry:

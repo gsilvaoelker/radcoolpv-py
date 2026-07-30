@@ -7,7 +7,7 @@ run:
   plots: true
   mode: standard
   results_dir: results
-  outputs: [legacy, clean]
+  write_outputs: true
 
 simulation:
   wavelength: {min: 0.31, max: 20.0, n: 1000}   # overridden to the data file's span
@@ -42,4 +42,3 @@ thermal:
 data:
   solar_spectrum: data/astmg173.xlsx
   atmosphere: data/cptrans_nq_100_15.dat
-

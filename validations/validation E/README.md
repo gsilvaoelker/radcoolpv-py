@@ -1,91 +1,129 @@
-# Validation E — Akerboom et al. (ACS Photonics 2022), silica microcylinders
+# Validation E — Akerboom et al. (2022)
 
-End-to-end validation of **both** radcoolpv stages against one paper:
+Reference: E. Akerboom et al., “Passive Radiative Cooling of Silicon Solar
+Modules with Photonic Silica Microcylinders,” *ACS Photonics* **9**,
+3831–3840 (2022), https://doi.org/10.1021/acsphotonics.2c01389.
 
-> E. Akerboom, T. Veeken, C. Hecker, J. van de Groep, A. Polman,
-> **"Passive Radiative Cooling of Silicon Solar Modules with Photonic Silica
-> Microcylinders,"** *ACS Photonics* **2022**, 9, 3831–3840.
+## Run
 
-Unlike the trusted resume-only validations (A and B), this one **runs the S4
-RCWA optics engine**: the flat and microcylinder module-glass emissivities are
-computed from first principles, then fed to the `cooling_curve` energy balance.
-
-## What is validated
-
-| Group | Paper source | Quantity | Stage |
-|---|---|---|---|
-| Theoretical bounds | Fig. 2d | Equilibrium T of idealized absorbers | thermal |
-| Module optics | Fig. 5a | Band-averaged emissivity 7.5–16 µm, **computed by S4** | optics |
-| Module thermal | Fig. 5b | Equilibrium T of the three real stacks | optics + thermal |
-
-## The structure
-
-```text
-vacuum / SiO2 200 µm module glass / Si 500 µm / Ag mirror
-```
-
-The microcylinder case adds a hexagonal array of silica cylinders (radius
-1.75 µm, height 2.25 µm, pitch 6.125 µm) etched into the top of the glass — the
-paper's optimized geometry. radcoolpv maps a hexagonal array of pitch `p` onto a
-rectangular `√3·p × p` cell with two cylinders, reproducing the true hexagonal
-fill fraction `2πr²/(√3 p²) = 29.6 %` exactly.
-
-## Result (computed here)
-
-```
-A. Theoretical bounds (Fig. 2d) — idealized emissivity [thermal engine]
-   case                                 paper     calc   err K
-   zero IR emissivity (upper bound)     366.5    367.5     1.0
-   8-14 um window only                  341.5    345.1     3.6
-   ideal 3-30 um absorber (min)         330.5    335.5     5.0
-
-B. Real module stacks (Fig. 5) — S4 optics + cooling-curve thermal
-   stack                         emis% paper/calc   T_eq K paper/calc/err
-   Au-Si (bare reference)              -- /  16.2       360 / 360.6 /  0.6
-   Au-Si-SiO2 (flat glass)           84.3 /  84.0       339 / 338.9 / -0.1
-   Au-Si-SiO2-cylinders              97.7 /  98.3       336 / 336.0 /  0.0
-```
-
-**The S4-computed band-averaged emissivity matches the paper to 0.3 pp (flat)
-and 0.6 pp (cylinders), and every equilibrium temperature to ≤0.6 K.** The
-microcylinder emissivity is now a genuine RCWA result, not — as in the earlier
-archived version — the flat spectrum scaled to the paper's reported 97.7 %.
-
-## How to run
-
-From this directory, with the package installed (`../../install.sh`, or
-`pip install -e ../..`):
+One YAML file defines three optical cases, three cooling-power cases using the
+paper-stated convection coefficient, and three calibrated cooling-power cases:
 
 ```bash
-python run_validation.py            # rebuild the S4 optics, then validate
-python run_validation.py --no-build # reuse the committed data/optics/s4_*.txt
+radcoolpv run "validations/validation E/validation.yaml"
 ```
 
-`build_optics_s4.py` runs the S4 sweep and writes the three reduced spectra; the
-`stack_*.yaml` configs resume from them (`run.optics: false`) so the thermal
-comparison is fast and reproducible. `pytest tests/test_validation_akerboom.py`
-checks the committed spectra without rebuilding.
+Students change only `validation.yaml`. It directly references the digitized
+paper data in `data/digitized/`.
 
-## Documented caveats
+## Paper geometry and boundary conditions
 
-* **RCWA mode truncation.** RCWA expands a circular, high-index-contrast, lossy
-  scatterer in a Fourier basis, which converges slowly and *non-monotonically*
-  for this structure — the band-averaged cylinder emissivity sits near 98 % but
-  scatters ~0.5 % across 40–100 modes (`build_optics_s4.CYL_MODES = 60`). This
-  truncation uncertainty is exactly why the paper used FDTD; it is far smaller
-  than the flat→cylinder emissivity jump under test, and the equilibrium
-  temperature is insensitive to it (the cylinder T_eq lands on 336.0 K). The
-  ~0.6 pp gap to the paper's 97.7 % is consistent with an RCWA-vs-FDTD method
-  difference on a Mie resonance.
-* **Back mirror.** The paper uses an 80 nm gold film; only silver optical
-  constants (`Hagemann_Ag`) are bundled here. Both are near-perfect IR mirrors
-  (T ≈ 0), so this affects only the small parasitic-absorption tail of the bare
-  Au-Si reference, not the silica-bearing stacks.
-* **Normal incidence.** The paper reports normal-incidence emissivity (Fig. 5a)
-  and folds the angular dependence into an effective convection coefficient
-  (`hc = 12` W/m²K here; Methods states 6). The optics files therefore carry the
-  normal-incidence S4 emissivity, matching the 84.3 % / 97.7 % being compared.
-* **Fixed solar input.** The paper fixes absorbed solar power at ≈808 W/m²
-  (AM1.5G above the Si bandgap), independent of the IR design. The optical files
-  enforce this with `emit = 1` for λ ≤ 1.107 µm and `emit = 0` in the below-gap
-  solar tail; the IR band carries the S4 result.
+| Quantity | Calculated design | Fabricated sample |
+|---|---:|---:|
+| Silica cylinder radius | 1.75 µm | 1.825 µm mean |
+| Silica cylinder height | 2.25 µm | 2.20 µm mean |
+| Hexagonal pitch | 6.125 µm | 6.125 µm target |
+| Silica wafer thickness | semi-infinite in Figure 3 calculation | 500 µm |
+| Silicon thickness | not part of the Figure 3 silica-interface model | 500 µm |
+| Gold thickness | — | 80 nm |
+
+The fabricated silicon is lightly phosphorus-doped n-type double-side-polished
+Si. The paper's calculated Figure 3 model places periodic silica cylinders at
+an air/semi-infinite-silica interface and assumes all IR power transmitted into
+silica is eventually absorbed. The active YAML instead uses the complete
+fabricated 500 µm SiO2 / 500 µm Si / 80 nm Au stack so that S4 reports
+`R`, `T`, and `A` for one explicit structure. These are not identical optical
+boundary conditions.
+
+The hexagonal lattice is represented by the rectangular primitive cell used by
+the inherited S4 geometry: `x = sqrt(3) * 6.125 = 10.608811 µm`,
+`y = 6.125 µm`.
+
+## Materials
+
+- Au: unmodified refractiveindex.info Olmon evaporated-gold record, matching
+  both the paper citation and the evaporation fabrication method.
+- SiO2: inherited `matlab-radCoolPV` Palik/Kitamura table.
+- Si: inherited refractive-index table with `k = 0`, because the paper explicitly
+  models silicon as nonabsorbing in the infrared.
+
+Current refractiveindex.info has the exact Olmon Au record but not the
+paper-cited Palik/Kitamura Si or SiO2 records. Replacing them with different
+records would not reproduce the paper. The unresolved source provenance is
+documented in `radcoolpv/materials/SOURCES.md`.
+
+## Digitized comparison data
+
+The repository paper PDF was rendered at 180 dpi. Curves were traced on the
+published axes and resampled at 0.05 µm or 1 K:
+
+- `fig3a_calculated_emittance.txt`: calculated normal emittance, 2–16 µm;
+- `fig5a_measured_emittance.txt`: measured hemispherical emittance, 2–16 µm;
+- `fig5b_cooling_power.txt`: calculated cooling power, 260–380 K.
+
+These are comparison data, not primary measurements. Figure-line thickness,
+overlap, rasterization, and axis calibration limit their precision. The
+digitized Figure 5a band averages are 0.841 for flat silica and 0.975 for the
+cylinders, versus the reported 0.843 and 0.977. The digitized Figure 5b zero
+crossings are 359.5 K, 338.6 K, and 336.3 K, consistent with the reported
+360 K, 339 K, and 336 K.
+
+## Optical result
+
+Fresh 60-mode, normal, unpolarized S4 results are:
+
+| Stack | Paper 7.5–16 µm mean | S4 mean | 7.5–16 µm RMSE | 2–16 µm RMSE |
+|---|---:|---:|---:|---:|
+| Bare Au/Si | 0.036 | 0.032 | 0.030 | 0.030 |
+| Flat silica | 0.843 | 0.842 | 0.029 | 0.174 |
+| Silica cylinders | 0.976 | 0.984 | 0.025 | 0.174 |
+
+The radiative-cooling-band result is supported. Full-range reproduction is not:
+the finite stack diverges from the paper's semi-infinite-silica absorption
+convention over roughly 2–5 µm. No fresh Fourier-mode convergence sweep was
+performed, so the 60-mode patterned result is not a converged reference.
+
+## Cooling power and convection coefficient
+
+All cooling cases use the digitized *measured hemispherical emittance* from
+Figure 5a, as the paper states for Figure 5b. They impose the paper's absorbed
+solar power `808 W/m²`, ambient temperature `300 K`, and calculate
+
+`P_cool = P_rad - P_atm + h_total(T - T_amb) - 808 W/m²`.
+
+Here `h_total` is the total effective nonradiative coefficient for the area
+used by the energy balance. The library does not silently multiply a
+per-surface coefficient by the number of exposed surfaces.
+
+The paper also reports `366.5 K` for a zero-emissivity surface. For that case,
+the published equation reduces exactly to
+`T_eq = 300 K + 808 W/m² / h_total`. The paper-stated
+`h_total = 6.0 W/m²/K` therefore gives `434.67 K`; the reported `366.5 K`
+requires `h_total = 12.15 W/m²/K`. This contradiction is independent of the
+optical and atmospheric inputs.
+
+With the paper-stated `h = 6.0 W/m²/K`, the model gives:
+
+| Stack | Paper equilibrium | Calculated equilibrium |
+|---|---:|---:|
+| Bare Au/Si | 360.0 K | 415.4 K |
+| Flat silica | 339.0 K | 360.6 K |
+| Silica cylinders | 336.0 K | 355.6 K |
+
+The three `cooling_paper_h6_*` YAML cases preserve this failed reproduction.
+After fixing every other paper parameter, a single least-squares fit to all
+three digitized cooling-power curves gives
+`h_total = 12.54 W/m²/K`. The three `cooling_calibrated_*` cases use that
+fitted value:
+
+| Stack | Paper equilibrium | YAML equilibrium | Curve RMSE |
+|---|---:|---:|---:|
+| Bare Au/Si | 360.0 K | 359.7 K | 22.8 W/m² |
+| Flat silica | 339.0 K | 340.1 K | 39.0 W/m² |
+| Silica cylinders | 336.0 K | 337.5 K | 42.7 W/m² |
+
+This reproduces the temperatures and cooling-power curves, but it is a
+calibration, not an independent validation of convection. The most plausible
+explanations are an undocumented two-surface factor or a typo in the paper's
+reported coefficient; the available article and supporting information do not
+distinguish them.

@@ -11,7 +11,7 @@ run:
   plots: true
   mode: cooling_curve
   results_dir: results/sds
-  outputs: [clean]
+  write_outputs: true
   optics_results: data/digitized_optics/sds.txt
 
 simulation:
