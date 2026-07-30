@@ -86,6 +86,20 @@ def _corner_center(cfg: Config) -> Tuple[float, float]:
     return (lat.x / 2.0, lat.y / 2.0)
 
 
+def _circles(material: str, radius: float, hexa: bool,
+             corner: Tuple[float, float]) -> List[Pattern]:
+    """A circle at the cell origin, plus the centred copy a hexagonal cell needs.
+
+    The hexagonal lattice is represented as a centred-rectangular supercell, so
+    every circular motif is placed twice: once at the origin and once at the
+    cell centre.
+    """
+    pats = [Pattern("circle", material, (0.0, 0.0), radius=radius)]
+    if hexa:
+        pats.append(Pattern("circle", material, corner, radius=radius))
+    return pats
+
+
 def _photonic_layers(cfg: Config) -> List[S4Layer]:
     """Build the patterned photonic layers above the flat stack."""
     g = cfg.geometry
@@ -98,12 +112,8 @@ def _photonic_layers(cfg: Config) -> List[S4Layer]:
         return layers
 
     if g.shape == "cylinder":
-        r = g.cylinder["radius"]
-        h = g.cylinder["height"]
-        pats = [Pattern("circle", mat, (0.0, 0.0), radius=r)]
-        if hexa:
-            pats.append(Pattern("circle", mat, corner, radius=r))
-        layers.append(S4Layer("Layer_1", h, "vacuum", pats))
+        layers.append(S4Layer("Layer_1", g.cylinder["height"], "vacuum",
+                              _circles(mat, g.cylinder["radius"], hexa, corner)))
         return layers
 
     if g.shape in ("sphere", "semisphere"):
@@ -111,22 +121,19 @@ def _photonic_layers(cfg: Config) -> List[S4Layer]:
         diam = 2.0 * rad
         n = g.discretization_layers
         delta = diam / n
-        # Mid-layer y positions and circle radii (MATLAB sphere discretisation).
-        ys, xs = [], []
-        y_prev = diam - delta * 0.5
-        ys.append(y_prev)
-        xs.append(math.sqrt(max(rad ** 2 - (y_prev - rad) ** 2, 0.0)))
-        for _ in range(1, n):
-            y_prev = y_prev - delta
-            ys.append(y_prev)
-            xs.append(math.sqrt(max(rad ** 2 - (y_prev - rad) ** 2, 0.0)))
+        # Mid-layer circle radii (MATLAB sphere discretisation). The successive
+        # subtraction of `delta` is kept exactly as-is: replacing it with
+        # `diam - delta * (i + 0.5)` is algebraically equal but not bit-equal.
+        xs = []
+        y = diam - delta * 0.5
+        for _ in range(n):
+            xs.append(math.sqrt(max(rad ** 2 - (y - rad) ** 2, 0.0)))
+            y = y - delta
 
         if g.shape == "sphere":
             for i in range(n):
-                pats = [Pattern("circle", mat, (0.0, 0.0), radius=xs[i])]
-                if hexa:
-                    pats.append(Pattern("circle", mat, corner, radius=xs[i]))
-                layers.append(S4Layer(f"Layer_{i + 1}", delta, "vacuum", pats))
+                layers.append(S4Layer(f"Layer_{i + 1}", delta, "vacuum",
+                                      _circles(mat, xs[i], hexa, corner)))
         else:
             # Semisphere: the dome is the upper half of that sphere, so it must
             # span exactly `rad` for any n. Where the equator falls decides how
@@ -151,10 +158,8 @@ def _photonic_layers(cfg: Config) -> List[S4Layer]:
                     thick = delta * 0.5          # slab straddling the equator
                 else:
                     break
-                pats = [Pattern("circle", mat, (0.0, 0.0), radius=xs[i])]
-                if hexa:
-                    pats.append(Pattern("circle", mat, corner, radius=xs[i]))
-                layers.append(S4Layer(f"Layer_{idx}", thick, "vacuum", pats))
+                layers.append(S4Layer(f"Layer_{idx}", thick, "vacuum",
+                                      _circles(mat, xs[i], hexa, corner)))
         return layers
 
     if g.shape == "triangle":

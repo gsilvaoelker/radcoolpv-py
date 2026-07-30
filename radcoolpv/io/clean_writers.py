@@ -18,14 +18,20 @@ from ..config import Config
 from .results import OpticsResult
 
 
+def _write_csv(folder: str, name: str, cols: np.ndarray, header: str) -> None:
+    """One format for every clean CSV: comma-separated, bare header, %.8g."""
+    np.savetxt(os.path.join(folder, name), cols, delimiter=",",
+               header=header, comments="", fmt="%.8g")
+
+
 def write_optics_csv(folder: str, optics: OpticsResult) -> None:
-    header = "lambda_um,ref,tran,emit,abs_silicon,emit_atm,ref_norm,emit_norm,abs_silicon_norm"
     cols = np.column_stack([
         optics.lambda_um, optics.ref, optics.tran, optics.emit, optics.abs_silicon,
         optics.emit_atm, optics.ref_norm, optics.emit_norm, optics.abs_silicon_norm,
     ])
-    np.savetxt(os.path.join(folder, "optics.csv"), cols, delimiter=",",
-               header=header, comments="", fmt="%.8g")
+    _write_csv(folder, "optics.csv", cols,
+               "lambda_um,ref,tran,emit,abs_silicon,emit_atm,"
+               "ref_norm,emit_norm,abs_silicon_norm")
 
 
 def write_optics_export(path: str, optics: OpticsResult) -> None:
@@ -77,26 +83,22 @@ def write_directional_csv(folder: str, raw) -> None:
 
 
 def write_iv_csv(folder: str, thermal) -> None:
-    iv = thermal.iv
-    cols = np.column_stack([iv.volt, -thermal.current_equil])
-    np.savetxt(os.path.join(folder, "iv.csv"), cols, delimiter=",",
-               header="voltage_V,current_density_A_per_m2", comments="", fmt="%.8g")
+    cols = np.column_stack([thermal.iv.volt, -thermal.current_equil])
+    _write_csv(folder, "iv.csv", cols, "voltage_V,current_density_A_per_m2")
 
 
 def write_power_csv(folder: str, thermal) -> None:
     iv = thermal.iv
-    cols = np.column_stack([
-        iv.volt, thermal.power_equil, iv.cell_power[:, 0]])
-    np.savetxt(os.path.join(folder, "power.csv"), cols, delimiter=",",
-               header="voltage_V,power_equilibrium_W_per_m2,power_ambient_W_per_m2",
-               comments="", fmt="%.8g")
+    cols = np.column_stack([iv.volt, thermal.power_equil, iv.cell_power[:, 0]])
+    _write_csv(folder, "power.csv", cols,
+               "voltage_V,power_equilibrium_W_per_m2,power_ambient_W_per_m2")
 
 
 def write_cooling_curve_csv(folder: str, thermal) -> None:
     """Cooling power versus emitter temperature for PV-free runs."""
     cols = np.column_stack([thermal.emit_temp, thermal.cool_power])
-    np.savetxt(os.path.join(folder, "cooling_power.csv"), cols, delimiter=",",
-               header="temperature_K,cooling_power_W_per_m2", comments="", fmt="%.8g")
+    _write_csv(folder, "cooling_power.csv", cols,
+               "temperature_K,cooling_power_W_per_m2")
 
 
 def write_run_json(folder: str, cfg: Config, optics: Optional[OpticsResult],

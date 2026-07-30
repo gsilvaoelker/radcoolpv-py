@@ -14,7 +14,7 @@ selects by value instead and is the general-purpose helper.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Optional
+from typing import Dict, Optional
 
 import numpy as np
 
@@ -40,6 +40,22 @@ def band_average(lam: np.ndarray, values: np.ndarray,
     return float(trapz(values[m], lam[m]) / (hi - lo))
 
 
+#: MATLAB band edges in micrometres, with the per-edge ``find()`` tolerance it
+#: used. Shared by both weighted-average functions so the convention that
+#: decides which sample starts a band cannot drift between them.
+_EPS = 1e-2
+LAMBDA_GAP = 1.12
+_EDGES = {"gap": (LAMBDA_GAP, 1.2 * _EPS), "ir": (4.0, 1.5 * _EPS),
+          "w1": (8.0, 1.49 * _EPS), "w2": (13.0, 1.49 * _EPS),
+          "w3": (17.0, 1.49 * _EPS), "w4": (24.0, 1.49 * _EPS)}
+
+
+def _band_edges(lam: np.ndarray) -> Dict[str, Optional[int]]:
+    """Indices of the MATLAB band edges on ``lam`` (``None`` when out of range)."""
+    return {name: _find_first(lam, centre, tol)
+            for name, (centre, tol) in _EDGES.items()}
+
+
 @dataclass
 class OpticalAverages:
     solar_abs: float       # silicon absorption 0.3 -> lambda_g (%)
@@ -54,14 +70,10 @@ def optical_band_averages(lam: np.ndarray, ref: np.ndarray, emiss: np.ndarray,
     """Simple trapezoidal band averages (port of the inline block in the
     optical main script). Bands that fall outside the wavelength range return 0.
     """
-    eps = 1e-2
-    lambda_gap = 1.12
-    gp = _find_first(lam, lambda_gap, 1.2 * eps)
-    esp = _find_first(lam, 4.0, 1.5 * eps)
-    w1 = _find_first(lam, 8.0, 1.49 * eps)
-    w2 = _find_first(lam, 13.0, 1.49 * eps)
-    w3 = _find_first(lam, 17.0, 1.49 * eps)
-    w4 = _find_first(lam, 24.0, 1.49 * eps)
+    edges = _band_edges(lam)
+    lambda_gap = LAMBDA_GAP
+    gp, esp = edges["gap"], edges["ir"]
+    w1, w2, w3, w4 = edges["w1"], edges["w2"], edges["w3"], edges["w4"]
 
     def band(x_idx, y_idx, lo, hi, data):
         if x_idx is None or y_idx is None:
@@ -93,12 +105,9 @@ def pv_band_averages(lam: np.ndarray, abs_silicon: np.ndarray, ref: np.ndarray,
                      emiss: np.ndarray, solar_per_um: np.ndarray,
                      emit_temp: float) -> PVAverages:
     """Solar- and blackbody-weighted band averages (port of averagePropsFunc.m)."""
-    eps = 1e-2
-    lambda_gap = 1.12
-    gp = _find_first(lam, lambda_gap, 1.2 * eps)
-    esp = _find_first(lam, 4.0, 1.5 * eps)
-    w1 = _find_first(lam, 8.0, 1.49 * eps)
-    w2 = _find_first(lam, 13.0, 1.49 * eps)
+    edges = _band_edges(lam)
+    gp, esp = edges["gap"], edges["ir"]
+    w1, w2 = edges["w1"], edges["w2"]
 
     def wavg(num, den, sl):
         d = trapz(den[sl], lam[sl])

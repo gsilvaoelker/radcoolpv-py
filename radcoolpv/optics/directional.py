@@ -74,10 +74,14 @@ def polarisations(names):
     return [available[name] for name in names]
 
 
+#: The four fluxes carried per polarization, and the suffixes on RawOptics.
+QUANTITIES = ("ref", "tran", "abs", "abs_si")
+
+
 def new_accumulator(pols, n_lambda: int, n_theta: int):
     """Zeroed ``{pol: {quantity: (n_lambda, n_theta) array}}`` accumulator."""
-    return {p[0]: {k: np.zeros((n_lambda, n_theta)) for k in
-                   ("ref", "tran", "abs", "abs_si")} for p in pols}
+    return {p[0]: {k: np.zeros((n_lambda, n_theta)) for k in QUANTITIES}
+            for p in pols}
 
 
 def pack_raw(out, theta_deg: np.ndarray, phi_deg: np.ndarray,
@@ -93,7 +97,7 @@ def pack_raw(out, theta_deg: np.ndarray, phi_deg: np.ndarray,
         polarization=polarization,
     )
     for pol in out:
-        for quantity in ("ref", "tran", "abs", "abs_si"):
+        for quantity in QUANTITIES:
             setattr(raw, f"{quantity}_{pol}", out[pol][quantity])
     return raw
 

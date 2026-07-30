@@ -27,36 +27,37 @@ def load_table(csv_path: str) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
     return _CACHE[csv_path]
 
 
-def make_tabulated(csv_path: str) -> Callable[[np.ndarray], np.ndarray]:
-    """Return ``eps(lambda_um) -> complex`` for a tabulated model CSV."""
-    lam_t, n_t, k_t = load_table(csv_path)
+def _interpolator(source: str, lam_t: np.ndarray, n_t: np.ndarray,
+                  k_t=None) -> Callable[[np.ndarray], np.ndarray]:
+    """Build ``eps(lambda_um)`` by linear interpolation, refusing extrapolation.
 
+    Silent extrapolation past a table's range is a physics error rather than a
+    convenience, so the range check lives here and cannot drift between the
+    loaders. ``k_t=None`` gives the lossless variant (``k`` treated as zero).
+    """
     def eps(lambda_um) -> np.ndarray:
         lam = np.asarray(lambda_um, dtype=float)
         if np.any(lam < lam_t[0]) or np.any(lam > lam_t[-1]):
             raise ValueError(
-                f"{csv_path}: requested wavelength outside tabulated range "
+                f"{source}: requested wavelength outside tabulated range "
                 f"{lam_t[0]:g}-{lam_t[-1]:g} um.")
         n = np.interp(lam, lam_t, n_t)
-        k = np.interp(lam, lam_t, k_t)
-        return (n + 1j * k) ** 2
+        if k_t is None:
+            return n ** 2
+        return (n + 1j * np.interp(lam, lam_t, k_t)) ** 2
 
     return eps
+
+
+def make_tabulated(csv_path: str) -> Callable[[np.ndarray], np.ndarray]:
+    """Return ``eps(lambda_um) -> complex`` for a tabulated model CSV."""
+    return _interpolator(csv_path, *load_table(csv_path))
 
 
 def make_lossless(csv_path: str) -> Callable[[np.ndarray], np.ndarray]:
     """Use a tabulated refractive index while setting its extinction to zero."""
     lam_t, n_t, _ = load_table(csv_path)
-
-    def eps(lambda_um) -> np.ndarray:
-        lam = np.asarray(lambda_um, dtype=float)
-        if np.any(lam < lam_t[0]) or np.any(lam > lam_t[-1]):
-            raise ValueError(
-                f"{csv_path}: requested wavelength outside tabulated range "
-                f"{lam_t[0]:g}-{lam_t[-1]:g} um.")
-        return np.interp(lam, lam_t, n_t) ** 2
-
-    return eps
+    return _interpolator(csv_path, lam_t, n_t)
 
 
 def make_refractiveindex_info(yaml_path: str) -> Callable[[np.ndarray], np.ndarray]:
@@ -71,16 +72,4 @@ def make_refractiveindex_info(yaml_path: str) -> Callable[[np.ndarray], np.ndarr
         raise ValueError(
             f"{yaml_path}: expected exactly one tabulated nk dataset.")
     data = np.loadtxt(StringIO(tables[0]["data"]))
-    lam_t, n_t, k_t = data[:, 0], data[:, 1], data[:, 2]
-
-    def eps(lambda_um) -> np.ndarray:
-        lam = np.asarray(lambda_um, dtype=float)
-        if np.any(lam < lam_t[0]) or np.any(lam > lam_t[-1]):
-            raise ValueError(
-                f"{yaml_path}: requested wavelength outside tabulated range "
-                f"{lam_t[0]:g}-{lam_t[-1]:g} um.")
-        n = np.interp(lam, lam_t, n_t)
-        k = np.interp(lam, lam_t, k_t)
-        return (n + 1j * k) ** 2
-
-    return eps
+    return _interpolator(yaml_path, data[:, 0], data[:, 1], data[:, 2])
