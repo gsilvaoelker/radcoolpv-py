@@ -73,6 +73,54 @@ python -c "import S4; print(S4.__file__)"
 
 The S4 import occurs only when a case with \code{geometry.source: s4} executes.
 
+\section{Where each quantity is computed}
+\label{sec:codemap}
+
+Every equation in this manual is implemented in one place. The table below is
+the index from physics to source, so a reader checking a result never has to
+guess which function produced it.
+
+\begin{table}[ht]
+\centering
+\small
+\begin{tabular}{p{34mm}p{44mm}p{48mm}}
+\toprule
+Quantity & Module & Function\\
+\midrule
+YAML parsing, defaults, validation & \code{config.py} &
+\code{from\_dict}, \code{validate}\\
+Stage sequencing & \code{pipeline.py} & \code{run}\\
+Layer stack from geometry & \code{optics/geometry.py} &
+\code{build\_structure}, \code{\_photonic\_layers}\\
+Permittivity per material & \code{materials/tabulated.py},
+\code{materials/analytic.py} & \code{\_interpolator}, \code{drude\_si3n4}\\
+\(R,T,A,A_{\mathrm{Si}}\) from S4 & \code{optics/s4\_backend.py} &
+\code{sweep}, \code{\_fluxes}\\
+Angular quadrature nodes & \code{config.py}
+(\code{SimulationConfig}) & \code{directions}\\
+Directional \(\to\) hemispherical & \code{optics/directional.py} &
+\code{reduce}, \code{\_selected}\\
+Resuming a stored spectrum & \code{optics/directional.py} &
+\code{from\_reduced\_file}\\
+Band averages & \code{optics/averages.py} &
+\code{band\_average}, \code{pv\_band\_averages}\\
+Solar spectrum, photon flux & \code{thermal/spectra.py} &
+\code{load\_solar}, \code{load\_atmosphere}\\
+Planck-weighted radiated power & \code{thermal/radiative.py} &
+\code{rad\_power}\\
+Band gap, \(J_{\mathrm{sc}}\), \(J_0\), Auger, I--V &
+\code{thermal/pv.py} & \code{solve\_iv}\\
+Luminescence term & \code{thermal/pv.py} & \code{non\_thermal\_power}\\
+MPP and \(V_{\mathrm{oc}}\) refinement & \code{thermal/pv.py} &
+\code{refine\_peak}, \code{open\_circuit\_voltage}\\
+Energy balance, \(T_{\mathrm{eq}}\) & \code{thermal/}
+\code{energy\_balance.py} & \code{run}, \code{\_zero\_crossing}\\
+CSV, export, manifest & \code{io/clean\_writers.py} &
+\code{\_write\_csv}, \code{write\_optics\_export}, \code{write\_run\_json}\\
+\bottomrule
+\end{tabular}
+\end{table}
+
 \section{Optical model}
 
 \subsection{The S4 problem}
@@ -105,6 +153,53 @@ A_{\mathrm{Si}} =
 
 This prevents absorption in a layer below silicon from being assigned to the
 PV cell.
+
+Because \(A\) is formed as \(1-R-T\), energy conservation is structural rather
+than a diagnostic: what it tests is the flux normalisation, not the solver. The
+residual \(|R+T+A-1|\) computed in memory is at machine precision
+(\(\sim10^{-16}\)); the \(\sim10^{-7}\) seen in stored spectra is the
+\code{\%.6e} text format, not a physical error.
+
+\subsection{Unit cell and shape discretisation}
+\label{sec:geometry}
+
+\code{geometry.lattice.type} selects the Bravais cell. \code{square} builds
+vectors \((x,0),(0,x)\) and \emph{ignores} \code{lattice.y}. \code{hexagonal}
+builds \((x,0),(0,y)\) and additionally places a second copy of every circular
+motif at the cell centre \((x/2,y/2)\): the hexagonal array is represented as a
+centred-rectangular supercell with two motifs. For nearest-neighbour pitch
+\(p\), the correct entries are
+
+\begin{equation}
+x=\sqrt{3}\,p,\qquad y=p,
+\end{equation}
+
+which places all nearest neighbours at distance \(p\). The centred motif is
+added only for \code{cylinder}, \code{sphere}, and \code{semisphere}; for
+\code{triangle} and \code{grating} a hexagonal setting changes the cell vectors
+but yields a single motif, so those shapes are effectively rectangular.
+
+Curved shapes are stacks of uniform slices, since S4 layers are
+\(z\)-invariant. For a sphere or hemisphere of radius \(a\) discretised into
+\(N=\)~\code{discretization\_layers} slices of thickness
+\(\delta=2a/N\), slice \(i\) is a circle of radius
+
+\begin{equation}
+r_i=\sqrt{\max\!\left(a^2-(y_i-a)^2,\;0\right)},
+\qquad y_i = 2a-\tfrac{\delta}{2}-i\,\delta .
+\end{equation}
+
+A hemisphere keeps the top \(\lfloor N/2\rfloor\) whole slices and, for odd
+\(N\), one half-thickness slice straddling the equator, so the dome spans
+exactly \(a\) for either parity. A triangle of base \(b\) and height \(H\) uses
+rectangles of half-width \(b\,y/2H\). \code{grating} is a one-dimensional
+lamellar layer: ridges of \code{photonic\_material} with period
+\code{lattice.x}, duty \(r\), and a vacuum groove of half-width
+\((1-r)\,p/2\) spanning the full cell in \(y\).
+
+\(N\) is a convergence parameter, not a free choice: a slice stack is a
+staircase approximation of a curved surface, and only \code{cylinder},
+\code{grating}, and \code{flat} are represented exactly.
 
 \subsection{Directions and polarization}
 
@@ -216,6 +311,24 @@ lumped-model input and is not deduced from geometry or weather data. A
 per-surface coefficient must be combined explicitly by the user; the library
 does not multiply \(h\) by an assumed number of exposed surfaces.
 
+\code{rad\_power} returns the radiance integral
+\(\int\epsilon(\lambda)B_\lambda(T)\,\mathrm{d}\lambda\) in
+\(\mathrm{W\,m^{-2}\,sr^{-1}}\), with
+
+\begin{equation}
+B_\lambda(T)=\frac{2hc^2}{\lambda^5}
+\left[\exp\!\left(\frac{hc}{\lambda k_B T}\right)-1\right]^{-1},
+\end{equation}
+
+evaluated on the micrometre grid. The caller multiplies by \(\pi\) to integrate
+the cosine-weighted hemisphere, so \(\pi\int B_\lambda\,\mathrm{d}\lambda\) over
+a broad band reproduces \(\sigma T^4\); that identity is a useful check on any
+new wavelength range. Because the integral is trapezoidal on the configured
+grid, a range that truncates the Planck peak silently understates
+\(P_{\mathrm{rad}}\): at \(300~\mathrm{K}\) the peak lies near
+\(9.7~\mathrm{\mu m}\) and a \(4\)--\(30~\mathrm{\mu m}\) window is the usual
+minimum.
+
 \subsection{Solar absorption and steady state}
 
 Total absorbed solar power is
@@ -268,13 +381,83 @@ At each \(T,V\), the current density \(J\) solves
 +J_{\mathrm{Auger}}(T,V)-J_{\mathrm{sc}}.
 \end{multline}
 
-Output power is \(-JV\). A three-point parabolic refinement gives the MPP
-between voltage samples. Open-circuit voltage and operating temperature must be
-bracketed; otherwise the calculation fails explicitly.
+Output power is \(-JV\). Each voltage is solved with \code{scipy.optimize.fsolve},
+warm-started from the previous voltage's solution, which keeps the strongly
+exponential diode equation in its convergence basin across the sweep.
 
-The bandgap calculation preserves the MATLAB scalar-reduction convention for
-parity. This is a model-compatibility choice and should not be confused with a
-fully temperature-resolved semiconductor bandgap model.
+The saturation current is itself a spectral integral rather than a fitted
+constant, using the same IQE and silicon absorptance against a blackbody photon
+flux at the cell temperature:
+
+\begin{equation}
+J_0(T)=q\int_0^{\lambda_g}
+\mathrm{IQE}(\lambda)A_{\mathrm{Si}}(\lambda)\Phi_{\mathrm{bb}}(\lambda,T)
+\,\mathrm{d}\lambda .
+\end{equation}
+
+Auger recombination uses the intrinsic carrier concentration
+
+\begin{equation}
+n_i = 5.29\times10^{19}
+\left(\frac{T}{300}\right)^{2.54}
+\exp\!\left(\frac{-6726}{T}\right)~\mathrm{cm^{-3}},
+\end{equation}
+
+with a coefficient \(A(T)\) interpolated from five tabulated points
+(\(195\)--\(372~\mathrm{K}\), \(3.03\)--\(4.55\times10^{-31}~\mathrm{cm^6/s}\)),
+giving
+
+\begin{equation}
+J_{\mathrm{Auger}}=2qA(T)n_i^3 d_{\mathrm{Si}}
+\exp\!\left(\frac{3qV}{2k_BT}\right).
+\end{equation}
+
+Extrapolating outside that temperature range flattens to the endpoint values,
+so results far outside \(195\)--\(372~\mathrm{K}\) should be treated as
+unsupported.
+
+The band-gap wavelength preserves the MATLAB scalar-reduction convention: the
+original evaluated \(E_{g0}-\alpha T^2/(T+\beta)\) with matrix right division on
+a row vector, which collapses to the single scalar
+\(\alpha\,(T^2\!\cdot\!(T+\beta))/((T+\beta)\!\cdot\!(T+\beta))\). One
+\(\lambda_g\) therefore serves the whole temperature sweep. This is a
+model-compatibility choice, not a temperature-resolved band-gap model, and it
+sets the upper limit of every spectral integral above.
+
+\subsection{Solving for the operating point}
+\label{sec:fixedpoint}
+
+\(P_{\mathrm{MPP}}\) and the luminescence term depend on \(V_{\mathrm{mpp}}\),
+which depends on the temperature that the balance is trying to find. The code
+resolves this by fixed-point iteration from \(V_{\mathrm{mpp}}=0.65~\mathrm{V}\):
+assemble the balance, locate \(T_{\mathrm{eq}}\), re-evaluate the power curve
+there, and refine \(V_{\mathrm{mpp}}\), stopping once successive values agree to
+the configured tolerance. Failure to settle raises a
+\code{RuntimeWarning} naming the last value rather than silently returning it.
+
+Three numerical choices matter for reproducibility, and all three depart
+deliberately from the MATLAB original:
+
+\begin{itemize}
+  \item \textbf{Equilibrium temperature} is the linearly interpolated zero
+        crossing of \(P_{\mathrm{cool}}\), not the nearest grid point. A balance
+        that never crosses zero, or is already non-negative at the lowest swept
+        temperature, raises an error naming the swept interval. An endpoint is
+        never reported as a solution.
+  \item \textbf{MPP and \(V_{\mathrm{mpp}}\)} come from a three-point parabolic
+        fit through the largest sample and its neighbours, so they are not
+        quantised to the \code{thermal.voltage} step. It falls back to the raw
+        sample at a boundary or for collinear points.
+  \item \textbf{\(V_{\mathrm{oc}}\)} is the interpolated crossing of \(-J\). The
+        MATLAB \code{find} returned the last grid point before the crossing,
+        biasing \(V_{\mathrm{oc}}\) low by up to one step
+        (\(7~\mathrm{mV}\) on the default sweep).
+\end{itemize}
+
+Every equilibrium quantity is then reported at that same interpolated
+temperature, so \(T_{\mathrm{eq}}\), \(P_{\mathrm{MPP}}\),
+\(V_{\mathrm{oc}}\), and the fill factor describe one consistent operating
+point.
 
 \subsection{Temperature reduction}
 
@@ -288,6 +471,53 @@ When \code{thermal.reference\_temperature} is supplied,
 The user must define the reference physically, for example the operating
 temperature of a bare module under the same boundary conditions. The library
 does not invent or silently substitute a reference.
+
+\section{Numerical methods and their failure modes}
+\label{sec:numerics}
+
+\begin{table}[ht]
+\centering
+\small
+\begin{tabular}{p{34mm}p{40mm}p{52mm}}
+\toprule
+Step & Method & Fails when\\
+\midrule
+Polar quadrature & Gauss--Legendre in \(u=\sin^2\theta\) &
+too few nodes for a sharply directional emitter\\
+Azimuth quadrature & uniform periodic rule &
+anisotropic cells with few azimuth points\\
+Material \(n,k\) & linear interpolation, extrapolation refused &
+requested \(\lambda\) outside the table (raises)\\
+Spectral integrals & trapezoidal on the configured grid &
+grid truncates the Planck peak or undersamples the solar band\\
+Band edges & first sample within a MATLAB \code{find} tolerance &
+coarse grids miss 1.12, 4, 8, 13 \(\mu\)m and silently return 0\\
+Diode I--V & \code{fsolve}, warm-started per voltage &
+no bracket, or a jump too large between voltages\\
+MPP, \(V_{\mathrm{mpp}}\) & three-point parabolic refinement &
+peak on a sweep boundary (falls back to the sample)\\
+\(V_{\mathrm{oc}}\) & interpolated \(-J\) zero crossing &
+sweep does not bracket it (raises)\\
+\(T_{\mathrm{eq}}\) & interpolated \(P_{\mathrm{cool}}\) zero crossing &
+no crossing in range (raises, never returns an endpoint)\\
+\(V_{\mathrm{mpp}}\) coupling & fixed-point iteration &
+does not settle (warns, naming the last value)\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{sloppypar}
+The band-edge row deserves emphasis because it fails quietly rather than
+loudly. Both \code{optical\_band\_averages} and \code{pv\_band\_averages}
+reproduce the MATLAB convention of taking the first sample within a tolerance
+of each edge; if the wavelength grid has no sample near an edge, that band
+average returns \(0.0\) instead of raising. The default
+\(0.3\)--\(30~\mathrm{\mu m}\) grid with \(n=2000\) satisfies every edge. A
+coarse grid may not, and a zero in a band-average column should always be read
+as a possible missing edge before it is read as physics. The general-purpose
+\code{band\_average} selects by value instead and does not share this
+behaviour.
+\end{sloppypar}
 
 \section{YAML examples}
 
@@ -480,9 +710,89 @@ paper input and a joint fit
 \(h=12.54~\mathrm{W\,m^{-2}\,K^{-1}}\), which gives
 359.7/340.1/337.5 K versus 360.0/339.0/336.0 K. The latter is calibrated
 reproduction, not convection validation.\\
+A.1 & Live S4, TE at normal incidence, hexagonal cell &
+\textbf{Not a validation.} A configuration smoke test with no published
+comparison: it checks that a hexagonal cell with a discretised semisphere
+solves and drives the PV stage. Its array pitch is assumed, not taken from a
+paper.\\
 \bottomrule
 \end{tabular}
 \end{table}
+
+\subsection{Case detail and reproduction commands}
+
+Every case below reproduces the numbers quoted here on the committed inputs.
+The full statement of sources, digitisation provenance, and per-case
+limitations lives in \code{validations/README.md}; this section records what
+each case establishes and how to re-run it.
+
+\paragraph{A --- Silva-Oelker and Jaramillo-Fernandez, \emph{Opt. Express}
+\textbf{30}(18), 32965 (2022), Table 1.}
+Five YAML files drive the thermal/PV path from pre-reduced published spectra.
+They contain no \code{geometry} block and never call S4, so the paper's
+hexagonal hemisphere array is implicit in the supplied spectra. The reduced
+inputs carry no angular TE/TM data, so \(P_{\mathrm{atm}}\) uses the
+angle-independent approximation. Computed against published, all five rows:
+\(J_{\mathrm{sc}}\) within \(3\%\), \(P_{\mathrm{mpp}}\) within \(3\%\),
+\(T_{\mathrm{eq}}\) within \(3~\mathrm{K}\), \(V_{\mathrm{oc}}\) within
+\(0.02~\mathrm{V}\). Reflected power is the weak quantity, reaching about
+\(10\%\).
+
+\begin{lstlisting}[language=bash]
+PYTHONPATH=. python "validations/validation A/run_table1_validation.py"
+\end{lstlisting}
+
+\paragraph{A.1 --- hexagonal-cell smoke test.}
+Two plain CLI runs chained by \code{run.optics\_export} and
+\code{run.optics\_results}. Geometry mirrors Validation A's soda-lime
+hemisphere row (\(9~\mathrm{\mu m}\) diameter on \(75~\mathrm{\mu m}\) flat
+soda-lime over Si\(_3\)N\(_4\)/Si/Ag) with an \emph{assumed} close-packed
+pitch, TE at normal incidence, \code{s4\_modes: 10} and nine slices --- none of
+which is converged. It yields \(|R+T+A-1|\le1.1\times10^{-16}\) in memory,
+solar-band \(A_{\mathrm{Si}}=0.823\), window emittance \(0.973\),
+\(T_{\mathrm{eq}}=317.09~\mathrm{K}\), \(J_{\mathrm{sc}}=365.92~\mathrm{A/m^2}\),
+\(V_{\mathrm{oc}}=0.7264~\mathrm{V}\),
+\(P_{\mathrm{mpp}}=230.61~\mathrm{W/m^2}\), fill factor \(0.868\), efficiency
+\(0.2314\). These land near Table 1 but are not a reproduction of it.
+
+\begin{lstlisting}[language=bash]
+radcoolpv run "validations/validation A.1/optics_hemisph_sodalime.yaml"
+radcoolpv run "validations/validation A.1/pv_hemisph_sodalime.yaml"
+\end{lstlisting}
+
+\paragraph{B --- Le et al., \emph{ACS Photonics} (2026), Figures 4d and 5d.}
+Figure 4d runs \code{cooling\_curve} from digitized film spectra at
+\(800~\mathrm{W\,m^{-2}}\) and \(h_c=9~\mathrm{W\,m^{-2}\,K^{-1}}\). Figure 5d
+is a digitized curve comparison only: the paper does not supply the raw
+commercial-module optics an independent calculation would need.
+
+\paragraph{C --- Zhao et al., \emph{Renewable Energy} \textbf{191} (2022)
+662--668.}
+The only case exercising the 1-D \code{grating} shape
+(\(p=7~\mathrm{\mu m}\), duty \(0.2\), depth \(10~\mathrm{\mu m}\)). The
+grating fills silica's \(9~\mathrm{\mu m}\) reststrahlen dip, lifting the
+window-averaged emittance from \(0.767\) (planar) to \(0.938\) against the
+paper's \(\approx0.90\); the coupled model gives
+\(T_{\mathrm{eq}}=337.82~\mathrm{K}\) against \(337.5~\mathrm{K}\). Both
+normal-incidence polarizations are evaluated and the 20--80-mode window average
+varies by less than \(0.001\). Conditional on a prescribed solar absorptance
+\(\alpha=0.95\) and on normal optics used as an angle-independent thermal
+input.
+
+\paragraph{E --- Akerboom et al., \emph{ACS Photonics} \textbf{9} (2022)
+3831--3840.}
+One YAML defines nine named cases. Optics agree in the radiative-cooling band
+(\(7.5\)--\(16~\mathrm{\mu m}\) RMSE \(0.025\)--\(0.030\)) but not over the full
+\(2\)--\(16~\mathrm{\mu m}\) range for the silica stacks (RMSE \(0.174\)),
+because the finite fabricated stack differs from the paper's semi-infinite
+silica absorption convention. The thermal half fails on the paper's own terms
+and the repository keeps that failure visible rather than tuning it away.
+
+\begin{lstlisting}[language=bash]
+radcoolpv run "validations/validation E/validation.yaml"
+\end{lstlisting}
+
+\subsection{Standing limitations}
 
 Validation E has not received a fresh Fourier-mode convergence sweep. Its
 60-mode patterned result must not be labelled a converged reference solution.
