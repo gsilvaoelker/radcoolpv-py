@@ -1,5 +1,5 @@
 # lambda_um   R           T           emit        abs_si
-# S4 TE normal-incidence optics; hexagonal semisphere smoke test (not a literature validation)
+# radcoolpv optics export (normal spectrum)
 3.000000e-01 4.829231e-01 0.000000e+00 5.170769e-01 4.803589e-01
 3.148574e-01 3.428590e-01 0.000000e+00 6.571410e-01 4.905189e-01
 3.297149e-01 4.611724e-01 0.000000e+00 5.388276e-01 4.961963e-01

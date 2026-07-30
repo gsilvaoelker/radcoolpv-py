@@ -371,6 +371,17 @@ built this way. Validation C keeps the split explicit: four
 \code{optics\_*.yaml} cases call S4 and write \code{data/optics/*.txt}, and two
 \code{cell\_*.yaml} cases consume those spectra to solve the energy balance.
 
+To chain the two runs without any intermediate step, set
+\code{run.optics\_export} in the optics case to a fixed path and point
+\code{run.optics\_results} at that same path in the thermal case. These are the
+write and read halves of one five-column format
+(\code{lambda\_um R T emit abs\_si}). The export is written even when
+\code{run.write\_outputs} is false, because it is requested by explicit path.
+Note that \code{optics.csv} cannot be reused here: it is comma-separated with a
+text header, which the resume reader rejects, and it lands in a timestamped
+folder that a later case cannot name in advance. Case A.1 in
+\code{validations/} is the minimal two-command example.
+
 A resumed spectrum retains no directional information. Driving the thermal stage
 from a normal-incidence file with \code{run.optics\_results\_angles: normal} is
 an explicit angle-independent approximation, not a hemispherical calculation,

@@ -20,13 +20,16 @@
 # because the energy balance needs angle-resolved emissivity. Step 2 resumes
 # the spectrum written here and is explicit about that approximation.
 #
-# Run:  python "validations/validation A.1/build_optics.py"
+# Run:  radcoolpv run "validations/validation A.1/optics_hemisph_sodalime.yaml"
 
 run:
   optics: true
   thermal: false
   plots: false
   write_outputs: false
+  # Fixed path in the five-column form step 2 reads back, so the two runs chain
+  # directly. The timestamped results folder cannot serve this purpose.
+  optics_export: data/optics/hemisph_sodalime_te_normal.txt
 
 simulation:
   wavelength: {min: 0.3, max: 30.0, n: 2000}   # same grid as Validation A

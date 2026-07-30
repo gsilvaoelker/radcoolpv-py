@@ -63,16 +63,20 @@ appearing is the specific thing this case checks. Note that `square` ignores
 `sphere`, and `semisphere` — `triangle` and `grating` get a plain rectangular
 cell.
 
-Two steps, because a live S4 run with `run.thermal: true` is rejected unless
-`angles: hemispherical`:
+Two plain CLI runs, in order. Two steps are required because a live S4 run with
+`run.thermal: true` is rejected unless `angles: hemispherical`:
 
 ```bash
-python "validations/validation A.1/build_optics.py"                  # live S4 -> spectrum
-radcoolpv run "validations/validation A.1/pv_hemisph_sodalime.yaml"  # spectrum -> PV
+radcoolpv run "validations/validation A.1/optics_hemisph_sodalime.yaml"   # live S4 -> spectrum
+radcoolpv run "validations/validation A.1/pv_hemisph_sodalime.yaml"       # spectrum -> PV
 ```
 
-Step 1 writes the five-column spectrum that step 2 resumes; the nine-column
-`optics.csv` a normal CLI run produces is not accepted by `run.optics_results`.
+Nothing happens between them. Step 1 sets `run.optics_export` to a fixed path
+and step 2 reads that same path with `run.optics_results`; those two settings
+are the write and read halves of the same five-column format. The timestamped
+results folder cannot serve this purpose, and neither can `optics.csv`, which is
+comma-separated with a text header that the resume reader rejects.
+
 Step 2 sets `optics_results_angles: normal`, an explicit angle-independent
 approximation.
 

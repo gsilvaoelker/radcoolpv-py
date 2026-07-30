@@ -85,6 +85,12 @@ def _write_outputs(cfg: Config, ctx: RunContext) -> None:
     from .io import clean_writers
 
     optics, thermal = ctx.optics, ctx.thermal
+    # Explicitly requested by path, so it is written even when the timestamped
+    # results folder is switched off.
+    if optics is not None and cfg.run.optics_export:
+        target = cfg.resolve(cfg.run.optics_export)
+        clean_writers.write_optics_export(target, optics)
+        print(f"[optics]  exported resumable spectrum: {target}")
     if not cfg.run.write_outputs:
         return
     if optics is not None:

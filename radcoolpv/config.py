@@ -46,6 +46,11 @@ class RunConfig:
     optics_results: Optional[str] = None  # resume a prior optics run
     optics_results_angles: str = "hemispherical"
     optics_results_emittance_column: Optional[int] = None
+    # Write the computed spectrum to this exact path in the five-column form
+    # that `optics_results` reads back, so an optics run and a later thermal run
+    # can be chained without an intermediate conversion. Independent of
+    # `write_outputs`, which only controls the timestamped results folder.
+    optics_export: Optional[str] = None
 
 
 @dataclass

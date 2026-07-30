@@ -28,6 +28,24 @@ def write_optics_csv(folder: str, optics: OpticsResult) -> None:
                header=header, comments="", fmt="%.8g")
 
 
+def write_optics_export(path: str, optics: OpticsResult) -> None:
+    """Write the spectrum in the five-column form ``optics_results`` reads.
+
+    ``optics.csv`` cannot serve this purpose: it is comma-separated with a text
+    header, while the resume reader uses whitespace-separated numeric columns.
+    Columns are ``lambda_um R T emit abs_si``, matching that reader exactly, so
+    an optics run and a later thermal run chain with no conversion step.
+    """
+    folder = os.path.dirname(path)
+    if folder:
+        os.makedirs(folder, exist_ok=True)
+    cols = np.column_stack([optics.lambda_um, optics.ref, optics.tran,
+                            optics.emit, optics.abs_silicon])
+    np.savetxt(path, cols, fmt="%.6e",
+               header="lambda_um   R           T           emit        abs_si\n"
+                      f"radcoolpv optics export ({optics.angles} spectrum)")
+
+
 def write_directional_csv(folder: str, raw) -> None:
     """Write every S4 direction and polarization without MATLAB conventions."""
     path = os.path.join(folder, "optics_directional.csv")

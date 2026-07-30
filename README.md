@@ -116,6 +116,12 @@ Each output-enabled run writes:
 Live S4 runs additionally write `optics_directional.csv` with every computed
 direction and polarization.
 
+To chain an optics run into a later thermal run with no intermediate step, set
+`run.optics_export` to a fixed path and point the second config's
+`run.optics_results` at it; they are the write and read halves of the same
+five-column format. `optics.csv` cannot be reused for this — it is
+comma-separated with a text header, in a timestamped folder.
+
 Set `run.write_outputs: false` for programmatic validation runs.
 
 For temperature reduction relative to a known reference:
