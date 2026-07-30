@@ -351,9 +351,30 @@ simulation:
   s4_modes: 100
 \end{lstlisting}
 
-A live S4 thermal case requires \code{angles: hemispherical}. Convergence must
-be checked by increasing the polar-angle count, azimuth count, and S4 Fourier
-basis size independently.
+A live S4 thermal case requires \code{angles: hemispherical}: the energy balance
+integrates emissivity over the hemisphere, so a single normal-incidence spectrum
+does not define it. Convergence must be checked by increasing the polar-angle
+count, azimuth count, and S4 Fourier basis size independently.
+
+That requirement is what makes a live thermal run expensive. The solver cost
+scales as
+\(n_\lambda \times n_\theta \times n_\phi \times n_{\mathrm{pol}}\):
+the listing above is \(1000\) wavelengths over \(8\times12=96\) quadrature
+directions, plus one zero-weight normal probe, and an unpolarized case evaluates
+both TE and TM at every one of those points. Changing a convection coefficient
+or an ambient temperature does not change any of it.
+
+The practical workflow is therefore to run the optics once, write the reduced
+spectrum, and re-drive the thermal stage from that file with
+\code{run.optics\_results}, which costs no S4 time. Validations A, B, and C are
+built this way. Validation C keeps the split explicit: four
+\code{optics\_*.yaml} cases call S4 and write \code{data/optics/*.txt}, and two
+\code{cell\_*.yaml} cases consume those spectra to solve the energy balance.
+
+A resumed spectrum retains no directional information. Driving the thermal stage
+from a normal-incidence file with \code{run.optics\_results\_angles: normal} is
+an explicit angle-independent approximation, not a hemispherical calculation,
+and must be reported as such.
 
 \subsection{Layer stack and materials}
 
