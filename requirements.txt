@@ -1,6 +1,6 @@
 # Python runtime dependencies for radcoolpv (pip-installable).
 #
-# NOT listed here: the Stanford S4 RCWA module, needed only for the live optics
+# NOT listed here: the Stanford S4 module, needed only for the live optics
 # stage. It has no PyPI package and is built from source - see README.
 numpy>=1.21
 scipy>=1.7

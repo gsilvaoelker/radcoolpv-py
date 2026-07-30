@@ -27,19 +27,18 @@ REPO = os.path.abspath(os.path.join(HERE, "..", ".."))
 if REPO not in sys.path:
     sys.path.insert(0, REPO)
 
-from radcoolpv import config as cm            # noqa: E402
-from radcoolpv import pipeline                # noqa: E402
-from radcoolpv._compat import trapz           # noqa: E402
+from radcoolpv import config as cm                   # noqa: E402
+from radcoolpv import pipeline                       # noqa: E402
+from radcoolpv.optics.averages import band_average   # noqa: E402
 
-WINDOW = (8.0, 13.0)
+from build_optics_s4 import WINDOW                   # noqa: E402
+
 T_AMB = 300.0
 
 
-def _band_average(path):
+def _window_emissivity(path):
     d = np.loadtxt(os.path.join(HERE, "data", "optics", path))
-    lam, emit = d[:, 0], d[:, 3]
-    m = (lam >= WINDOW[0]) & (lam <= WINDOW[1])
-    return float(trapz(emit[m], lam[m]) / (WINDOW[1] - WINDOW[0]))
+    return band_average(d[:, 0], d[:, 3], *WINDOW)
 
 
 def _equil(yaml_name):
@@ -64,7 +63,7 @@ def main():
     print("   " + "-" * 34)
     for path, label, paper in (("cooler_planar.txt", "planar silica", None),
                                ("cooler_grating.txt", "grating silica", 0.90)):
-        avg = _band_average(path)
+        avg = _window_emissivity(path)
         p = f"{paper * 100:>7.0f}%" if paper else f"{'(dip)':>8}"
         print(f"   {label:<18}{p}{avg * 100:>7.0f}%")
 
@@ -76,7 +75,7 @@ def main():
         dt = _equil(yaml_name) - T_AMB
         print(f"   {label:<22}{paper_dt:>9.1f}C{dt:>9.1f}C")
 
-    print("\nSee README.md: the grating temperature agrees within 1 K only under")
+    print("\nSee ../README.md: the grating temperature agrees within 1 K only under")
     print("the prescribed-solar and angle-independent-optics approximations.")
 
 

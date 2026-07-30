@@ -59,12 +59,11 @@ class RawOptics:
         return len(self.lambda_um)
 
 
-# --- helpers shared by the RCWA backends -----------------------------------
+# --- sweep helpers used by the S4 engine -----------------------------------
 #
-# Both backends run the same (angle, polarisation, wavelength) sweep and pack
-# the same accumulator into RawOptics. Keeping that here means a new backend
-# cannot silently disagree with an existing one about TE/TM conventions or
-# about when TM is computed at all.
+# The (angle, polarisation, wavelength) sweep and the accumulator that packs it
+# into RawOptics live here rather than in the engine, so the TE/TM conventions
+# and the rule for when TM is computed stay in one place.
 
 def polarisations(names):
     """Return S4 excitation tuples for the requested polarization names."""

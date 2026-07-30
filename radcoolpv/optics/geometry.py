@@ -1,14 +1,13 @@
-"""Build the RCWA layer stack from the geometry + structure config.
+"""Build the S4 layer stack from the geometry + structure config.
 
 Ports the geometry blocks of ``mainOpticalMatlabS4_v11.m`` (the discretisation
-of spheres/semispheres/triangles/cylinders and the flat layer stack). Produces a
-solver-agnostic description that an optics backend turns into RCWA calls; this
-keeps the geometry math independent of the optics engine. The ``S4Structure`` /
-``S4Layer`` names are retained from the original port for continuity.
+of spheres/semispheres/triangles/cylinders and the flat layer stack). Produces
+the declarative ``S4Structure`` that :mod:`radcoolpv.optics.s4_backend` turns
+into S4 calls, keeping the geometry math separate from the solver calls.
 
 All lengths are in micrometres. Material names are the *logical* names from the
 config (e.g. ``sio2``, ``silicon``, ``vacuum``); :func:`resolve_eps` maps them to
-permittivity callables for whichever backend is running.
+permittivity callables.
 """
 
 from __future__ import annotations
@@ -54,8 +53,8 @@ class S4Structure:
 def resolve_eps(cfg: Config) -> Dict[str, Callable]:
     """Map each logical material name to its ``eps(lambda_um)`` callable.
 
-    Shared by every RCWA backend, so they cannot drift apart in how a config
-    material name is turned into permittivity.
+    Single place where a config material name becomes permittivity, so the
+    engine and the geometry builder cannot disagree about it.
     """
     funcs: Dict[str, Callable] = {"vacuum": analytic.vacuum}
     for logical, model in cfg.materials.items():

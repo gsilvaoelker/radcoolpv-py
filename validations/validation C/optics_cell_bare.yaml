@@ -8,7 +8,7 @@ simulation:
   wavelength: {min: 0.3, max: 30.0, n: 899}
   angles: normal
   polarization: unpolarized
-  rcwa_modes: 1
+  s4_modes: 1
 
 geometry:
   source: s4

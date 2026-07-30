@@ -16,7 +16,7 @@ dependencies = [
     "openpyxl>=3.0",
 ]
 
-# The live RCWA optics stage additionally needs the Stanford S4 module, which
+# The live optics stage additionally needs the Stanford S4 module, which
 # has no PyPI package and must be built from source (see README); it is therefore
 # not listed here. Thermal calculations and spectrum readers need no S4 build.
 

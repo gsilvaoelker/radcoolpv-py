@@ -15,7 +15,7 @@ run:
 simulation:
   wavelength: {min: 4.0, max: 30.0, n: 2000}   # must match the resumed optics folder
   angles: hemispherical
-  rcwa_modes: 1
+  s4_modes: 1
 
 geometry:
   source: s4                # s4 | freeform

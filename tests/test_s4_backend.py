@@ -33,7 +33,7 @@ def _cfg(photonic="vacuum", shape="flat", cyl=None, grating=None):
     raw = {
         "run": {"optics": True, "thermal": False, "plots": False},
         "simulation": {"wavelength": {"min": 8.0, "max": 10.0, "n": 3},
-                       "angles": "normal", "rcwa_modes": 40},
+                       "angles": "normal", "s4_modes": 40},
         "geometry": {"source": "s4", "shape": shape,
                      "photonic_material": photonic,
                      "lattice": {"type": "square", "x": 5.0, "y": 5.0}},
@@ -130,7 +130,7 @@ def test_silicon_absorption_uses_its_own_two_interfaces():
         "run": {"optics": True, "thermal": False, "plots": False},
         "simulation": {
             "wavelength": {"min": 8.0, "max": 10.0, "n": 3},
-            "angles": "normal", "polarization": "TE", "rcwa_modes": 1,
+            "angles": "normal", "polarization": "TE", "s4_modes": 1,
         },
         "geometry": {
             "source": "s4", "shape": "flat",

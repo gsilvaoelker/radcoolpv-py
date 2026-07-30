@@ -11,7 +11,7 @@ the committed S4 optics spectra under ``validations/validation C/data/optics/``:
 
 The bare-cell temperature is deliberately NOT asserted tightly: a 200 um Si slab
 emits weakly in the mid-IR, so its temperature is set by the silicon optical
-model rather than by the grating - see the README. The grating result is robust
+model rather than by the grating - see validations/README.md. The grating is robust
 because the silica emissivity dominates.
 """
 import os
@@ -21,7 +21,7 @@ import pytest
 
 from radcoolpv import config as cm
 from radcoolpv import pipeline
-from radcoolpv._compat import trapz
+from radcoolpv.optics.averages import band_average
 
 VC = os.path.join(os.path.dirname(__file__), "..", "validations", "validation C")
 WINDOW = (8.0, 13.0)
@@ -32,11 +32,9 @@ pytestmark = pytest.mark.skipif(
     reason="Validation C optics not built")
 
 
-def _band_average(path):
+def _window_emissivity(path):
     d = np.loadtxt(os.path.join(VC, "data", "optics", path))
-    lam, emit = d[:, 0], d[:, 3]
-    m = (lam >= WINDOW[0]) & (lam <= WINDOW[1])
-    return float(trapz(emit[m], lam[m]) / (WINDOW[1] - WINDOW[0]))
+    return band_average(d[:, 0], d[:, 3], *WINDOW)
 
 
 def _equil(yaml_name):
@@ -49,14 +47,14 @@ def _equil(yaml_name):
 # --- optics: the grating's emissivity enhancement (Fig. 1c) ----------------
 
 def test_grating_window_emissivity_matches_paper():
-    avg = _band_average("cooler_grating.txt")
+    avg = _window_emissivity("cooler_grating.txt")
     assert abs(avg - 0.90) < 0.05, f"grating window emissivity {avg:.3f} vs paper ~0.90"
 
 
 def test_grating_fills_the_planar_reststrahlen_dip():
     """The paper's core photonic result: the grating fills silica's 9 um dip."""
-    planar = _band_average("cooler_planar.txt")
-    grating = _band_average("cooler_grating.txt")
+    planar = _window_emissivity("cooler_planar.txt")
+    grating = _window_emissivity("cooler_grating.txt")
     assert planar < 0.80                       # planar wafer carries the dip
     assert grating > planar + 0.10             # grating lifts the window average
 

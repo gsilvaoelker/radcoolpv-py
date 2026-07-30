@@ -48,8 +48,8 @@ if REPO not in sys.path:
     sys.path.insert(0, REPO)
 
 from radcoolpv import config as cm                       # noqa: E402
-from radcoolpv._compat import trapz                       # noqa: E402
 from radcoolpv.optics import s4_backend                   # noqa: E402
+from radcoolpv.optics.averages import band_average        # noqa: E402
 
 OUT_DIR = os.path.join(HERE, "data", "optics")
 
@@ -86,11 +86,6 @@ def _optics(yaml_name, impose_solar=False):
     return ref, tran, emit, abs_si
 
 
-def _band_average(emit):
-    m = (LAM >= WINDOW[0]) & (LAM <= WINDOW[1])
-    return float(trapz(emit[m], LAM[m]) / (WINDOW[1] - WINDOW[0]))
-
-
 def _write(name, spectra):
     ref, tran, emit, abs_si = spectra
     np.savetxt(os.path.join(OUT_DIR, name),
@@ -98,7 +93,7 @@ def _write(name, spectra):
                fmt="%.6e",
                header="lambda_um   R           T           emit        abs_si\n"
                       "S4 normal-incidence unpolarized optics; Zhao et al. 2022")
-    return _band_average(emit)
+    return band_average(LAM, emit, *WINDOW)
 
 
 def main():

@@ -19,7 +19,7 @@ simulation:
   polarization: unpolarized
   hemisphere_theta_points: 8
   hemisphere_azimuth_points: 12
-  rcwa_modes: 100          # S4 Fourier truncation (NumBasis); patterned layers need ~100+
+  s4_modes: 100          # S4 Fourier truncation (NumBasis); patterned layers need ~100+
 
 geometry:
   source: s4                # s4 | freeform

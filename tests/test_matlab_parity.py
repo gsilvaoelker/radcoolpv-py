@@ -55,7 +55,7 @@ def _cfg(n_lambda):
     return config_module.from_dict({
         "run": {"optics": True, "thermal": False, "plots": False},
         "simulation": {"wavelength": {"min": BAND[0], "max": BAND[1], "n": n_lambda},
-                       "angles": "hemispherical", "rcwa_modes": 10},
+                       "angles": "hemispherical", "s4_modes": 10},
         "geometry": {"source": "s4", "shape": "cylinder",
                      "photonic_material": "sio2",
                      "lattice": {"type": "square", "x": 20.0, "y": 20.0},

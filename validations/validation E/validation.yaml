@@ -14,7 +14,7 @@ definitions:
     wavelength: {min: 2.0, max: 16.0, n: 281}
     angles: normal
     polarization: unpolarized
-    rcwa_modes: 60
+    s4_modes: 60
 
   paper_materials: &paper_materials
     sio2: PalikKitamura_SiO2

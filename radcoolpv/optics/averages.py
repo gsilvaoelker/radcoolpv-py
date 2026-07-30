@@ -1,14 +1,14 @@
 """Spectral band averages.
 
-Two flavours, matching the two MATLAB scripts:
-
+* :func:`band_average` — a plain mean of one spectrum over one wavelength band.
 * :func:`optical_band_averages` — the simple trapezoidal band averages printed
   to ``simulParam.log`` by ``mainOpticalMatlabS4_v11.m``.
 * :func:`pv_band_averages` — the solar- and blackbody-weighted averages from
   ``averagePropsFunc.m`` used by the energy-balance log.
 
-Both reproduce the MATLAB ``find(...)`` band-edge selection (first matching index
-within a tolerance) so the numbers match.
+The latter two reproduce the MATLAB ``find(...)`` band-edge selection (first
+matching index within a tolerance) so the numbers match; :func:`band_average`
+selects by value instead and is the general-purpose helper.
 """
 
 from __future__ import annotations
@@ -26,6 +26,18 @@ def _find_first(lam: np.ndarray, center: float, tol: float) -> Optional[int]:
     """0-based index of the first wavelength within ``center +/- tol``, or None."""
     hits = np.where((lam > center - tol) & (lam < center + tol))[0]
     return int(hits[0]) if hits.size else None
+
+
+def band_average(lam: np.ndarray, values: np.ndarray,
+                 lo: float, hi: float) -> float:
+    """Trapezoidal mean of ``values`` over the ``[lo, hi]`` micrometre band.
+
+    Selects the band by wavelength value, not by the MATLAB ``find()`` index
+    convention used by the two functions below, so it is safe on any grid. Used
+    for window averages such as the 8-13 um atmospheric window.
+    """
+    m = (lam >= lo) & (lam <= hi)
+    return float(trapz(values[m], lam[m]) / (hi - lo))
 
 
 @dataclass

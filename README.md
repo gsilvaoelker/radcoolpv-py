@@ -8,7 +8,7 @@ balance.
 
 ## Capabilities
 
-- S4 RCWA reflectance, transmittance, total absorptance/emittance, and
+- S4 reflectance, transmittance, total absorptance/emittance, and
   silicon-layer absorptance.
 - Normal incidence, one arbitrary polar/azimuthal direction, or a
   hemispherical theta-phi quadrature.
@@ -56,7 +56,7 @@ simulation:
   wavelength: {min: 0.3, max: 30.0, n: 2000}
   angles: normal
   polarization: unpolarized
-  rcwa_modes: 100
+  s4_modes: 100
 ```
 
 One directional TE case:
@@ -68,7 +68,7 @@ simulation:
   polar_angle_deg: 35.0
   azimuth_angle_deg: 90.0
   polarization: TE
-  rcwa_modes: 100
+  s4_modes: 100
 ```
 
 Hemispherical, unpolarized:
@@ -80,12 +80,12 @@ simulation:
   polarization: unpolarized
   hemisphere_theta_points: 8
   hemisphere_azimuth_points: 12
-  rcwa_modes: 100
+  s4_modes: 100
 ```
 
 Hemispherical runs include one zero-weight normal-incidence probe plus
 `theta_points * azimuth_points` quadrature directions. Increase both angular
-counts and `rcwa_modes` until the reported quantity is converged.
+counts and `s4_modes` until the reported quantity is converged.
 
 Live S4 thermal runs require hemispherical optics. A resumed normal-incidence
 spectrum can still drive the thermal model when
@@ -146,19 +146,11 @@ Run:
 PYTHONPATH=. python -m pytest -q
 ```
 
-Validation A is a thermal/PV regression using pre-reduced published spectra.
-Validation B uses digitized optical or cooling curves; its Figure 5d case is not
-an independent calculation. Validation C has YAML-defined S4 optics and
-reproduces the grating result, but its paper-prescribed solar absorptance and
-normal-spectrum thermal approximation remain explicit limitations. Validation E
-uses one YAML for live S4 emittance, paper-stated cooling-power cases, and
-calibrated cooling-power reproduction. It matches the 7.5–16 µm calculated
-emittance band, while its full 2–16 µm silica spectra remain conditional on a
-boundary-condition mismatch. The paper-stated `h = 6.0 W/m²/K` fails both its
-reported temperatures and an independent zero-emitter check. Separate YAML
-cases use a documented joint fit `h_total = 12.54 W/m²/K` and label the
-resulting temperatures as calibrated reproduction, not independent convection
-validation.
+The literature cases in `validations/` differ in evidentiary strength, from
+conditional regressions against pre-reduced published spectra to live S4 optics.
+Some reproduce their paper only under stated approximations, and one fails its
+paper's convection coefficient outright. Each case states its DOI, results, and
+limitations in `validations/README.md`; read that before citing any of them.
 
 See `docs/manual/radcoolpv_manual.pdf` for equations, conventions, validation
 tables, and complete examples.

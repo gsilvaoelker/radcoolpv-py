@@ -41,5 +41,5 @@ thermal:
     iqe_file: data/siliconIQE.txt   # not bundled in this folder; resolves to radcoolpv's default
 
 data:
-  solar_spectrum: data/solarData/astmg173.xlsx
+  solar_spectrum: data/astmg173.xlsx      # not bundled here; resolves to radcoolpv's default (AM1.5G)
   atmosphere: data/atmosphericData/cptrans_nq_100_15.dat

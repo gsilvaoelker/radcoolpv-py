@@ -45,7 +45,7 @@ def _structure(shape, n_layers=3, **shape_kw):
     cfg = config_module.from_dict({
         "run": {"optics": True, "thermal": False, "plots": False},
         "simulation": {"wavelength": {"min": 8.0, "max": 10.0, "n": 3},
-                       "angles": "normal", "rcwa_modes": 10},
+                       "angles": "normal", "s4_modes": 10},
         "geometry": geom,
         "structure": [{"material": "silicon", "thickness": 250.0},
                       {"material": "substrate", "thickness": 0.0, "terminal": True}],
@@ -220,7 +220,7 @@ def test_hexagonal_lattice_adds_the_corner_copy():
     cfg = config_module.from_dict({
         "run": {"optics": True, "thermal": False, "plots": False},
         "simulation": {"wavelength": {"min": 8.0, "max": 10.0, "n": 3},
-                       "angles": "normal", "rcwa_modes": 10},
+                       "angles": "normal", "s4_modes": 10},
         "geometry": {"source": "s4", "shape": "cylinder",
                      "photonic_material": "sio2",
                      "lattice": {"type": "hexagonal", "x": LATTICE, "y": 10.0},

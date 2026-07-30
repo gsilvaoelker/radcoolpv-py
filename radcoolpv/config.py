@@ -64,7 +64,7 @@ class SimulationConfig:
     polarization: str = "unpolarized"  # TE | TM | unpolarized
     hemisphere_theta_points: int = 8
     hemisphere_azimuth_points: int = 12
-    rcwa_modes: int = 10              # S4 Fourier truncation (NumBasis)
+    s4_modes: int = 10              # S4 Fourier truncation (NumBasis)
 
     def directions(self) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
         """Return polar angles, azimuths, and normalized angular weights.
@@ -418,8 +418,8 @@ def validate(cfg: Config) -> None:
     if wave.min <= 0.0 or wave.max <= wave.min:
         raise ConfigError(
             "simulation.wavelength requires 0 < min < max.")
-    if cfg.simulation.rcwa_modes < 1:
-        raise ConfigError("simulation.rcwa_modes must be >= 1.")
+    if cfg.simulation.s4_modes < 1:
+        raise ConfigError("simulation.s4_modes must be >= 1.")
     if not 0.0 <= cfg.simulation.azimuth_angle_deg < 360.0:
         raise ConfigError(
             "simulation.azimuth_angle_deg must be in [0, 360).")
@@ -450,7 +450,7 @@ def validate(cfg: Config) -> None:
             raise ConfigError(f"geometry.shape must be one of {sorted(_SHAPES)}, got {cfg.geometry.shape!r}")
         _require_shape_params(cfg.geometry)
         if not cfg.structure:
-            raise ConfigError("`structure` must list at least the terminal layer when running RCWA optics.")
+            raise ConfigError("`structure` must list at least the terminal layer when running S4 optics.")
         if sum(l.terminal for l in cfg.structure) != 1:
             raise ConfigError("`structure` must mark exactly one layer as terminal: true (the substrate).")
         if not cfg.structure[-1].terminal:

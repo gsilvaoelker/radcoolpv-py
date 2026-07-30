@@ -56,7 +56,7 @@ def test_hemispherical_quadrature_is_normalized_and_has_azimuths():
 
 @pytest.mark.parametrize("change,match", [
     ({"wavelength": {"min": -1.0, "max": 2.0, "n": 3}}, "0 < min < max"),
-    ({"rcwa_modes": 0}, "rcwa_modes"),
+    ({"s4_modes": 0}, "s4_modes"),
 ])
 def test_invalid_numerical_inputs_fail_early(change, match):
     raw = _base()

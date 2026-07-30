@@ -73,7 +73,7 @@ def _run_optics(cfg: Config, ctx: RunContext):
     from .optics import s4_backend
 
     grid = cfg.wavelength_array()
-    print(f"[optics]  S4 RCWA sweep: {len(grid)} wavelengths "
+    print(f"[optics]  S4 sweep: {len(grid)} wavelengths "
           f"x {len(cfg.direction_arrays()[0])} direction(s) "
           f"x {len(cfg.simulation.polarization_names())} polarization(s)")
     raw = s4_backend.sweep(cfg, grid)

@@ -142,7 +142,7 @@ def sweep(cfg: Config, lambda_grid: np.ndarray,
     # Pre-evaluate eps for every material over the whole grid (vectorised), then
     # build the simulation once using the first wavelength's values.
     eps_grid = {m: np.asarray(eps_funcs[m](lambda_grid), dtype=complex) for m in mats}
-    sim = _build_sim(structure, cfg.simulation.rcwa_modes,
+    sim = _build_sim(structure, cfg.simulation.s4_modes,
                      {m: eps_grid[m][0] for m in mats})
 
     for it, (polar, azimuth) in enumerate(zip(theta, phi)):

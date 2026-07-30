@@ -9,9 +9,9 @@
 # hermetic and works on managed system Pythons (Homebrew, PEP 668). If you are
 # already inside a virtual environment, that one is used.
 #
-# The pip dependencies are pure Python. The live RCWA optics stage additionally
-# needs the Stanford S4 module, which has no PyPI package and is built from
-# source - see README. Everything else runs without it.
+# The pip dependencies are pure Python. The live optics stage additionally needs
+# the Stanford S4 module, which has no PyPI package and is built from source -
+# see README. Everything else runs without it.
 #
 set -euo pipefail
 
