@@ -23,7 +23,7 @@
 
 \title{\code{radcoolpv}\\Physics, Numerical Models, YAML Cases, and Validation}
 \author{Project manual}
-\date{27 July 2026}
+\date{30 July 2026}
 
 \begin{document}
 \maketitle
@@ -60,7 +60,8 @@ python -c "import radcoolpv; print(radcoolpv.__version__)"
 \end{lstlisting}
 
 The thermal/PV stage and spectrum readers use the Python dependencies installed
-by \code{install.sh}. Live RCWA requires a separately compiled S4 Python module:
+by \code{install.sh}. Live optics requires a separately compiled S4 Python
+module:
 
 \begin{lstlisting}[language=bash]
 brew install fftw suite-sparse openblas lapack boost
@@ -74,11 +75,11 @@ The S4 import occurs only when a case with \code{geometry.source: s4} executes.
 
 \section{Optical model}
 
-\subsection{S4 RCWA problem}
+\subsection{The S4 problem}
 
 The YAML structure is ordered from the incident medium toward one
 semi-infinite terminal layer. S4 expands the in-plane fields in a Fourier basis
-of size \code{simulation.rcwa\_modes}. Flat, circular, rectangular, and
+of size \code{simulation.s4\_modes}. Flat, circular, rectangular, and
 polygonal regions are supplied to S4 analytically; spheres and hemispheres use
 the configured stack of circular slices.
 
