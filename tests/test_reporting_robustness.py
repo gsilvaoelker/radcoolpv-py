@@ -95,6 +95,64 @@ def test_run_json_reports_both_ambient_and_equilibrium_operating_points(tmp_path
     assert block["fill_factor_ambient"] > block["fill_factor_equilibrium"]
 
 
+def test_run_json_reports_the_diode_terms_at_the_operating_point(tmp_path):
+    """IVResult carries J0 and Auger over the whole sweep; the manifest wants one.
+
+    Both were computed on every run and never surfaced. They are reduced to the
+    equilibrium point rather than dumped: auger_current alone is 151x100 values
+    and has no business in a scalar manifest.
+    """
+    cfg = cm.load(os.path.join(CONFIGS, "freeform.yaml"))
+    cfg.run.results_dir = str(tmp_path)
+    cfg.run.plots = False
+    with contextlib.redirect_stdout(io.StringIO()):
+        ctx = pipeline.run(cfg)
+    block = json.load(open(os.path.join(ctx.results_dir, "run.json")))["thermal_results"]
+
+    j0 = block["saturation_current_equilibrium_A_per_m2"]
+    auger = block["auger_current_equilibrium_at_vmpp_A_per_m2"]
+    assert 1e-15 < j0 < 1e-6, f"saturation current {j0:g} is not silicon-like"
+    assert auger > 0.0
+    # J0 rises with temperature, so the equilibrium value must exceed ambient.
+    assert j0 > ctx.thermal.iv.current_sat[0]
+
+
+def test_run_json_reports_band_averages_matching_a_direct_call(tmp_path):
+    """The band averages must be the same numbers Validation A computes itself."""
+    from radcoolpv.optics.averages import pv_band_averages
+
+    cfg = cm.load(os.path.join(CONFIGS, "freeform.yaml"))
+    cfg.run.results_dir = str(tmp_path)
+    cfg.run.plots = False
+    with contextlib.redirect_stdout(io.StringIO()):
+        ctx = pipeline.run(cfg)
+    block = json.load(open(os.path.join(ctx.results_dir, "run.json")))
+    reported = block["band_averages_percent"]
+
+    direct = pv_band_averages(
+        ctx.optics.lambda_um, ctx.optics.abs_silicon, ctx.optics.ref,
+        ctx.optics.emit, ctx.extras["solar_per_um"], ctx.thermal.equil_temp)
+    assert reported["solar_absorptance_silicon"] == direct.solar_abs
+    assert reported["subgap_reflectance"] == direct.subgap_ref
+    assert reported["emittance_8_13um"] == direct.emit_window1
+    assert all(0.0 <= v <= 100.0 for v in reported.values())
+
+
+def test_cooling_curve_run_omits_the_pv_only_band_averages(tmp_path):
+    """A PV-free run has no operating point to weight them at, so it claims none."""
+    cfg = cm.load(os.path.join(
+        os.path.dirname(__file__), "..", "validations", "validation B",
+        "fig4d_pdms.yaml"))
+    cfg.run.results_dir = str(tmp_path)
+    cfg.run.plots = False
+    cfg.run.write_outputs = True
+    with contextlib.redirect_stdout(io.StringIO()):
+        ctx = pipeline.run(cfg)
+    assert ctx.thermal.band_averages is None
+    block = json.load(open(os.path.join(ctx.results_dir, "run.json")))
+    assert "band_averages_percent" not in block
+
+
 def test_undetermined_ambient_voc_is_null_in_run_json(tmp_path):
     cfg = cm.load(os.path.join(CONFIGS, "freeform.yaml"))
     cfg.run.results_dir = str(tmp_path)

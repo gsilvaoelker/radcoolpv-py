@@ -132,7 +132,26 @@ def write_run_json(folder: str, cfg: Config, optics: Optional[OpticsResult],
             "absorbed_solar_power_W_per_m2": thermal.solar_power,
             "temperature_coefficient_perc_per_K": thermal.beta_p,
             "efficiency_equilibrium": thermal.efficiency_equil,
+            # Diode terms reduced to the operating point; the full
+            # (temperature, voltage) sweeps stay out of the manifest.
+            "saturation_current_equilibrium_A_per_m2":
+                thermal.saturation_current_equil,
+            "auger_current_equilibrium_at_vmpp_A_per_m2":
+                thermal.auger_current_equil,
         }
+        if thermal.band_averages is not None:
+            avg = thermal.band_averages
+            # Percent, weighted by AM1.5 below the gap and by the blackbody at
+            # the equilibrium temperature above it. Each is 0.0 when the
+            # wavelength grid has no sample at the band edge, so read them
+            # together with the grid that produced them.
+            record["band_averages_percent"] = {
+                "solar_absorptance_silicon": avg.solar_abs,
+                "solar_reflectance": avg.solar_ref,
+                "subgap_reflectance": avg.subgap_ref,
+                "emittance_8_13um": avg.emit_window1,
+                "emittance_4_30um": avg.emit_broad,
+            }
     with open(os.path.join(folder, "run.json"), "w") as fh:
         json.dump(record, fh, indent=2)
 

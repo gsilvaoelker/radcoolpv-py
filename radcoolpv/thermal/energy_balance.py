@@ -17,6 +17,7 @@ import numpy as np
 
 from .._compat import trapz
 from ..io.results import OpticsResult
+from ..optics.averages import PVAverages, pv_band_averages
 from . import pv
 from .radiative import rad_power
 from .spectra import SolarSpectrum
@@ -43,6 +44,16 @@ class ThermalResult:
     isc: float = 0.0
     mpp_amb: float = 0.0
     mpp_equil: float = 0.0
+    # None (not 0.0) when the voltage sweep did not bracket the ambient Voc, so
+    # run.json can distinguish "not determined" from a genuine zero.
+    # Diode terms reduced to the operating point. The underlying IVResult holds
+    # them over the whole (temperature, voltage) sweep, which belongs in a CSV
+    # rather than a scalar manifest; these are the values at equilibrium.
+    saturation_current_equil: float = 0.0
+    auger_current_equil: float = 0.0
+    #: Solar- and blackbody-weighted band averages at the equilibrium
+    #: temperature (percent). ``None`` for PV-free runs.
+    band_averages: Optional[PVAverages] = None
     # None (not 0.0) when the voltage sweep did not bracket the ambient Voc, so
     # run.json can distinguish "not determined" from a genuine zero.
     voc_amb: Optional[float] = 0.0
@@ -193,6 +204,18 @@ def run(cfg, optics: OpticsResult, solar: SolarSpectrum) -> ThermalResult:
     efficiency_equil = mpp_equil / solar.total_am15
     rad_power_equil = float(_at_equilibrium(rad_p, emit_temp, equil_temp))
 
+    # Diode terms at the operating point. IVResult carries both over the whole
+    # sweep; a manifest wants the single value that describes the cell as it
+    # actually runs.
+    j0_equil = float(_at_equilibrium(iv.current_sat, emit_temp, equil_temp))
+    auger_at_temp = _at_equilibrium(iv.auger_current, emit_temp, equil_temp, axis=0)
+    auger_equil = float(np.interp(vmpp, iv.volt, auger_at_temp))
+
+    # Solar- and blackbody-weighted band averages (port of averagePropsFunc.m).
+    # Cheap, and the numbers Validation A previously had to recompute by hand.
+    band_avgs = pv_band_averages(lam, optics.abs_silicon, optics.ref, optics.emit,
+                                 solar.irradiance_per_um, equil_temp)
+
     return ThermalResult(
         emit_temp=emit_temp, rad_power=rad_p, atm_power=atm_power, conv_power=conv_p,
         solar_power=solar_power, solar_power_am15=solar.total_am15,
@@ -201,6 +224,8 @@ def run(cfg, optics: OpticsResult, solar: SolarSpectrum) -> ThermalResult:
         temperature_reduction=reduction(equil_temp),
         mpp_amb=mpp_amb, mpp_equil=mpp_equil, voc_amb=voc_amb, voc_equil=voc_equil,
         ff_amb=ff_amb, ff_equil=ff_equil, beta_p=beta_p, efficiency_equil=efficiency_equil,
+        saturation_current_equil=j0_equil, auger_current_equil=auger_equil,
+        band_averages=band_avgs,
         rad_power_equil=rad_power_equil, current_equil=current_equil, power_equil=power_equil,
         iv=iv, optics=optics,
     )
