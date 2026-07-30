@@ -880,6 +880,294 @@ radcoolpv run "validations/validation E/validation.yaml"
 Validation E has not received a fresh Fourier-mode convergence sweep. Its
 60-mode patterned result must not be labelled a converged reference solution.
 
+\section{Running the validations on Windows, step by step}
+\label{sec:windows}
+
+This section assumes no previous experience with programming, terminals, or
+Python. Follow it in order. Every command is typed exactly as printed, then
+Enter. Nothing here modifies Windows itself beyond installing Python.
+
+\subsection{What you are about to do}
+
+You will install Python, download this project, install its dependencies into a
+private folder belonging to the project, and run the validation cases. Each
+validation reruns a published paper's calculation and prints numbers you can
+compare with that paper.
+
+One limitation decides everything below. The optical solver \textbf{S4} is a
+separate program written in C++ that has to be compiled, and there is no
+ready-made Windows version. Cases that only reuse an \emph{already-calculated}
+optical spectrum do not need it; cases that calculate a new spectrum do.
+
+\begin{table}[ht]
+\centering
+\small
+\begin{tabular}{p{44mm}p{34mm}p{48mm}}
+\toprule
+Validation & Plain Windows & Needs WSL (Section~\ref{sec:wsl})\\
+\midrule
+A (Opt.\ Express Table 1) & yes, all five rows & ---\\
+B (Le et al., Fig.\ 4d, 5d) & yes, all four & ---\\
+C thermal (\code{cell\_*.yaml}) & yes & ---\\
+C optics (\code{optics\_*.yaml}) & no & yes\\
+A.1 step 2 (PV) & yes & ---\\
+A.1 step 1 (live optics) & no & yes\\
+E (nine cases in one file) & no, see below & yes\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+If you only need A, B, C-thermal, and A.1 step 2, use plain Windows and skip
+Section~\ref{sec:wsl} entirely. That is most of the evidence in this manual.
+
+\subsection{Step 1: install Python}
+
+Go to \url{https://www.python.org/downloads/windows/} and download the latest
+\textbf{Windows installer (64-bit)}. Version 3.9 or newer is required.
+
+Run the installer. On the first screen, \textbf{tick the box that says ``Add
+python.exe to PATH''} before clicking Install. That box is easy to miss, and
+skipping it is the single most common reason the later commands fail.
+
+To check it worked, open the Start menu, type \code{PowerShell}, and open
+\textbf{Windows PowerShell}. A window with a text prompt appears. Type:
+
+\begin{lstlisting}[language=bash]
+py --version
+\end{lstlisting}
+
+You should see something like \code{Python 3.12.4}. If you instead see
+``\code{py} is not recognized'', Python is not on PATH: reinstall it and tick
+the box.
+
+\subsection{Step 2: download the project}
+
+On the project's GitHub page click the green \textbf{Code} button, then
+\textbf{Download ZIP}. Save it, then right-click the downloaded file and choose
+\textbf{Extract All}. Extract to a simple path with no spaces, for example
+\code{C:\textbackslash radcoolpv}.
+
+You do \emph{not} need Git. The program records the Git version when it is
+available and simply omits it when it is not.
+
+\subsection{Step 3: open a terminal in the project folder}
+
+In File Explorer, open the extracted folder --- the one directly containing
+\code{README.md} and the \code{validations} folder. Click the address bar at the
+top, type \code{powershell}, and press Enter. A terminal opens already in that
+folder. Confirm with:
+
+\begin{lstlisting}[language=bash]
+dir
+\end{lstlisting}
+
+You should see \code{radcoolpv}, \code{validations}, \code{configs}, and
+\code{README.md} listed. If you do not, you are in the wrong folder --- go back
+and open the one that contains them.
+
+\subsection{Step 4: create the project's private Python folder}
+
+This keeps the project's packages separate from the rest of your computer, so
+nothing you do here can break another program.
+
+\begin{lstlisting}[language=bash]
+py -m venv .venv
+.venv\Scripts\Activate.ps1
+\end{lstlisting}
+
+Your prompt should now start with \code{(.venv)}. That prefix means the private
+environment is active, and it must be visible for every command that follows. If
+you close the terminal, reopen it in the project folder and run the
+\code{Activate.ps1} line again.
+
+If the second line fails with a message about ``running scripts is disabled on
+this system'', Windows is blocking scripts by default. Allow it for this
+terminal only:
+
+\begin{lstlisting}[language=bash]
+Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
+.venv\Scripts\Activate.ps1
+\end{lstlisting}
+
+This affects only the window you are in and resets when you close it.
+
+\subsection{Step 5: install the project}
+
+\begin{lstlisting}[language=bash]
+python -m pip install -r requirements.txt
+python -m pip install -e .
+\end{lstlisting}
+
+The first line downloads the scientific libraries; it may take a few minutes and
+prints a lot of text, which is normal. Do not use \code{install.sh}: that file
+is written for macOS and Linux and will not run in PowerShell.
+
+Check the installation:
+
+\begin{lstlisting}[language=bash]
+radcoolpv --help
+\end{lstlisting}
+
+If a usage message appears, everything is ready.
+
+\subsection{Step 6: run the validations}
+
+Quotation marks around the paths are required, because several folder names
+contain a space. Windows uses backslashes.
+
+\paragraph{Validation A} reproduces Table 1 of the Optics Express paper. It
+prints a table of published versus computed values with the relative error in
+the last column:
+
+\begin{lstlisting}[language=bash]
+python "validations\validation A\run_table1_validation.py"
+\end{lstlisting}
+
+Expect \(J_{\mathrm{sc}}\) and \(P_{\mathrm{mpp}}\) within a few percent and
+equilibrium temperatures within about 3 K. Reflected power is the weakest
+quantity, near 10\%, for the reasons in Section~\ref{sec:validation}.
+
+\paragraph{Validation B} runs four cooling cases, one per command:
+
+\begin{lstlisting}[language=bash]
+radcoolpv run "validations\validation B\fig4d_pdms.yaml"
+radcoolpv run "validations\validation B\fig4d_sds.yaml"
+radcoolpv run "validations\validation B\fig4d_ads.yaml"
+radcoolpv run "validations\validation B\fig5d_cooling_family.yaml"
+\end{lstlisting}
+
+\paragraph{Validation C, thermal half}, the silica micro-grating cell:
+
+\begin{lstlisting}[language=bash]
+radcoolpv run "validations\validation C\cell_grating.yaml"
+radcoolpv run "validations\validation C\cell_bare.yaml"
+\end{lstlisting}
+
+The grating case should settle near \(337.8~\mathrm{K}\), about \(37.8~\mathrm{K}\)
+above the \(300~\mathrm{K}\) ambient, against the paper's \(37.5~\mathrm{K}\).
+
+\paragraph{Validation A.1, step 2}, the PV stage driven by the committed
+spectrum:
+
+\begin{lstlisting}[language=bash]
+radcoolpv run "validations\validation A.1\pv_hemisph_sodalime.yaml"
+\end{lstlisting}
+
+Expect \(T_{\mathrm{eq}}=317.09~\mathrm{K}\) and
+\(P_{\mathrm{mpp}}=230.61~\mathrm{W/m^2}\). Step 1 of this case calculates a new
+spectrum and needs S4, so it is a WSL-only step.
+
+\subsection{Step 7: find your results}
+
+Results are written next to the configuration file that produced them, not
+inside the folder you are typing in. The last line printed by each run gives the
+exact path, for example
+
+\begin{lstlisting}
+Done. Results in: ...\validation B\results\pdms\PV-results_30-Jul-2026_16-47-05
+\end{lstlisting}
+
+Every run makes its own timestamped folder, so nothing is overwritten. Inside:
+
+\begin{itemize}
+  \item \code{optics.csv} --- the spectrum used, one row per wavelength;
+  \item \code{iv.csv} and \code{power.csv} --- the current--voltage and power
+        curves (\code{cooling\_power.csv} for cooling-curve cases);
+  \item \code{run.json} --- every setting and every headline number, described
+        in Section~\ref{sec:manifest};
+  \item \code{figures} --- plots, when the case enables them.
+\end{itemize}
+
+The \code{.csv} files open directly in Excel. \code{run.json} is plain text:
+open it with Notepad, or in a browser, which displays it more readably.
+
+\subsection{Validation E and the live-optics cases}
+
+Validation E is one file holding nine cases, and the \emph{first three}
+calculate new spectra with S4. The program runs cases in order and stops at the
+first failure, so on plain Windows it stops immediately with a long red message
+ending in:
+
+\begin{lstlisting}
+RuntimeError: The S4 Python module is not installed.
+\end{lstlisting}
+
+That message is correct, not a mistake on your part: those cases cannot run
+without S4. The remaining six cooling cases are fine, but reaching them requires
+either WSL or editing the file to remove the three optics cases. Use WSL.
+
+\subsection{Optional: WSL, for the cases that calculate new spectra}
+\label{sec:wsl}
+
+WSL runs a real Ubuntu Linux inside Windows, which is where S4 can be compiled.
+Everything in this manual then works without exception.
+
+In the Start menu, right-click \textbf{Windows PowerShell} and choose
+\textbf{Run as administrator}, then:
+
+\begin{lstlisting}[language=bash]
+wsl --install -d Ubuntu
+\end{lstlisting}
+
+Restart when asked. On first launch Ubuntu asks you to invent a username and
+password; the password is for Ubuntu only and does not echo as you type, which
+is normal. Then, in the Ubuntu window:
+
+\begin{lstlisting}[language=bash]
+sudo apt update
+sudo apt install -y build-essential libfftw3-dev libsuitesparse-dev \
+                    libopenblas-dev liblapack-dev libboost-all-dev \
+                    git python3-venv python3-pip
+git clone https://github.com/phoebe-p/S4
+cd S4 && make S4_pyext && cd ..
+\end{lstlisting}
+
+Then copy the project into the Ubuntu home folder and install it as before,
+using \code{source .venv/bin/activate} in place of the PowerShell activation
+line. Keep the project inside the Ubuntu file system rather than under
+\code{/mnt/c}: the Windows drive is visible from Ubuntu but is much slower.
+
+Confirm S4 is present before running the optics cases:
+
+\begin{lstlisting}[language=bash]
+python -c "import S4; print(S4.__file__)"
+\end{lstlisting}
+
+A path means success; \code{ModuleNotFoundError} means the build did not finish.
+
+\subsection{If something goes wrong}
+
+\begin{table}[ht]
+\centering
+\scriptsize
+\begin{tabular}{p{58mm}p{72mm}}
+\toprule
+Message & What to do\\
+\midrule
+\code{'py' is not recognized} &
+Python is not on PATH. Reinstall it and tick ``Add python.exe to PATH''.\\
+\code{running scripts is disabled on this system} &
+Run the \code{Set-ExecutionPolicy} line in Step 4, then activate again.\\
+\code{'radcoolpv' is not recognized} &
+The environment is not active (no \code{(.venv)} prefix) or Step 5 did not
+finish. Reactivate and rerun Step 5.\\
+\code{Config file not found} &
+Check the quotation marks and backslashes, and that you are in the folder
+containing \code{validations}.\\
+\code{RuntimeError: The S4 Python module is not installed} &
+Expected on plain Windows for a case that calculates a new spectrum. Use WSL.\\
+\code{ModuleNotFoundError: No module named 'radcoolpv'} &
+Step 5's second command did not run. Repeat it with \code{(.venv)} showing.\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Numbers printed on Windows are identical to those on macOS and Linux: the
+calculation does not depend on the operating system. If a validation prints
+values that differ from Section~\ref{sec:validation}, something is wrong with
+the inputs, not with Windows, and it should be reported rather than worked
+around.
+
 \section{Required verification for new cases}
 
 For every new publication or device case:
