@@ -37,7 +37,12 @@ def print_resolved(cfg: Config) -> None:
         print(f"  geometry     : source={cfg.geometry.source}, shape={cfg.geometry.shape}, "
               f"photonic={cfg.geometry.photonic_material}")
         if cfg.structure:
-            print(f"  structure    : {len(cfg.structure)} layers, thickSi={cfg.thick_si()} um")
+            # thick_si() raises when there is no silicon layer, which is legal
+            # for an optics-only stack (a freestanding cooler, say). Reporting
+            # must not be the thing that refuses to run such a case.
+            has_si = any(layer.material == "silicon" for layer in cfg.structure)
+            si = f", thickSi={cfg.thick_si()} um" if has_si else ""
+            print(f"  structure    : {len(cfg.structure)} layers{si}")
     if cfg.run.thermal:
         print(f"  thermal      : T_amb={cfg.thermal.ambient_temperature} K, "
               f"h={cfg.thermal.convection_coefficient} W/m2K, "

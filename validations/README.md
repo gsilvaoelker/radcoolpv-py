@@ -77,8 +77,10 @@ are the write and read halves of the same five-column format. The timestamped
 results folder cannot serve this purpose, and neither can `optics.csv`, which is
 comma-separated with a text header that the resume reader rejects.
 
-Step 2 sets `optics_results_angles: normal`, an explicit angle-independent
-approximation.
+Step 2 sets `optics_results_angles: normal`. That key is provenance metadata
+only — it records what the spectrum is and changes no computed value. The
+angle-independent approximation comes from the spectrum itself being
+normal-incidence, not from the setting.
 
 Observed on the committed spectrum:
 

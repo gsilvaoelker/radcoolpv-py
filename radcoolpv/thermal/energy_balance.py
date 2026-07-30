@@ -171,8 +171,16 @@ def run(cfg, optics: OpticsResult, solar: SolarSpectrum) -> ThermalResult:
     power_equil = _at_equilibrium(iv.cell_power, emit_temp, equil_temp, axis=1)
     current_equil = _at_equilibrium(iv.current_dens, emit_temp, equil_temp, axis=0)
     mpp_equil = pv.refine_peak(iv.volt, power_equil)[1]
-    voc_amb = pv.open_circuit_voltage(iv.current_dens[0, :], iv.volt)
     voc_equil = pv.open_circuit_voltage(current_equil, iv.volt)
+    # Ambient Voc is a diagnostic: nothing downstream reads it and it is not
+    # written to run.json. It is also the *highest* Voc in the sweep, so a
+    # voltage range that legitimately brackets the equilibrium operating point
+    # may not reach it. Failing the whole run for a number nobody sees would be
+    # wrong, so it degrades to 0.0 while voc_equil above still raises.
+    try:
+        voc_amb = pv.open_circuit_voltage(iv.current_dens[0, :], iv.volt)
+    except ValueError:
+        voc_amb = 0.0
     ff_amb = mpp_amb / (iv.isc * voc_amb) if (iv.isc and voc_amb) else 0.0
     ff_equil = mpp_equil / (iv.isc * voc_equil) if (iv.isc and voc_equil) else 0.0
     denom = (t_amb - equil_temp)

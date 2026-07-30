@@ -88,9 +88,10 @@ Hemispherical runs include one zero-weight normal-incidence probe plus
 counts and `s4_modes` until the reported quantity is converged.
 
 Live S4 thermal runs require hemispherical optics. A resumed normal-incidence
-spectrum can still drive the thermal model when
-`run.optics_results_angles: normal`; this is an explicit angle-independent
-approximation, not a hemispherical optical calculation.
+spectrum can still drive the thermal model, but its atmospheric term is then an
+angle-independent approximation rather than a hemispherical calculation. Note
+that `run.optics_results_angles` records what the stored spectrum is; it does
+not change any computed value.
 
 ## Run
 

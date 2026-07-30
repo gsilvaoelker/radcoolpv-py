@@ -514,9 +514,13 @@ of each edge; if the wavelength grid has no sample near an edge, that band
 average returns \(0.0\) instead of raising. The default
 \(0.3\)--\(30~\mathrm{\mu m}\) grid with \(n=2000\) satisfies every edge. A
 coarse grid may not, and a zero in a band-average column should always be read
-as a possible missing edge before it is read as physics. The general-purpose
-\code{band\_average} selects by value instead and does not share this
-behaviour.
+as a possible missing edge before it is read as physics.
+
+The general-purpose \code{band\_average} avoids the tolerance trap by selecting
+on value, but it is not immune to the wider problem: a band with no samples in
+range returns \(0.0\), and a band only partly covered by the grid is averaged
+over the covered part alone and so reads low. Neither raises. Any band average
+must therefore be taken together with the wavelength range that produced it.
 \end{sloppypar}
 
 \section{YAML examples}
@@ -612,10 +616,15 @@ text header, which the resume reader rejects, and it lands in a timestamped
 folder that a later case cannot name in advance. Case A.1 in
 \code{validations/} is the minimal two-command example.
 
-A resumed spectrum retains no directional information. Driving the thermal stage
-from a normal-incidence file with \code{run.optics\_results\_angles: normal} is
-an explicit angle-independent approximation, not a hemispherical calculation,
-and must be reported as such.
+A resumed spectrum retains no directional information, so the atmospheric term
+is angle-independent whatever the file represents. Be aware that
+\code{run.optics\_results\_angles} does not change this, or any other number:
+it is recorded in \code{run.json} and in the export header as a statement of
+what the stored spectrum is, and \code{normal} and \code{hemispherical} produce
+bit-identical results. Driving the thermal stage from a normal-incidence
+spectrum remains an angle-independent approximation rather than a hemispherical
+calculation, and must be reported as such --- but it is the provenance of the
+file, not this key, that makes it so.
 
 \subsection{Layer stack and materials}
 
