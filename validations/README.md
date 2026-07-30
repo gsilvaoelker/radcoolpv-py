@@ -6,6 +6,7 @@ same as "the physical model is independently validated."
 | Case | Optics source | What is checked | Status |
 |---|---|---|---|
 | A | Published reduced spectra | PV and thermal Table 1 quantities | Conditional regression |
+| A.1 | Live S4, TE at normal incidence | That a hexagonal cell solves and drives the PV stage | **Not a validation** — configuration smoke test |
 | B Fig. 4d | Digitized measured spectra | Cooling balance | Conditional regression |
 | B Fig. 5d | Digitized published curves | Plot comparison only | Not an independent validation |
 | C | YAML-defined S4 grating cases | Normal unpolarized optics and cooling model | Partial validation |
@@ -30,6 +31,67 @@ PYTHONPATH=. python "validations/validation A/run_table1_validation.py"
 
 The solar spectrum and atmospheric transmittance are not bundled with this case;
 both resolve to the defaults inside the installed package.
+
+Validation A never calls S4. It has no `geometry:` block at all, so the hexagonal
+hemisphere array of the paper is implicit in the supplied spectra rather than
+expressed in YAML. Case A.1 below exists to exercise that geometry directly.
+
+---
+
+## A.1 — hexagonal cell smoke test (not a validation)
+
+No published comparison, and it must never be cited as evidence. It answers one
+question: does a hexagonal cell with a discretised semisphere build and solve in
+S4, and do the resulting optics drive the PV stage end to end?
+
+The geometry mirrors Validation A's soda-lime hemisphere row — 9 µm-diameter
+soda-lime hemispheres on 75 µm flat soda-lime, over the Si3N4/Si/Ag stack — with
+one deliberate deviation: **the array pitch is assumed close-packed (9 µm)**
+because the paper's pitch is not recorded in this repository. Together with the
+TE normal-incidence optics, that is why the numbers below are not a Table 1
+reproduction, even though they land near it.
+
+The hexagonal cell is the centred-rectangular supercell, so for pitch `p`:
+
+```text
+lattice: {type: hexagonal, x: sqrt(3) * p, y: p}   # here x = 15.588457, y = 9.0
+```
+
+radcoolpv adds the second motif at `(x/2, y/2)` automatically. That second motif
+appearing is the specific thing this case checks. Note that `square` ignores
+`lattice.y` entirely, and that the centred motif is only added for `cylinder`,
+`sphere`, and `semisphere` — `triangle` and `grating` get a plain rectangular
+cell.
+
+Two steps, because a live S4 run with `run.thermal: true` is rejected unless
+`angles: hemispherical`:
+
+```bash
+python "validations/validation A.1/build_optics.py"                  # live S4 -> spectrum
+radcoolpv run "validations/validation A.1/pv_hemisph_sodalime.yaml"  # spectrum -> PV
+```
+
+Step 1 writes the five-column spectrum that step 2 resumes; the nine-column
+`optics.csv` a normal CLI run produces is not accepted by `run.optics_results`.
+Step 2 sets `optics_results_angles: normal`, an explicit angle-independent
+approximation.
+
+Observed on the committed spectrum:
+
+| Quantity | Value |
+|---|---:|
+| max \|R+T+A−1\| | 1.1e-16 |
+| Solar-band (0.3–1.1 µm) absorptance in Si | 0.823 |
+| 8–13 µm window emittance | 0.973 |
+| Equilibrium temperature | 317.09 K |
+| Isc | 365.92 A/m² |
+| Voc at equilibrium | 0.7264 V |
+| MPP at equilibrium | 230.61 W/m² |
+| Fill factor | 0.868 |
+| Efficiency at equilibrium | 0.2314 |
+
+`s4_modes: 10` and `discretization_layers: 9` are smoke-test settings, not
+converged ones. Sweep both before using this geometry for anything quantitative.
 
 ---
 

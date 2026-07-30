@@ -1,0 +1,55 @@
+# Validation A.1, step 1 of 2: live S4 optics.
+#
+# NOT a literature validation. This is a configuration smoke test that answers
+# one question: does a hexagonal cell with a discretised semisphere actually
+# build and solve, and do the resulting optics drive the PV stage?
+#
+# Geometry mirrors the "Hemisph. soda-lime" row of Validation A (9 um-diameter
+# soda-lime hemispheres on 75 um flat soda-lime, on the Si3N4/Si/Ag stack), but
+# the array pitch is NOT a paper value: the Opt. Express paper's pitch is not
+# recorded in this repository, so a close-packed pitch (= the 9 um diameter) is
+# assumed here. Do not read these numbers as a reproduction of Table 1.
+#
+# Hexagonal cell convention: the lattice is the centred-rectangular supercell,
+#   x = sqrt(3) * pitch = sqrt(3) * 9.0 = 15.588457,  y = pitch = 9.0
+# and radcoolpv adds the second motif at (x/2, y/2) automatically. That second
+# motif appearing is the thing this case exists to check.
+#
+# TE at normal incidence only, as requested. That makes this optics-only: a
+# live S4 run with run.thermal true is rejected unless angles: hemispherical,
+# because the energy balance needs angle-resolved emissivity. Step 2 resumes
+# the spectrum written here and is explicit about that approximation.
+#
+# Run:  python "validations/validation A.1/build_optics.py"
+
+run:
+  optics: true
+  thermal: false
+  plots: false
+  write_outputs: false
+
+simulation:
+  wavelength: {min: 0.3, max: 30.0, n: 2000}   # same grid as Validation A
+  angles: normal
+  polarization: TE
+  s4_modes: 10                # smoke-test truncation, NOT converged
+
+geometry:
+  source: s4
+  shape: semisphere
+  photonic_material: sodalime
+  lattice: {type: hexagonal, x: 15.588457, y: 9.0}
+  sphere: {radius: 4.5}       # 9 um diameter
+  discretization_layers: 9    # slices through the dome; not a converged value
+
+structure:                    # flat layers below the hemispheres
+  - {material: sodalime, thickness: 75.0}
+  - {material: si3n4,    thickness: 0.075}
+  - {material: silicon,  thickness: 250.0}
+  - {material: ag,       thickness: 0.0, terminal: true}
+
+materials:
+  sodalime: Rubin_SodaLime
+  si3n4: DrudeSi3N4
+  silicon: SiliconNew
+  ag: Hagemann_Ag
