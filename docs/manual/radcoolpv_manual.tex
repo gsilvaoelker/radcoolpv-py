@@ -684,26 +684,68 @@ MATLAB-style output compatibility has been removed. New runs write:
   \item figures when \code{run.plots: true}.
 \end{itemize}
 
-The \code{thermal\_results} block reports \(V_{\mathrm{oc}}\) and the fill
-factor at both the ambient and the equilibrium operating point, so the cost of
-running hot can be read off directly. The ambient pair is \code{null} when the
-voltage sweep did not reach the ambient \(V_{\mathrm{oc}}\), which is the
-highest in the sweep; that is distinct from a genuine zero, and it does not
-stop the run, because the equilibrium point is the result.
+\subsection{The \code{run.json} manifest}
+\label{sec:manifest}
 
-It also reports the saturation current and the Auger current at that operating
-point. Both exist across the whole \((T,V)\) sweep inside \code{IVResult}, but
-the sweep belongs in a CSV rather than a manifest --- the Auger array alone is
-\(151\times100\) values --- so each is interpolated to the equilibrium
-temperature, the Auger term additionally at \(V_{\mathrm{mpp}}\).
+Five top-level keys. \code{resolved\_config} is the complete configuration after
+defaults and validation, so a run can be reproduced without the original YAML.
+\code{provenance} carries \code{python}, \code{platform}, \code{git\_commit},
+\code{git\_dirty}, \code{inputs} (every resolved input path with its SHA-256),
+and \code{s4} (module path and hash, \code{null} when no live optics ran).
+\code{optics} records \code{angles}, \code{polarization}, and \code{n\_lambda}.
 
-A PV run adds a \code{band\_averages\_percent} block: the solar- and
-blackbody-weighted averages of Section~\ref{sec:numerics}, weighted by AM1.5
-below the gap and by the blackbody at the equilibrium temperature above it. A
-PV-free \code{cooling\_curve} run has no operating point to weight them at and
-omits the block rather than reporting zeros. Read them together with the
-wavelength grid: as noted above, a band whose edge the grid misses reports
-\(0.0\) rather than raising.
+\begin{table}[ht]
+\centering
+\scriptsize
+\begin{tabular}{p{76mm}p{54mm}}
+\toprule
+\code{thermal\_results} key & Meaning\\
+\midrule
+\code{equilibrium\_temperature\_K} & interpolated root of \(P_{\mathrm{cool}}\)\\
+\code{temperature\_reduction\_K} & \(T_{\mathrm{ref}}-T_{\mathrm{eq}}\);
+\code{null} without a reference\\
+\code{vmpp\_V} & converged fixed-point MPP voltage\\
+\code{short\_circuit\_current\_A\_per\_m2} & \(J_{\mathrm{sc}}\)\\
+\code{mpp\_ambient\_W\_per\_m2} & MPP at \(T_{\mathrm{amb}}\)\\
+\code{mpp\_equilibrium\_W\_per\_m2} & MPP at \(T_{\mathrm{eq}}\)\\
+\code{voc\_ambient\_V} & \(V_{\mathrm{oc}}\) at \(T_{\mathrm{amb}}\);
+\code{null} if outside the sweep\\
+\code{voc\_equilibrium\_V} & \(V_{\mathrm{oc}}\) at \(T_{\mathrm{eq}}\)\\
+\code{fill\_factor\_ambient} & \code{null} with \code{voc\_ambient\_V}\\
+\code{fill\_factor\_equilibrium} & fill factor at \(T_{\mathrm{eq}}\)\\
+\code{atmospheric\_power\_W\_per\_m2} & \(P_{\mathrm{atm}}\)\\
+\code{absorbed\_solar\_power\_W\_per\_m2} & \(P_{\mathrm{sun}}\)\\
+\code{temperature\_coefficient\_perc\_per\_K} & \(\beta_P\), negative for
+silicon\\
+\code{efficiency\_equilibrium} & \(P_{\mathrm{mpp}}/\)AM1.5 total\\
+\code{saturation\_current\_equilibrium\_A\_per\_m2} & \(J_0(T_{\mathrm{eq}})\)\\
+\code{auger\_current\_equilibrium\_at\_vmpp\_A\_per\_m2} &
+\(J_{\mathrm{Auger}}(T_{\mathrm{eq}},V_{\mathrm{mpp}})\)\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Ambient and equilibrium appear as pairs so the cost of running hot reads
+directly off the manifest. The ambient \(V_{\mathrm{oc}}\) is the highest in the
+sweep, so a voltage range that legitimately brackets the operating point may not
+reach it; that case reports \code{null} rather than \(0.0\), and does not stop
+the run, because the equilibrium point is the result.
+
+\(J_0\) and \(J_{\mathrm{Auger}}\) exist across the whole \((T,V)\) sweep inside
+\code{IVResult} --- the Auger array alone is \(151\times100\) values --- so each
+is interpolated to \(T_{\mathrm{eq}}\), the Auger term additionally at
+\(V_{\mathrm{mpp}}\). The sweeps themselves belong in \code{iv.csv} and
+\code{power.csv}, not in a scalar manifest.
+
+A PV run adds a fifth key, \code{band\_averages\_percent}, holding
+\code{solar\_absorptance\_silicon}, \code{solar\_reflectance},
+\code{subgap\_reflectance}, \code{emittance\_8\_13um} and
+\code{emittance\_4\_30um}: the weighted averages of
+Section~\ref{sec:numerics}, taken against AM1.5 below the gap and against the
+blackbody at \(T_{\mathrm{eq}}\) above it. A PV-free \code{cooling\_curve} run
+has no operating point to weight them at and omits the key rather than
+reporting zeros. Read them together with the wavelength grid: a band whose edge
+the grid misses reports \(0.0\) rather than raising.
 
 Set \code{run.write\_outputs: false} for tests or programmatic validation.
 Historical MATLAB files remain only as read-only parity fixtures and under the
