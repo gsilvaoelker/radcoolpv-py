@@ -12,7 +12,11 @@ same as "the physical model is independently validated."
 | C | YAML-defined S4 grating cases | Normal unpolarized optics and cooling model | Partial validation |
 | E | YAML-defined S4 Au/Si/silica cases | Normal unpolarized optics and thermal model | Optics agrees; thermal fails |
 
-Source PDFs are not tracked. Each case states its DOI and limitations below.
+Each case states its DOI and limitations below. Source PDFs are generally not
+tracked, with one exception: the Validation E paper is bundled under
+`validation E/` because its digitized comparison curves were traced from that
+exact rendering, and the trace is not reproducible without it. Treat it as the
+authors' copyrighted article, not as redistributable repository content.
 
 ---
 
