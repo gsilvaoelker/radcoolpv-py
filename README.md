@@ -47,6 +47,34 @@ interpreter with:
 python -c "import S4; print(S4.__file__)"
 ```
 
+### Windows
+
+The Python package is platform-independent, but S4 is a compiled C++ extension
+with no PyPI wheel and a Unix makefile build. **Use WSL2** — inside it every
+command above works verbatim:
+
+```powershell
+wsl --install -d Ubuntu          # PowerShell, once; then reboot
+```
+
+```bash
+sudo apt install build-essential libfftw3-dev libsuitesparse-dev \
+                 libopenblas-dev liblapack-dev libboost-all-dev git python3-venv
+git clone https://github.com/phoebe-p/S4 && cd S4 && make S4_pyext
+```
+
+Then clone this repository inside the WSL filesystem (not under `/mnt/c`, which
+is much slower) and run `./install.sh` as normal.
+
+**Without WSL**, native Windows still runs everything except live S4 optics —
+the thermal/PV stage, the free-form reader, and any case resuming a stored
+spectrum. That covers Validations A, B, the Validation C thermal cases, and
+step 2 of A.1. Use `py -m venv .venv`, `.venv\Scripts\activate`,
+`pip install -r requirements.txt`, `pip install -e .` — `install.sh` is bash and
+will not run in PowerShell. A case needing live optics fails with an explicit
+message rather than a wrong answer. Quote paths containing spaces, e.g.
+`radcoolpv run "validations\validation A\table1_reference.yaml"`.
+
 ## YAML directions and polarization
 
 Normal, unpolarized:

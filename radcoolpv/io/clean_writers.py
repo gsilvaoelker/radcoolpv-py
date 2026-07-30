@@ -165,8 +165,18 @@ def _sha256(path: str) -> str:
 
 
 def _git_value(repo: str, *args: str) -> Optional[str]:
-    result = subprocess.run(
-        ["git", "-C", repo, *args], capture_output=True, text=True)
+    """A git field for the manifest, or None if it cannot be determined.
+
+    Git is a nice-to-have for provenance, not a runtime dependency: the package
+    must still run from a released tarball, a container, or a machine where git
+    was never installed. Checking the return code is not enough, because a
+    missing executable raises before there is one.
+    """
+    try:
+        result = subprocess.run(
+            ["git", "-C", repo, *args], capture_output=True, text=True)
+    except OSError:
+        return None
     return result.stdout.strip() if result.returncode == 0 else None
 
 

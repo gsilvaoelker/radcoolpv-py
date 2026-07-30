@@ -73,6 +73,17 @@ python -c "import S4; print(S4.__file__)"
 
 The S4 import occurs only when a case with \code{geometry.source: s4} executes.
 
+On Windows, use WSL2: the Python package is platform-independent, but S4 is a
+compiled extension with no wheel and a Unix makefile build, so inside WSL every
+command above applies unchanged. Native Windows still runs the thermal/PV
+stage, the free-form reader, and any case resuming a stored spectrum --- which
+covers Validations A and B, the Validation C thermal cases, and step 2 of A.1
+--- and a case that needs live optics fails with an explicit message rather
+than a wrong answer. Note that \code{install.sh} is a shell script; on native
+Windows install with \code{pip install -r requirements.txt} followed by
+\code{pip install -e .}\ instead. Git is optional everywhere: without it the
+manifest records a null commit and the run proceeds.
+
 \section{Where each quantity is computed}
 \label{sec:codemap}
 

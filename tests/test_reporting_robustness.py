@@ -175,3 +175,23 @@ def test_equilibrium_voc_outside_the_sweep_still_raises():
     with pytest.raises(ValueError, match="Voc"):
         with contextlib.redirect_stdout(io.StringIO()):
             pipeline.run(cfg)
+
+
+def test_run_json_is_written_when_git_is_unavailable(tmp_path, monkeypatch):
+    """Git is provenance, not a runtime dependency.
+
+    The manifest records the commit and dirty flag, but the package has to run
+    from a tarball, a container, or a machine where git was never installed --
+    common on Windows, where Git is a separate download. Checking the return
+    code missed this: a missing executable raises before there is one.
+    """
+    monkeypatch.setenv("PATH", "")
+    cfg = cm.load(os.path.join(CONFIGS, "freeform.yaml"))
+    cfg.run.results_dir = str(tmp_path)
+    cfg.run.plots = False
+    with contextlib.redirect_stdout(io.StringIO()):
+        ctx = pipeline.run(cfg)
+    record = json.load(open(os.path.join(ctx.results_dir, "run.json")))
+    assert record["provenance"]["git_commit"] is None
+    assert record["provenance"]["platform"]          # the rest still recorded
+    assert record["thermal_results"]["equilibrium_temperature_K"] > 0
