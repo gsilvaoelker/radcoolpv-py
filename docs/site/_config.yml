@@ -1,0 +1,28 @@
+title: radcoolpv
+author: Gerardo Silva Oelker
+copyright: "2026"
+only_build_toc_files: true
+
+execute:
+  execute_notebooks: "off"
+
+parse:
+  myst_enable_extensions:
+    - amsmath
+    - colon_fence
+    - deflist
+    - dollarmath
+
+repository:
+  url: https://github.com/gsilvaoelker/radcoolpv-py
+  branch: main
+  path_to_book: docs/site
+
+html:
+  use_issues_button: true
+  use_repository_button: true
+
+launch_buttons:
+  colab_url: https://colab.research.google.com
+  notebook_interface: classic
+  thebe: false

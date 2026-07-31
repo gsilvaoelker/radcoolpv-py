@@ -35,6 +35,7 @@ docs/manual/*.log
 docs/manual/*.out
 docs/manual/*.synctex.gz
 docs/manual/*.toc
+docs/site/_build/
 
 # OS
 .DS_Store

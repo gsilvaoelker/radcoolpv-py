@@ -75,6 +75,21 @@ will not run in PowerShell. A case needing live optics fails with an explicit
 message rather than a wrong answer. Quote paths containing spaces, e.g.
 `radcoolpv run "validations\validation A\table1_reference.yaml"`.
 
+## Teaching site and Google Colab
+
+The static teaching site is published at
+[gsilvaoelker.github.io/radcoolpv-py](https://gsilvaoelker.github.io/radcoolpv-py/).
+It contains the governing equations, YAML guidance, and a notebook that runs in
+Google Colab without a local Python installation:
+
+[Open the radcoolpv notebook in Colab](https://colab.research.google.com/github/gsilvaoelker/radcoolpv-py/blob/main/docs/site/notebooks/radcoolpv_colab.ipynb)
+
+The notebook compiles the native S4 extension inside the temporary Colab
+runtime. That setup must run again after the runtime is reset. Its default YAML
+is deliberately a small smoke test, not a converged scientific calculation.
+Use the convergence checks described in the site and manual before reporting
+physical results.
+
 ## YAML directions and polarization
 
 Normal, unpolarized:
