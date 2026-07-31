@@ -1,12 +1,12 @@
-"""Every key the manifest emits must be described in the manual.
+"""Every key the manifest emits must be described in the teaching site.
 
 Documentation drift is the failure mode this repository keeps hitting: a field
-is added to run.json, the manual is not touched, and a reader is left to guess
-what a column means. Checking it here makes adding an undocumented field a test
-failure instead of an archaeology problem later.
+is added to run.json, the documentation is not touched, and a reader is left
+to guess what a column means. Checking it here makes adding an undocumented
+field a test failure instead of an archaeology problem later.
 
 The check is deliberately one-directional and loose about formatting: it asserts
-that each emitted key appears somewhere in the manual's manifest section, not
+that each emitted key appears somewhere in the site's manifest section, not
 that the prose says anything in particular about it.
 """
 
@@ -22,23 +22,19 @@ from radcoolpv import config as cm
 from radcoolpv import pipeline
 
 CONFIGS = os.path.join(os.path.dirname(__file__), "..", "configs")
-MANUAL = os.path.join(os.path.dirname(__file__), "..", "docs", "manual",
-                      "radcoolpv_manual.tex")
-
-pytestmark = pytest.mark.skipif(not os.path.isfile(MANUAL),
-                                reason="manual source not present")
+DOCUMENTATION = os.path.join(os.path.dirname(__file__), "..", "docs", "site",
+                             "yaml-workflow.md")
 
 
 def _manifest_section() -> str:
-    tex = open(MANUAL).read()
-    start = tex.index(r"The \code{run.json} manifest")
-    end = tex.index(r"\section{Validation evidence}")
-    return tex[start:end]
+    text = open(DOCUMENTATION).read()
+    start = text.index("## `run.json` manifest")
+    end = text.index("## From demonstration to scientific calculation")
+    return text[start:end]
 
 
 def _documented_names(section: str) -> set:
-    return {m.replace("\\_", "_")
-            for m in re.findall(r"\\code\{([A-Za-z0-9\\_]+)\}", section)}
+    return set(re.findall(r"`([A-Za-z0-9_]+)`", section))
 
 
 def _run(tmp_path, config_name):
@@ -51,7 +47,7 @@ def _run(tmp_path, config_name):
     return json.load(open(os.path.join(ctx.results_dir, "run.json")))
 
 
-def test_every_run_json_key_appears_in_the_manual(tmp_path):
+def test_every_run_json_key_appears_in_the_site(tmp_path):
     record = _run(tmp_path, "freeform.yaml")
     emitted = (set(record)
                | set(record["thermal_results"])
@@ -61,9 +57,9 @@ def test_every_run_json_key_appears_in_the_manual(tmp_path):
     documented = _documented_names(_manifest_section())
     undocumented = sorted(k for k in emitted if k not in documented)
     assert not undocumented, (
-        "run.json emits keys the manual does not mention: "
+        "run.json emits keys the teaching site does not mention: "
         f"{undocumented}. Add them to the manifest section of "
-        "docs/manual/radcoolpv_manual.tex.")
+        "docs/site/yaml-workflow.md.")
 
 
 def test_manifest_section_documents_the_top_level_shape(tmp_path):

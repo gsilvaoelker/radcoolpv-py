@@ -53,6 +53,30 @@ Each run writes a timestamped folder containing `run.json`, optical or thermal
 CSV files, and figures when requested. Keep `run.json`; it records the resolved
 configuration and provenance needed to interpret the output.
 
+## `run.json` manifest
+
+The top-level blocks are `resolved_config`, `provenance`, `optics`,
+`thermal_results`, and, for PV runs, `band_averages_percent`. Blocks that do
+not apply to a case are omitted rather than populated with invented values.
+
+`provenance` records `python`, `platform`, `git_commit`, `git_dirty`, hashed
+`inputs`, and the loaded `s4` binary when live optics was used. `optics`
+records `angles`, `polarization`, and `n_lambda`.
+
+The thermal scalar keys are `equilibrium_temperature_K`,
+`temperature_reduction_K`, `vmpp_V`, `short_circuit_current_A_per_m2`,
+`mpp_ambient_W_per_m2`, `mpp_equilibrium_W_per_m2`, `voc_ambient_V`,
+`voc_equilibrium_V`, `fill_factor_ambient`, `fill_factor_equilibrium`,
+`atmospheric_power_W_per_m2`, `absorbed_solar_power_W_per_m2`,
+`temperature_coefficient_perc_per_K`, `efficiency_equilibrium`,
+`saturation_current_equilibrium_A_per_m2`, and
+`auger_current_equilibrium_at_vmpp_A_per_m2`.
+
+The PV-weighted spectral summary contains `solar_absorptance_silicon`,
+`solar_reflectance`, `subgap_reflectance`, `emittance_8_13um`, and
+`emittance_4_30um`. Ambient-voltage quantities may be `null` when the voltage
+sweep does not bracket the ambient open-circuit voltage.
+
 ## From demonstration to scientific calculation
 
 Do not just replace the teaching grid with the largest values that fit in

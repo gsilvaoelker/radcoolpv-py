@@ -1,7 +1,7 @@
 # Model and conventions
 
-This page summarizes the conventions needed to interpret an output. It is not a
-replacement for the complete project manual.
+This page summarizes the active equations and the conventions needed to
+interpret an output.
 
 ## Optical balance
 

@@ -1,123 +1,97 @@
 # radcoolpv
 
-YAML-driven optical, thermal, and electrical modelling of photonic
-radiative-cooling PV structures. The implementation is based on the
-MATLAB+Lua/S4 `matlab-radCoolPV` model, with direct lazy use of the Stanford S4
-Python extension and automatic coupling between optics and the PV energy
-balance.
+`radcoolpv` is a YAML-driven simulator for photovoltaic structures with
+radiative cooling. A case connects three stages:
 
-## Capabilities
+1. **Optics:** obtain wavelength-dependent reflectance, transmittance, total
+   absorptance/emittance, and silicon-layer absorptance from live S4 or a
+   stored spectrum.
+2. **Thermal balance:** combine the spectrum with sunlight, atmospheric
+   radiation, thermal emission, and nonradiative heat transfer to solve the
+   operating temperature.
+3. **PV model:** calculate the IV curve, short-circuit current, open-circuit
+   voltage, maximum power, fill factor, and efficiency.
 
-- S4 reflectance, transmittance, total absorptance/emittance, and
-  silicon-layer absorptance.
-- Normal incidence, one arbitrary polar/azimuthal direction, or a
-  hemispherical theta-phi quadrature.
-- TE, TM, or unpolarized illumination.
-- Steady-state operating temperature, diode I-V characteristics, MPP, output
-  power, efficiency, and temperature reduction relative to a YAML-defined
-  reference temperature.
-- Clean CSV outputs and a JSON reproducibility manifest. MATLAB-style output
-  compatibility has been removed.
+The inputs are readable YAML files. Output-enabled runs write CSV data,
+figures, and a `run.json` record containing the resolved configuration,
+provenance, input hashes, and main scalar results.
 
-S4 is the only live optical solver. Free-form and reduced-spectrum inputs are
-readers for external or historical data, not alternative solvers.
+## Run in Google Colab
 
-## Installation
+Students do not need to install Python or S4 locally. Open a notebook, choose
+**Runtime → Run all**, and edit the indicated YAML parameters in the temporary
+Colab checkout.
+
+| Notebook | Purpose |
+|---|---|
+| [Main optical and PV tutorial](https://colab.research.google.com/github/gsilvaoelker/radcoolpv-py/blob/main/docs/site/notebooks/radcoolpv_colab.ipynb) | Compile S4, run a small optical case, and obtain PV parameters and figures |
+| [Validation A](https://colab.research.google.com/github/gsilvaoelker/radcoolpv-py/blob/main/docs/site/notebooks/validation_a_colab.ipynb) | Reproduce the five stored-spectrum Table 1 comparisons |
+| [Validation A.1](https://colab.research.google.com/github/gsilvaoelker/radcoolpv-py/blob/main/docs/site/notebooks/validation_a1_colab.ipynb) | Run the soda-lime hemisphere workflow; optional live S4 rebuild |
+| [Validation B](https://colab.research.google.com/github/gsilvaoelker/radcoolpv-py/blob/main/docs/site/notebooks/validation_b_colab.ipynb) | Calculate cooling curves from digitized PDMS-based spectra |
+| [Validation C](https://colab.research.google.com/github/gsilvaoelker/radcoolpv-py/blob/main/docs/site/notebooks/validation_c_colab.ipynb) | Compare planar and grating silica; optional live S4 rebuild |
+| [Validation E](https://colab.research.google.com/github/gsilvaoelker/radcoolpv-py/blob/main/docs/site/notebooks/validation_e_colab.ipynb) | Compare Akerboom optics and paper-stated versus fitted thermal cases |
+
+The teaching site is
+[gsilvaoelker.github.io/radcoolpv-py](https://gsilvaoelker.github.io/radcoolpv-py/).
+It explains the equations, YAML structure, outputs, validation results,
+figures, references, and limitations.
+
+Colab runtimes are temporary. The setup must run again after a reset. The
+validation notebooks use committed spectra by default so the normal classroom
+path is fast. Optional live S4 calculations are clearly marked; reduced grids
+and low mode counts are smoke tests, not publishable convergence studies.
+
+## Supported S4 build
+
+S4 has a Python interface, but it is not a pure-Python package: its C/C++
+extension must be compiled for the current operating system, architecture, and
+Python runtime. `radcoolpv` imports it lazily, so stored-spectrum and
+thermal-only cases work without S4.
+
+The supported and tested Colab target is the
+[`phoebe-p/S4`](https://github.com/phoebe-p/S4) `devel` fork pinned at commit
+[`9569f5e555b967a4324eb1ea593d0f9f40761a61`](https://github.com/phoebe-p/S4/commit/9569f5e555b967a4324eb1ea593d0f9f40761a61).
+Other S4 forks or revisions are not compatibility targets for these notebooks.
+
+Live S4 supports normal incidence, one specified polar/azimuthal direction,
+or hemispherical theta–phi quadrature with TE, TM, or unpolarized illumination.
+Increase `s4_modes` and the angular grid until a named reported quantity is
+converged.
+
+## Install locally on macOS or Linux
+
+The thermal/PV path and stored-spectrum readers need only the Python package:
 
 ```bash
 ./install.sh
 source .venv/bin/activate
 ```
 
-The thermal/electrical path and spectrum readers require only the Python
-dependencies installed by `install.sh`. Live optics additionally requires the
-compiled S4 Python module:
+Live optics additionally needs the compiled S4 module. For example, on Apple
+silicon:
 
 ```bash
 brew install fftw suite-sparse openblas lapack boost
 git clone https://github.com/phoebe-p/S4
 cd S4
-make -f Makefile.m1 S4_pyext      # Apple silicon
-```
-
-S4 is imported only when `geometry.source: s4` is executed. Verify the active
-interpreter with:
-
-```bash
+git checkout 9569f5e555b967a4324eb1ea593d0f9f40761a61
+make -f Makefile.m1 S4_pyext
 python -c "import S4; print(S4.__file__)"
 ```
 
-### Windows
+## Define and run a YAML case
 
-The Python package is platform-independent, but S4 is a compiled C++ extension
-with no PyPI wheel and a Unix makefile build. **Use WSL2** — inside it every
-command above works verbatim:
-
-```powershell
-wsl --install -d Ubuntu          # PowerShell, once; then reboot
-```
-
-```bash
-sudo apt install build-essential libfftw3-dev libsuitesparse-dev \
-                 libopenblas-dev liblapack-dev libboost-all-dev git python3-venv
-git clone https://github.com/phoebe-p/S4 && cd S4 && make S4_pyext
-```
-
-Then clone this repository inside the WSL filesystem (not under `/mnt/c`, which
-is much slower) and run `./install.sh` as normal.
-
-**Without WSL**, native Windows still runs everything except live S4 optics —
-the thermal/PV stage, the free-form reader, and any case resuming a stored
-spectrum. That covers Validations A, B, the Validation C thermal cases, and
-step 2 of A.1. Use `py -m venv .venv`, `.venv\Scripts\activate`,
-`pip install -r requirements.txt`, `pip install -e .` — `install.sh` is bash and
-will not run in PowerShell. A case needing live optics fails with an explicit
-message rather than a wrong answer. Quote paths containing spaces, e.g.
-`radcoolpv run "validations\validation A\table1_reference.yaml"`.
-
-## Teaching site and Google Colab
-
-The static teaching site is published at
-[gsilvaoelker.github.io/radcoolpv-py](https://gsilvaoelker.github.io/radcoolpv-py/).
-It contains the governing equations, YAML guidance, a validation-status guide,
-and a notebook that obtains optical properties and PV parameters in Google
-Colab without a local Python installation:
-
-[Open the radcoolpv notebook in Colab](https://colab.research.google.com/github/gsilvaoelker/radcoolpv-py/blob/main/docs/site/notebooks/radcoolpv_colab.ipynb)
-
-The notebook compiles the native S4 extension inside the temporary Colab
-runtime. That setup must run again after the runtime is reset. Its live-optics
-YAML is deliberately a small smoke test; its PV section reuses the committed
-Validation A.1 spectrum. These examples teach the workflow but are not a
-converged scientific calculation or independent literature validation. Use the
-checks and limitations described in the site and manual before reporting
-physical results.
-
-## YAML directions and polarization
-
-Normal, unpolarized:
+A minimal normal-incidence optical grid is:
 
 ```yaml
 simulation:
-  wavelength: {min: 0.3, max: 30.0, n: 2000}
+  wavelength: {min: 8.0, max: 13.0, n: 101}
   angles: normal
   polarization: unpolarized
-  s4_modes: 100
+  s4_modes: 20
 ```
 
-One directional TE case:
-
-```yaml
-simulation:
-  wavelength: {min: 8.0, max: 13.0, n: 300}
-  angles: specific
-  polar_angle_deg: 35.0
-  azimuth_angle_deg: 90.0
-  polarization: TE
-  s4_modes: 100
-```
-
-Hemispherical, unpolarized:
+A hemispherical calculation uses:
 
 ```yaml
 simulation:
@@ -129,96 +103,70 @@ simulation:
   s4_modes: 100
 ```
 
-Hemispherical runs include one zero-weight normal-incidence probe plus
-`theta_points * azimuth_points` quadrature directions. Increase both angular
-counts and `s4_modes` until the reported quantity is converged.
-
-Live S4 thermal runs require hemispherical optics. A resumed normal-incidence
-spectrum can still drive the thermal model, but its atmospheric term is then an
-angle-independent approximation rather than a hemispherical calculation. Note
-that `run.optics_results_angles` records what the stored spectrum is; it does
-not change any computed value.
-
-## Run
+Run or inspect a case with:
 
 ```bash
+radcoolpv run configs/full.yaml --print-config
 radcoolpv run configs/full.yaml
 radcoolpv run configs/optics_only.yaml
 radcoolpv run configs/freeform.yaml
-radcoolpv run configs/full.yaml --print-config
 ```
 
-One YAML may contain a top-level `cases:` list. The CLI executes those named
-cases in order. Validation E uses this form so students configure one file
-without running helper scripts.
+One YAML may contain a top-level `cases:` list. The CLI executes the named
+cases in order; Validation E uses this form.
 
-Each output-enabled run writes:
+### Live, free-form, and resumed optics
 
-- `optics.csv`: the requested directional or hemispherically reduced spectrum;
-- `iv.csv`, `power.csv`, or `cooling_power.csv`, when applicable;
-- `run.json`: full resolved YAML, runtime information, Git revision, S4 binary
-  hash, input hashes, and scalar results. `Voc` and fill factor are reported at
-  both the ambient and the equilibrium operating point (the ambient pair is
-  `null` if the voltage sweep did not reach the higher ambient `Voc`), along
-  with the saturation and Auger currents at that operating point and, for PV
-  runs, a `band_averages_percent` block;
-- `figures/`, when `run.plots: true`.
+- `geometry.source: s4` runs the live optical solver.
+- `geometry.source: freeform` reads an external wavelength-dependent input.
+- `run.optics: false` with `run.optics_results` resumes a committed or prior
+  reduced spectrum.
 
-Live S4 runs additionally write `optics_directional.csv` with every computed
-direction and polarization.
+S4 is the only live solver. The other two paths are data readers, not
+alternative electromagnetic solvers. A resumed normal-incidence spectrum can
+drive the thermal model, but the atmospheric term is then an explicitly
+angle-independent approximation.
 
-To chain an optics run into a later thermal run with no intermediate step, set
-`run.optics_export` to a fixed path and point the second config's
-`run.optics_results` at it; they are the write and read halves of the same
-five-column format. `optics.csv` cannot be reused for this — it is
-comma-separated with a text header, in a timestamped folder.
+To chain two YAML files, set `run.optics_export` in the optical case and point
+`run.optics_results` in the thermal case at the same five-column file.
+Timestamped `optics.csv` is a reporting output and is not the resumable format.
 
-Set `run.write_outputs: false` for programmatic validation runs.
+## Outputs
 
-For temperature reduction relative to a known reference:
+An output-enabled run creates a timestamped folder containing:
 
-```yaml
-thermal:
-  reference_temperature: 360.0
-```
+- `optics.csv`, and `optics_directional.csv` for live directional data;
+- `iv.csv`, `power.csv`, or `cooling_power.csv`, as applicable;
+- `run.json`, with the resolved YAML, environment, Git revision, input hashes,
+  S4 binary provenance when available, and scalar results;
+- `figures/` when `run.plots: true`.
 
-The result is `reference_temperature - equilibrium_temperature`. The reference
-must be physically defined by the user; the library does not invent a baseline.
+Set `run.write_outputs: false` for programmatic regressions that should not
+create timestamped artifacts.
 
-## Scientific status
+## Validation status
 
-The test suite includes:
-
-- S4 against analytic TMM for flat TE/TM stacks;
-- patterned-structure energy conservation;
-- layer-resolved silicon absorption with a lossy downstream layer;
-- archived MATLAB/Lua/S4 patterned-case parity;
-- theta-phi quadrature and polarization handling;
-- thermal and PV unit/regression checks;
-- literature diagnostics in `validations/`.
-
-Run:
+Automated tests cover flat-stack S4/TMM agreement, patterned-structure energy
+closure, layer-resolved silicon absorption, archived MATLAB/S4 parity,
+angular and polarization handling, and thermal/PV regressions.
 
 ```bash
 PYTHONPATH=. python -m pytest -q
 ```
 
-The literature cases in `validations/` differ in evidentiary strength, from
-conditional regressions against pre-reduced published spectra to live S4 optics.
-Some reproduce their paper only under stated approximations, and one fails its
-paper's convection coefficient outright. Each case states its DOI, results, and
-limitations in `validations/README.md`; read that before citing any of them.
-
-See `docs/manual/radcoolpv_manual.pdf` for equations, conventions, validation
-tables, and complete examples.
+The literature cases are evidence-labelled rather than uniformly called
+“validated.” Validation A uses pre-reduced spectra; A.1 is a smoke test;
+Validation B relies on digitized inputs; Validation C is partial; and
+Validation E reproduces cooling-band optics but fails the paper-stated thermal
+coefficient. Read the [validation page](https://gsilvaoelker.github.io/radcoolpv-py/validations.html)
+or [`validations/README.md`](validations/README.md) before citing a result.
 
 ## Repository layout
 
 ```text
-radcoolpv/       active package
-configs/         runnable YAML examples
-tests/           automated checks
-validations/     active, evidence-labelled validation cases
-docs/manual/     source and compiled manual
-archive/         local historical MATLAB and superseded code; gitignored
+radcoolpv/        active package
+configs/          runnable YAML examples
+tests/            automated checks
+validations/      evidence-labelled literature and workflow cases
+docs/site/        Jupyter Book sources, Colab notebooks, and site figures
 ```
