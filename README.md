@@ -79,15 +79,18 @@ message rather than a wrong answer. Quote paths containing spaces, e.g.
 
 The static teaching site is published at
 [gsilvaoelker.github.io/radcoolpv-py](https://gsilvaoelker.github.io/radcoolpv-py/).
-It contains the governing equations, YAML guidance, and a notebook that runs in
-Google Colab without a local Python installation:
+It contains the governing equations, YAML guidance, a validation-status guide,
+and a notebook that obtains optical properties and PV parameters in Google
+Colab without a local Python installation:
 
 [Open the radcoolpv notebook in Colab](https://colab.research.google.com/github/gsilvaoelker/radcoolpv-py/blob/main/docs/site/notebooks/radcoolpv_colab.ipynb)
 
 The notebook compiles the native S4 extension inside the temporary Colab
-runtime. That setup must run again after the runtime is reset. Its default YAML
-is deliberately a small smoke test, not a converged scientific calculation.
-Use the convergence checks described in the site and manual before reporting
+runtime. That setup must run again after the runtime is reset. Its live-optics
+YAML is deliberately a small smoke test; its PV section reuses the committed
+Validation A.1 spectrum. These examples teach the workflow but are not a
+converged scientific calculation or independent literature validation. Use the
+checks and limitations described in the site and manual before reporting
 physical results.
 
 ## YAML directions and polarization

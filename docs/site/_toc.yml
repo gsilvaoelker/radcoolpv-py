@@ -3,4 +3,5 @@ root: intro
 chapters:
   - file: theory
   - file: yaml-workflow
+  - file: validations
   - file: notebooks/radcoolpv_colab

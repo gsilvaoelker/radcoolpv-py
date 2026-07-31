@@ -35,7 +35,11 @@ docs/manual/*.log
 docs/manual/*.out
 docs/manual/*.synctex.gz
 docs/manual/*.toc
-docs/site/_build/
+
+# Generated documentation artifacts (keep the docs sources tracked)
+docs/**/_build/
+docs/**/.jupyter_cache/
+docs/**/.ipynb_checkpoints/
 
 # OS
 .DS_Store

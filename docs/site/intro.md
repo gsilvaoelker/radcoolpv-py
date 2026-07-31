@@ -14,9 +14,12 @@ Colab runtime installs `radcoolpv` and compiles S4 before importing it.
 
 1. Read [Model and conventions](theory.md).
 2. Read [Working with YAML](yaml-workflow.md).
-3. Open the notebook and select **Open in Colab** in the page header, or use the
+3. Read [Validation evidence](validations.md) to understand what each supplied
+   case does and does not establish.
+4. Open the notebook and select **Open in Colab** in the page header, or use the
    direct link below.
-4. Run the setup cells, edit `student.yaml`, and run the calculation.
+5. Run the setup cells, edit the optical and PV YAML files, and inspect the
+   reported parameters and figures.
 
 [Open the notebook directly in Google Colab](https://colab.research.google.com/github/gsilvaoelker/radcoolpv-py/blob/main/docs/site/notebooks/radcoolpv_colab.ipynb)
 
@@ -27,9 +30,12 @@ photovoltaic electrical model. S4 is the live optical solver. Free-form and
 reduced-spectrum inputs read externally generated or previously stored spectra;
 they are not independent optical solvers.
 
-The Colab example is a smoke test. It demonstrates the workflow but is not
-numerically converged. A reported scientific result additionally requires
-energy-conservation, basis-size, wavelength-grid, and angular-grid checks.
+The Colab notebook first executes a small live-S4 optical smoke test. It then
+uses a committed Validation A.1 spectrum to obtain operating temperature,
+current-voltage behavior, maximum power, fill factor, efficiency, and the main
+figures. Neither shortcut is a converged literature reproduction. A reported
+scientific result additionally requires energy-conservation, basis-size,
+wavelength-grid, angular-grid, and independent-reference checks.
 
 For complete equations, implementation conventions, validation tables, and
 limitations, see the [project manual](https://github.com/gsilvaoelker/radcoolpv-py/blob/main/docs/manual/radcoolpv_manual.pdf).
