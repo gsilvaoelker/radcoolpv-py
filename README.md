@@ -75,14 +75,17 @@ $$
 and the silicon absorptance $A_{\mathrm{Si}}$ follows from the net flux
 difference across the two silicon interfaces. Unpolarized illumination is the
 mean of the two polarizations, $X_{\mathrm{unpol}}=(X_{\mathrm{TE}}+X_{\mathrm{TM}})/2$,
-and a hemispherical quantity uses projected solid-angle weighting,
+and the hemispherical average, written $\langle X\rangle$, uses projected
+solid-angle weighting,
 
 $$
-X_h(\lambda)=\frac{1}{\pi}\int_0^{2\pi}\!\!\int_0^{\pi/2}
+\langle X\rangle(\lambda)=\frac{1}{\pi}\int_0^{2\pi}\!\!\int_0^{\pi/2}
 X(\lambda,\theta,\phi)\cos\theta\sin\theta\,\mathrm{d}\theta\,\mathrm{d}\phi .
 $$
 
-Emittance is identified with absorptance by Kirchhoff's law,
+A superscript $\perp$ denotes the same quantity at normal incidence, so
+$A_{\mathrm{Si}}^{\perp}=A_{\mathrm{Si}}(\lambda,\theta=0)$. Emittance is
+identified with absorptance by Kirchhoff's law,
 $\epsilon(\lambda,\theta,\phi)=A(\lambda,\theta,\phi)$.
 
 ### Atmosphere and energy balance
@@ -94,22 +97,44 @@ $$
 \epsilon_{\mathrm{atm}}(\lambda,\theta)=1-\tau_{\mathrm{atm}}(\lambda)^{1/\cos\theta},
 $$
 
-and the radiative terms are Planck-weighted spectral integrals,
+and the radiative terms are Planck-weighted integrals over wavelength and the
+hemisphere,
 
 $$
-P_{\mathrm{rad}}(T)=\pi\!\int\!\epsilon(\lambda)B_\lambda(T)\,\mathrm{d}\lambda,
+P_{\mathrm{rad}}(T)=\int\!\mathrm{d}\Omega\cos\theta\!\int\!\mathrm{d}\lambda\,
+B_\lambda(T)\,\epsilon(\lambda,\theta),
 \qquad
-P_{\mathrm{atm}}=\pi\!\int\!\epsilon(\lambda)\,\epsilon_{\mathrm{atm}}(\lambda)
+P_{\mathrm{atm}}=\int\!\mathrm{d}\Omega\cos\theta\!\int\!\mathrm{d}\lambda\,
+B_\lambda(T_{\mathrm{amb}})\,\epsilon(\lambda,\theta)\,
+\epsilon_{\mathrm{atm}}(\lambda,\theta),
+$$
+
+where $B_\lambda$ is the Planck spectral radiance. Since
+$\int\mathrm{d}\Omega\cos\theta=\pi$ over the hemisphere, the code evaluates
+both from pre-averaged spectra,
+
+$$
+P_{\mathrm{rad}}(T)=\pi\!\int\!\langle\epsilon\rangle B_\lambda(T)\,\mathrm{d}\lambda,
+\qquad
+P_{\mathrm{atm}}=\pi\!\int\!\langle\epsilon\,\epsilon_{\mathrm{atm}}\rangle\,
 B_\lambda(T_{\mathrm{amb}})\,\mathrm{d}\lambda .
 $$
+
+The atmospheric term averages the **product**. Because
+$\epsilon_{\mathrm{atm}}$ varies steeply with $\theta$,
+$\langle\epsilon\,\epsilon_{\mathrm{atm}}\rangle\neq\langle\epsilon\rangle\langle\epsilon_{\mathrm{atm}}\rangle$,
+and only the former is correct.
 
 Absorbed sunlight and non-radiative exchange are
 
 $$
-P_{\mathrm{sun}}=\int\!\epsilon(\lambda)\,I_{\mathrm{AM1.5}}(\lambda)\,\mathrm{d}\lambda,
+P_{\mathrm{sun}}=\int\!\langle\epsilon\rangle\,I_{\mathrm{AM1.5}}(\lambda)\,\mathrm{d}\lambda,
 \qquad
 P_{\mathrm{conv}}(T)=h\,(T-T_{\mathrm{amb}}).
 $$
+
+The solar term uses the same angle-averaged absorptance as the thermal terms
+rather than the absorptance at one solar direction.
 
 The balance solved for the operating temperature is
 
@@ -135,10 +160,10 @@ quantum efficiency, the silicon absorptance, and the solar and blackbody photon
 fluxes $\Phi$:
 
 $$
-J_{\mathrm{sc}}=q\!\int_0^{\lambda_g}\!\mathrm{IQE}\,A_{\mathrm{Si}}\,
+J_{\mathrm{sc}}=q\!\int_0^{\lambda_g}\!\mathrm{IQE}\,\langle A_{\mathrm{Si}}\rangle\,
 \Phi_{\mathrm{sun}}\,\mathrm{d}\lambda,
 \qquad
-J_0(T)=q\!\int_0^{\lambda_g}\!\mathrm{IQE}\,A_{\mathrm{Si}}\,
+J_0(T)=q\!\int_0^{\lambda_g}\!\mathrm{IQE}\,\langle A_{\mathrm{Si}}\rangle\,
 \Phi_{\mathrm{bb}}(T)\,\mathrm{d}\lambda .
 $$
 
@@ -179,8 +204,11 @@ fixed-point iteration:
 $$
 P_{\mathrm{nt}}(T)=\pi\exp\!\left(\frac{qV_{\mathrm{MPP}}}{k_BT}\right)
 \int_0^{\lambda_g}\!\mathrm{IQE}\,A_{\mathrm{Si}}^{\perp}\,
-L_\lambda(T)\,\mathrm{d}\lambda .
+B_\lambda(T)\,\mathrm{d}\lambda .
 $$
+
+This is the only term that uses the normal-incidence absorptance rather than
+the hemispherical average.
 
 ### Assumptions
 
@@ -221,8 +249,10 @@ PV:
   reproducing the MATLAB original, so the integration cut-off does not move
   with $T$.
 - IQE is read from a measured file and set to zero outside its range.
-- Sunlight is the AM1.5 global spectrum; there is no explicit sun position,
-  spectral shift, or concentration.
+- Sunlight is the AM1.5 global spectrum, absorbed through the hemispherically
+  averaged absorptance rather than at a single solar direction — consistent
+  with AM1.5G including a diffuse component. There is no explicit sun
+  position, spectral shift, or concentration.
 
 Numerical:
 
