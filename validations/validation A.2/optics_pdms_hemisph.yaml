@@ -1,8 +1,6 @@
 # Validation A.2: live S4 optics for the "Hemisph. PDMS" row of Table 1.
 #
-# Unlike A.1, this case uses the paper's OWN stated geometry, so a disagreement
-# here is attributable to the code rather than to an assumed parameter. The
-# Opt. Express paper states, for the PDMS all-photonic design:
+# The Opt. Express paper states, for the PDMS all-photonic design:
 #
 #   "hemispheres of 8 um diameter and a layer of 75 um, also compared to its
 #    flat counterpart of 79 um -- both in a periodic cell of (17.3, 10) um."
@@ -10,8 +8,7 @@
 # The cell (17.3, 10) is the centred-rectangular supercell of a hexagonal
 # lattice of pitch 10 um, since sqrt(3) * 10 = 17.3205. radcoolpv adds the
 # second motif at (x/2, y/2) automatically. Note that pitch (10 um) exceeds the
-# hemisphere diameter (8 um): the domes are separated, NOT close-packed. This
-# is the detail that A.1's soda-lime case had to guess, and guessed differently.
+# hemisphere diameter (8 um): the domes are separated.
 #
 # Normal incidence, on purpose. The bundled reference spectrum
 # (validation A/data/Fig. 3C blue/opticalProps-PVcode.txt) is the seven-column

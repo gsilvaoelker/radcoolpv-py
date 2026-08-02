@@ -4,16 +4,9 @@
 # ---------------------------------------------------------------------------
 # READ THIS BEFORE SPENDING THE COMPUTE
 #
-# The soda-lime array pitch is STILL ASSUMED close-packed (9 um), because the
-# paper does not state it anywhere. Converging this run does not turn it into a
-# reproduction of Table 1's "Hemisph. soda-lime" row: it produces a converged
-# calculation of a structure that may not be the paper's. A disagreement here
-# cannot be attributed to the code.
-#
-# The paper's PDMS row IS fully specified, and its equivalent full run is
-# ../validation A.2/full_hemisph_pdms.yaml. If you want a defensible Table 1
-# comparison from a long run, run that one. This file is for the case where you
-# want the soda-lime geometry itself converged.
+# The paper states the soda-lime hemisphere diameter, flat-layer thickness, and
+# periodic cell for this row. This file is the expensive one-process version
+# for a full hemispherical optics + thermal + PV comparison.
 # ---------------------------------------------------------------------------
 #
 # WHY ONE PROCESS AND NOT THE TWO-STEP CHAIN
@@ -57,8 +50,7 @@ geometry:
   source: s4
   shape: semisphere
   photonic_material: sodalime
-  # ASSUMED close-packed: x = sqrt(3) * 9.0. Not a paper value.
-  lattice: {type: hexagonal, x: 15.588457, y: 9.0}
+  lattice: {type: hexagonal, x: 17.3205, y: 10.0}   # paper: periodic cell (17.3, 10) um
   sphere: {radius: 4.5}          # 9 um diameter
   discretization_layers: 12
 

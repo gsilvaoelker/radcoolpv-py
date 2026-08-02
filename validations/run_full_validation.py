@@ -19,9 +19,7 @@ WHICH CASE TO RUN
     pdms      The paper states this geometry in full ("a periodic cell of
               (17.3, 10) um"), so a disagreement is attributable to the code.
               This is the run worth citing.
-    sodalime  The pitch is ASSUMED close-packed; the paper never states it.
-              Converging this does not make it a Table 1 reproduction. Run it
-              to converge the soda-lime geometry itself, not to validate.
+    sodalime  The paper-stated soda-lime hemisphere geometry.
 
 Differences are reported; nothing is asserted. The script exits 0 either way.
 
@@ -60,8 +58,8 @@ CASES = {
     "sodalime": {
         "yaml": os.path.join(BASE, "validation A.1", "full_hemisph_sodalime.yaml"),
         "row": "Hemisph. soda-lime",
-        "citable": False,
-        "caveat": "pitch is ASSUMED close-packed; not a Table 1 reproduction",
+        "citable": True,
+        "caveat": "paper-stated soda-lime geometry",
     },
     "pdms": {
         "yaml": os.path.join(BASE, "validation A.2", "full_hemisph_pdms.yaml"),
@@ -202,10 +200,6 @@ def run_case(case: str, args) -> None:
              "the MATLAB find() tolerance,")
         _log("    which needs a fine wavelength grid. Expected on a reduced "
              "--wavelengths run; fine at 2000.")
-
-    if not meta["citable"]:
-        _log("    REMINDER: this row's pitch is assumed. Agreement here is not "
-             "evidence, and disagreement is not a code defect.")
 
 
 def main() -> None:

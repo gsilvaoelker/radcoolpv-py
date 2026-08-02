@@ -7,10 +7,10 @@ agreement with a publication.
 
 ```{admonition} Use the status labels
 :class: warning
-Validation A is a stored-spectrum regression, A.1 is a smoke test, A.2 tests
-the optical backend at normal incidence only, B contains digitized-data
-comparisons, C is partial, and E exposes a thermal-model contradiction. Do not
-describe them all as fully validated.
+Validation A is a stored-spectrum regression, A.1 and A.2 test the optical
+backend at normal incidence for the stated hemisphere geometries, B contains
+digitized-data comparisons, C is partial, and E exposes a thermal-model
+contradiction. Do not describe them all as fully validated.
 ```
 
 ## Status at a glance
@@ -18,7 +18,7 @@ describe them all as fully validated.
 | Case | Main input | Strongest defensible claim |
 |---|---|---|
 | A | Published reduced spectra | Conditional regression of Table 1 PV and thermal outputs |
-| A.1 | Committed S4 spectrum; optional live rebuild | End-to-end configuration smoke test, **not a validation** |
+| A.1 | Live S4 from the paper's stated soda-lime geometry plus published reduced spectrum | Fig. 3(b) normal-incidence optics and Table 1 thermal/PV row |
 | A.2 | Live S4 from the paper's stated PDMS geometry | Optical backend reproduces the published spectrum at normal incidence |
 | B | Digitized measured spectra and curves | Conditional cooling regression; one plot-only reproduction |
 | C | Committed or live S4 grating spectra | Partial validation of grating emittance and temperature |
@@ -72,47 +72,83 @@ silicon solar cells,” *Optics Express* 30, 32965–32977 (2022),
 
 [Run Validation A.1 in Google Colab](https://colab.research.google.com/github/gsilvaoelker/radcoolpv-py/blob/main/docs/site/notebooks/validation_a1_colab.ipynb)
 
-A.1 separates the workflow into an optional live S4 optics calculation and a
-fast thermal/PV step driven by the committed spectrum. The geometry assumes a
-close-packed pitch that is not documented as a paper input. The live option
-uses 10 S4 modes, nine hemisphere slices, TE polarization, and normal
-incidence. None of those numerical choices has a convergence claim.
+A.1 validates the soda-lime hemisphere row from Fig. 3(b) blue / Table 1. The
+paper states 9 µm-diameter soda-lime hemispheres on a 75 µm soda-lime layer in
+a `(17.3, 10)` µm periodic cell. The live optics check computes that geometry
+at normal incidence and compares against the normal-incidence columns in the
+published spectrum. The fast thermal/PV step reads the published reduced
+hemispherical spectrum and compares against Table 1.
 
-### Main results from the committed spectrum
+### Main results from the Table 1 spectrum
 
 | Quantity | Result |
 |---|---:|
-| Maximum $|R+T+A-1|$ | $1.1\times10^{-16}$ |
-| Solar-band silicon absorptance | 0.823 |
-| Mean 8–13 µm emittance | 0.973 |
-| Equilibrium temperature | 317.09 K |
-| $I_{sc}$ | 365.92 A/m² |
-| Equilibrium $V_{oc}$ | 0.7264 V |
-| Equilibrium maximum power | 230.61 W/m² |
-| Fill factor | 0.868 |
-| Efficiency | 0.2314 |
+| Maximum $|R+T+A-1|$ | 0 |
+| Solar-band silicon absorptance | 0.801 |
+| Mean 8–13 µm emittance | 0.881 |
+| Equilibrium temperature | 317.78 K |
+| $I_{sc}$ | 354.98 A/m² |
+| Equilibrium $V_{oc}$ | 0.7246 V |
+| Equilibrium maximum power | 222.91 W/m² |
+| Fill factor | 0.8667 |
+| Efficiency | 0.2237 |
 
-```{figure} _static/validations/validation_a1_power_preview.png
-:alt: Validation A.1 power-voltage curve
+### Live normal-incidence optical comparison
+
+`s4_modes: 30`, twelve dome slices, unpolarized, normal incidence, 2000
+wavelengths, 419 s on a local workstation.
+
+| Band average | Published | Computed | Rel. err |
+|---|---:|---:|---:|
+| Emittance 8–13 µm | 0.9716 | 0.9729 | +0.13% |
+| Emittance 17–24 µm | 0.9625 | 0.9537 | −0.91% |
+| Emittance 4–30 µm | 0.9352 | 0.9290 | −0.66% |
+| Si absorptance 0.3–1.12 µm | 0.8069 | 0.8067 | −0.03% |
+| Reflectance 0.3–1.12 µm | 0.1728 | 0.1732 | +0.19% |
+| Reflectance 1.12–4 µm | 0.9220 | 0.9352 | +1.43% |
+
+```{figure} _static/validations/validation_a1_spectral_comparison.png
+:alt: Validation A.1 published versus live S4 optical spectra
 :width: 760px
 
-The committed A.1 spectrum produces a maximum-power point of 230.61 W/m².
+Published normal-incidence optical columns compared with the live S4 spectrum
+for emittance, reflectance, and silicon absorptance.
+```
+
+```{figure} _static/validations/validation_a1_band_errors.png
+:alt: Validation A.1 relative errors in optical band averages
+:width: 760px
+
+Relative error in the six optical band averages. The largest band-level
+difference is the 1.12–4 µm sub-gap reflectance row.
+```
+
+```{figure} _static/validations/validation_a1_pv_curves.png
+:alt: Validation A.1 current-voltage and power-voltage curves
+:width: 760px
+
+The published hemispherical spectrum gives $J_{sc}=354.98$ A/m²,
+$V_{oc}=0.7246$ V, and a maximum-power point of 222.91 W/m² at 0.6577 V.
 ```
 
 Run from a checkout:
 
 ```bash
-# Optional and expensive: rebuild the S4 spectrum.
-radcoolpv run "validations/validation A.1/optics_hemisph_sodalime.yaml"
+# Optional: rebuild normal-incidence S4 optics and compare with Fig. 3(b).
+PYTHONPATH=. python "validations/validation A.1/run_sodalime_optics_validation.py"
 
 # Fast path used by default in Colab.
 radcoolpv run "validations/validation A.1/pv_hemisph_sodalime.yaml"
+
+# Write the report summary and plots shown above.
+PYTHONPATH=. python "validations/validation A.1/report_validation.py"
 ```
 
-**Status:** configuration smoke test, not a literature validation. Energy
-closure is necessary but does not establish angular, polarization, geometry,
-or mode convergence. The thermal step treats a normal-incidence TE spectrum
-as angle-independent.
+**Status:** literature validation with a documented angular limitation. The
+live optical comparison is normal-incidence only. The thermal/PV comparison
+uses the paper's reduced hemispherical spectrum, which lacks per-angle
+emissivity, so the atmospheric term uses Validation A's angle-independent
+fallback.
 
 **Reference geometry context:** G. Silva-Oelker and J.
 Jaramillo-Fernandez (2022),
@@ -126,12 +162,9 @@ optical backend. Validation A *reads* the published spectra and exercises only
 the thermal and PV stages; A.2 *computes* the spectrum from the YAML geometry
 and compares it against the published one.
 
-It uses the PDMS row because the paper states that geometry completely — "both
-in a periodic cell of (17.3, 10) µm" for 8 µm hemispheres on a 75 µm layer.
-Since $\sqrt{3}\times10=17.32$, that is the centred-rectangular supercell of a
-hexagonal lattice of pitch 10 µm. Nothing is assumed, so any disagreement is
-attributable to the code. The soda-lime pitch appears nowhere in the paper,
-which is why A.1 remains a smoke test.
+It uses the PDMS row from Fig. 3(c) blue. Since $\sqrt{3}\times10=17.32$, the
+paper's `(17.3, 10)` µm cell is represented as the centred-rectangular
+supercell of a hexagonal lattice of pitch 10 µm.
 
 ### Main results
 

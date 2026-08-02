@@ -1,14 +1,13 @@
-# Validation A.1, step 2 of 2: PV and thermal from the step-1 spectrum.
+# Validation A.1, step 2 of 2: PV and thermal from the paper's reduced
+# hemispherical spectrum.
 #
-# NOT a literature validation. Together with step 1 this checks that a
-# hexagonal-cell YAML solves in S4 and that the resulting optics drive the PV
-# stage end to end. The assumed close-packed pitch means these numbers are not
-# a reproduction of the Opt. Express Table 1 row.
+# This reproduces the "Hemisph. soda-lime" Table 1 row using the Fig. 3(b) blue
+# optical-property file bundled in Validation A. Step 1 independently rebuilds
+# and compares the normal-incidence optical columns from the same geometry.
 #
-# The spectrum resumed here is TE at normal incidence. optics_results_angles is
-# therefore `normal`, which is an explicit angle-independent approximation for
-# the radiative terms, not a hemispherical calculation. A live S4 thermal run
-# would instead require simulation.angles: hemispherical.
+# The reduced file carries hemispherical spectra plus normal-incidence columns,
+# but it has no per-angle emissivity. The atmospheric term therefore uses the
+# same angle-independent fallback documented in Validation A.
 #
 # Thermal and PV parameters are copied from Validation A's soda-lime row so the
 # electrical model is exercised with realistic silicon-cell values.
@@ -22,12 +21,12 @@ run:
   mode: standard
   results_dir: results
   write_outputs: true
-  optics_results: data/optics/hemisph_sodalime_te_normal.txt
-  optics_results_angles: normal      # angle-independent approximation
+  optics_results: "../validation A/data/Fig. 3B blue/opticalProps-PVcode.txt"
+  optics_results_angles: hemispherical
 
 simulation:
   wavelength: {min: 0.3, max: 30.0, n: 2000}
-  angles: normal
+  angles: hemispherical
 
 structure:                            # thermal stage needs the Si thickness
   - {material: silicon,   thickness: 250.0}

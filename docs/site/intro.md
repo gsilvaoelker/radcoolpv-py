@@ -31,12 +31,12 @@ photovoltaic electrical model. S4 is the live optical solver. Free-form and
 reduced-spectrum inputs read externally generated or previously stored spectra;
 they are not independent optical solvers.
 
-The main Colab notebook first executes a small live-S4 optical smoke test. It then
-uses a committed Validation A.1 spectrum to obtain operating temperature,
-current-voltage behavior, maximum power, fill factor, efficiency, and the main
-figures. Neither shortcut is a converged literature reproduction. A reported
-scientific result additionally requires energy-conservation, basis-size,
-wavelength-grid, angular-grid, and independent-reference checks.
+The main Colab notebook first executes a small live-S4 optical smoke test. It
+then uses the published reduced Validation A.1 spectrum to obtain operating
+temperature, current-voltage behavior, maximum power, fill factor, efficiency,
+and the main figures. A reported scientific result additionally requires
+energy-conservation, basis-size, wavelength-grid, angular-grid, and
+independent-reference checks.
 
 The governing equations and conventions are maintained in
 [Model and conventions](theory.md); evidence-qualified results and references

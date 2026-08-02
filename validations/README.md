@@ -6,7 +6,7 @@ same as "the physical model is independently validated."
 | Case | Optics source | What is checked | Status |
 |---|---|---|---|
 | A | Published reduced spectra | PV and thermal Table 1 quantities | Conditional regression |
-| A.1 | Live S4, TE at normal incidence | That a hexagonal cell solves and drives the PV stage | **Not a validation** — configuration smoke test, assumed pitch |
+| A.1 | Live S4, unpolarized at normal incidence; published reduced spectrum for thermal/PV | Published Fig. 3(b) soda-lime spectrum and Table 1 row | Literature validation with documented angular limitation |
 | A.2 | Live S4, unpolarized at normal incidence | Published Fig. 3(c) PDMS spectrum, from the paper's stated geometry | Validation of the optical backend, normal incidence only |
 | B Fig. 4d | Digitized measured spectra | Cooling balance | Conditional regression |
 | B Fig. 5d | Digitized published curves | Plot comparison only | Not an independent validation |
@@ -43,73 +43,68 @@ expressed in YAML. Case A.1 below exists to exercise that geometry directly.
 
 ---
 
-## A.1 — hexagonal cell smoke test (not a validation)
+## A.1 — live soda-lime optics plus Table 1 thermal/PV validation
 
-No published comparison, and it must never be cited as evidence. It answers one
-question: does a hexagonal cell with a discretised semisphere build and solve in
-S4, and do the resulting optics drive the PV stage end to end?
-
-The geometry mirrors Validation A's soda-lime hemisphere row — 9 µm-diameter
-soda-lime hemispheres on 75 µm flat soda-lime, over the Si3N4/Si/Ag stack — with
-one deliberate deviation: **the array pitch is assumed close-packed (9 µm)**
-because the paper's pitch is not recorded in this repository. Together with the
-TE normal-incidence optics, that is why the numbers below are not a Table 1
-reproduction, even though they land near it.
-
-**That assumption is probably wrong.** The paper never states the soda-lime
-pitch, but it does state the PDMS one — a periodic cell of `(17.3, 10)` µm for
-8 µm hemispheres. There the pitch exceeds the diameter, so the domes are
-separated rather than touching. If the soda-lime row follows the same design,
-close-packing is not it. Validation A.2 below exists because that row's
-geometry *is* fully specified, which makes it the case worth trusting.
+This case validates the soda-lime hemisphere row of Silva-Oelker and
+Jaramillo-Fernandez (2022), Fig. 3(b) blue / Table 1. The paper states the
+needed geometry: 9 µm-diameter soda-lime hemispheres on a 75 µm soda-lime layer
+in a `(17.3, 10)` µm periodic cell, over the Si3N4/Si/Ag stack.
 
 The hexagonal cell is the centred-rectangular supercell, so for pitch `p`:
 
 ```text
-lattice: {type: hexagonal, x: sqrt(3) * p, y: p}   # here x = 15.588457, y = 9.0
+lattice: {type: hexagonal, x: sqrt(3) * p, y: p}   # here x = 17.3205, y = 10.0
 ```
 
 radcoolpv adds the second motif at `(x/2, y/2)` automatically. That second motif
-appearing is the specific thing this case checks. Note that `square` ignores
-`lattice.y` entirely, and that the centred motif is only added for `cylinder`,
-`sphere`, and `semisphere` — `triangle` and `grating` get a plain rectangular
-cell.
+is required by the paper's periodic cell.
 
-Two plain CLI runs, in order. Two steps are required because a live S4 run with
-`run.thermal: true` is rejected unless `angles: hemispherical`:
+Two checks are intentionally separate:
 
 ```bash
-radcoolpv run "validations/validation A.1/optics_hemisph_sodalime.yaml"   # live S4 -> spectrum
-radcoolpv run "validations/validation A.1/pv_hemisph_sodalime.yaml"       # spectrum -> PV
+PYTHONPATH=. python "validations/validation A.1/run_sodalime_optics_validation.py"
+radcoolpv run "validations/validation A.1/pv_hemisph_sodalime.yaml"
+PYTHONPATH=. python "validations/validation A.1/report_validation.py"
 ```
 
-Nothing happens between them. Step 1 sets `run.optics_export` to a fixed path
-and step 2 reads that same path with `run.optics_results`; those two settings
-are the write and read halves of the same five-column format. The timestamped
-results folder cannot serve this purpose, and neither can `optics.csv`, which is
-comma-separated with a text header that the resume reader rejects.
+The first command computes normal-incidence, unpolarized S4 optics from YAML
+and compares against the normal-incidence columns of the published Fig. 3(b)
+spectrum. The second command reads the paper's reduced hemispherical spectrum
+and compares the thermal/PV outputs against Table 1. The third command writes
+`validation A.1/report/summary.json`, `summary.md`, and the spectral, band-error,
+IV, and power-voltage plots used by the docs. The reduced spectrum has no
+per-angle emissivity, so the atmospheric term uses Validation A's documented
+angle-independent fallback.
 
-Step 2 sets `optics_results_angles: normal`. That key is provenance metadata
-only — it records what the spectrum is and changes no computed value. The
-angle-independent approximation comes from the spectrum itself being
-normal-incidence, not from the setting.
-
-Observed on the committed spectrum:
+Observed from the Table 1 spectrum:
 
 | Quantity | Value |
 |---|---:|
-| max \|R+T+A−1\| | 1.1e-16 |
-| Solar-band (0.3–1.1 µm) absorptance in Si | 0.823 |
-| 8–13 µm window emittance | 0.973 |
-| Equilibrium temperature | 317.09 K |
-| Isc | 365.92 A/m² |
-| Voc at equilibrium | 0.7264 V |
-| MPP at equilibrium | 230.61 W/m² |
-| Fill factor | 0.868 |
-| Efficiency at equilibrium | 0.2314 |
+| max \|R+T+A−1\| | 0 |
+| Solar-band (0.3–1.1 µm) absorptance in Si | 0.801 |
+| 8–13 µm window emittance | 0.881 |
+| Equilibrium temperature | 317.78 K |
+| Isc | 354.98 A/m² |
+| Voc at equilibrium | 0.7246 V |
+| MPP at equilibrium | 222.91 W/m² |
+| Fill factor | 0.8667 |
+| Efficiency at equilibrium | 0.2237 |
 
-`s4_modes: 10` and `discretization_layers: 9` are smoke-test settings, not
-converged ones. Sweep both before using this geometry for anything quantitative.
+Observed from the live normal-incidence S4 optics check (`s4_modes: 30`,
+twelve dome slices, 419 s on this workstation):
+
+| Band average | Published | Computed | Rel. err |
+|---|---:|---:|---:|
+| Emittance 8–13 µm | 0.9716 | 0.9729 | +0.13% |
+| Emittance 17–24 µm | 0.9625 | 0.9537 | −0.91% |
+| Emittance 4–30 µm | 0.9352 | 0.9290 | −0.66% |
+| Si absorptance 0.3–1.12 µm | 0.8069 | 0.8067 | −0.03% |
+| Reflectance 0.3–1.12 µm | 0.1728 | 0.1732 | +0.19% |
+| Reflectance 1.12–4 µm | 0.9220 | 0.9352 | +1.43% |
+
+The live normal-incidence optics check uses `s4_modes: 30` and twelve dome
+slices, matching the A.2 convergence settings. It does not validate the full
+hemispherical angular average used by the thermal model.
 
 ---
 
@@ -249,18 +244,16 @@ uses `validation A.1/full_hemisph_sodalime.yaml`. Overrides for exploratory
 passes: `--modes`, `--theta`, `--azimuth`, `--layers`, `--wavelengths`. The
 driver reports differences against Table 1 and always exits 0.
 
-### Run PDMS, not soda-lime, if you want a result you can cite
+### Full one-process runs
 
-The PDMS geometry is stated in full by the paper, so a disagreement is
-attributable to the code. The soda-lime pitch is assumed, so converging that
-run yields a converged calculation of a structure that may not be the paper's —
-agreement would not be evidence and disagreement would not be a defect. Both
-configs exist; only one supports a claim.
+Both soda-lime and PDMS full-run configs now use paper-stated geometries. The
+soda-lime run is still expensive and should be sized with `--dry-run` before
+spending compute.
 
 ### One process, never the two-step chain
 
-A.1's cheap workflow exports a spectrum and resumes it in a second run. **Do
-not do that for a full run.** `write_optics_export` writes five columns
+The cheap workflow reads a reduced spectrum. **Do not use that for a full live
+S4 thermal run.** `write_optics_export` writes five columns
 (`lambda, R, T, emit, abs_si`), which drops the normal-incidence columns *and*
 the angle-resolved atmospheric term. Resuming such a file silently degrades the
 thermal stage to `emit_atm = 1 - atm` with the product-of-averages form

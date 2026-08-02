@@ -4,8 +4,7 @@
 # This is the run that can be compared with Table 1. The paper states this
 # geometry completely -- 8 um hemispheres on a 75 um layer, "both in a periodic
 # cell of (17.3, 10) um" -- so nothing is assumed and a disagreement is
-# attributable to the code. Contrast ../validation A.1/full_hemisph_sodalime.yaml,
-# whose pitch is a guess.
+# attributable to the code.
 #
 # What this adds over A.2's cheap normal-incidence case: the hemispherical
 # average that the thermal model actually consumes, and therefore the Table 1
