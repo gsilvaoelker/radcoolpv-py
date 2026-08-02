@@ -376,11 +376,16 @@ PYTHONPATH=. python -m pytest -q
 ```
 
 The literature cases are evidence-labelled rather than uniformly called
-“validated.” Validation A uses pre-reduced spectra; A.1 is a smoke test;
+“validated.” Validation A uses pre-reduced spectra; A.1 is a smoke test; A.2
+reproduces the published PDMS spectrum from live S4 at normal incidence only;
 Validation B relies on digitized inputs; Validation C is partial; and
 Validation E reproduces cooling-band optics but fails the paper-stated thermal
 coefficient. Read the [validation page](https://gsilvaoelker.github.io/radcoolpv-py/validations.html)
 or [`validations/README.md`](validations/README.md) before citing a result.
+
+A.2 is the case that tests the optical solver itself: it computes the spectrum
+from YAML geometry that the paper states in full, then compares it against the
+published one. The 8–13 µm window emittance agrees to 0.04%.
 
 ## Repository layout
 

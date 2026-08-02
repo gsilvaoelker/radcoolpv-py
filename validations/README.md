@@ -6,7 +6,8 @@ same as "the physical model is independently validated."
 | Case | Optics source | What is checked | Status |
 |---|---|---|---|
 | A | Published reduced spectra | PV and thermal Table 1 quantities | Conditional regression |
-| A.1 | Live S4, TE at normal incidence | That a hexagonal cell solves and drives the PV stage | **Not a validation** — configuration smoke test |
+| A.1 | Live S4, TE at normal incidence | That a hexagonal cell solves and drives the PV stage | **Not a validation** — configuration smoke test, assumed pitch |
+| A.2 | Live S4, unpolarized at normal incidence | Published Fig. 3(c) PDMS spectrum, from the paper's stated geometry | Validation of the optical backend, normal incidence only |
 | B Fig. 4d | Digitized measured spectra | Cooling balance | Conditional regression |
 | B Fig. 5d | Digitized published curves | Plot comparison only | Not an independent validation |
 | C | YAML-defined S4 grating cases | Normal unpolarized optics and cooling model | Partial validation |
@@ -55,6 +56,13 @@ because the paper's pitch is not recorded in this repository. Together with the
 TE normal-incidence optics, that is why the numbers below are not a Table 1
 reproduction, even though they land near it.
 
+**That assumption is probably wrong.** The paper never states the soda-lime
+pitch, but it does state the PDMS one — a periodic cell of `(17.3, 10)` µm for
+8 µm hemispheres. There the pitch exceeds the diameter, so the domes are
+separated rather than touching. If the soda-lime row follows the same design,
+close-packing is not it. Validation A.2 below exists because that row's
+geometry *is* fully specified, which makes it the case worth trusting.
+
 The hexagonal cell is the centred-rectangular supercell, so for pitch `p`:
 
 ```text
@@ -102,6 +110,122 @@ Observed on the committed spectrum:
 
 `s4_modes: 10` and `discretization_layers: 9` are smoke-test settings, not
 converged ones. Sweep both before using this geometry for anything quantitative.
+
+---
+
+## Validation A.2 — live S4 optics against the published PDMS spectrum
+
+Same paper as Validation A, Fig. 3(c) blue. This is the case that tests the
+optical backend: Validation A *reads* the published spectra and only exercises
+the thermal and PV stages, whereas A.2 *computes* the spectrum from YAML
+geometry and compares it against the published one.
+
+It uses the PDMS row because the paper states that geometry in full:
+
+> "hemispheres of 8 µm diameter and a layer of 75 µm, also compared to its flat
+> counterpart of 79 µm — both in a periodic cell of (17.3, 10) µm."
+
+Since `sqrt(3) * 10 = 17.3205`, that cell is the centred-rectangular supercell
+of a hexagonal lattice of pitch 10 µm. Nothing here is guessed, which is the
+whole point: any disagreement is attributable to the code. The soda-lime row
+cannot support the same claim, because its pitch appears nowhere in the paper.
+
+```bash
+PYTHONPATH=. python "validations/validation A.2/run_pdms_optics_validation.py"
+```
+
+About 2.5 minutes for 2000 wavelengths. The script reports differences and
+always exits 0; it never asserts a tolerance.
+
+### Result
+
+Live S4 at `s4_modes: 30`, `discretization_layers: 12`, unpolarized, normal
+incidence, against the published normal-incidence columns:
+
+| Band average | Published | Computed | Rel. err |
+|---|---:|---:|---:|
+| Emittance 8–13 µm (atmospheric window) | 0.9868 | 0.9864 | −0.04% |
+| Emittance 17–24 µm | 0.8963 | 0.8962 | −0.01% |
+| Emittance 4–30 µm (broadband) | 0.9209 | 0.9195 | −0.15% |
+| Si absorptance 0.3–1.12 µm | 0.8092 | 0.8057 | −0.43% |
+| Reflectance 0.3–1.12 µm | 0.1753 | 0.1789 | +2.02% |
+| Reflectance 1.12–4 µm (sub-gap) | 0.8393 | 0.8444 | +0.61% |
+
+Energy closure holds to `2.2e-16`. Pointwise RMS emittance difference is
+`0.0066` over 4–30 µm. The solar band scatters more pointwise (RMS `0.048`)
+because thin-film interference fringes in the 250 µm silicon shift with the
+wavelength grid; the band averages are the meaningful comparison there.
+
+The three emittance rows are converged and agree to better than `0.2%`. The
+solar-band rows are not converged in `s4_modes` (see below), so their `−0.43%`
+and `+2.02%` differences sit inside the numerical scatter and should not be
+read as a physical disagreement.
+
+### Why normal incidence
+
+The bundled reference is the seven-column PVcode form, which carries
+normal-incidence columns beside the hemispherical ones. Comparing normal
+against normal is like-for-like with no angular approximation anywhere, and it
+costs one S4 solve per wavelength.
+
+A hemispherical comparison costs `1 + 8*12 = 97` directions times two
+polarizations, so 194 solves per wavelength. Measured on an M-series laptop at
+this geometry:
+
+| `s4_modes` | per solve | 2000 λ, normal | 2000 λ, hemispherical |
+|---|---:|---:|---:|
+| 10 | 0.013 s | 12 s | ~1.4 h |
+| 30 | 0.044 s | 2.5 min | ~4.7 h |
+| 60 | 0.222 s | 15 min | ~24 h |
+
+### Not checked here
+
+- **The hemispherical average**, and therefore nothing in Table 1 — no
+  temperatures, no PV quantities. Those need the hemispherical run above. To
+  do it, set `angles: hemispherical` in the YAML, budget the time in the table,
+  then chain the exported spectrum into a thermal case as A.1 does. This has
+  not been run, so no claim is made about it.
+- **The paper's numerics.** It states neither a Fourier-mode count nor a dome
+  discretisation, so those are not reproduced; they are established below.
+
+### Convergence
+
+The paper states no numerical settings, so these were established here. All
+rows are 2000 wavelengths, unpolarized, normal incidence; band averages as
+above. Times are wall-clock on an M-series laptop and only indicative, since
+some rows shared the machine with other work.
+
+| `s4_modes` | slices | t | Emit 8–13 µm | Emit 4–30 µm | Si abs 0.3–1.12 µm |
+|---:|---:|---:|---:|---:|---:|
+| 10 | 12 | 12 s | 0.9844 | 0.9175 | 0.8119 |
+| 20 | 12 | 62 s | 0.9863 | 0.9186 | 0.8109 |
+| 30 | 12 | 151 s | 0.9864 | 0.9195 | 0.8057 |
+| 45 | 12 | 532 s | 0.9866 | 0.9205 | 0.8048 |
+| 60 | 12 | 1000 s | 0.9865 | 0.9206 | 0.8089 |
+| 30 | 6 | 87 s | 0.9874 | 0.9204 | 0.8017 |
+| 30 | 18 | 201 s | 0.9861 | 0.9193 | 0.8082 |
+| **Published** | | | **0.9868** | **0.9209** | **0.8092** |
+
+Read this honestly — the two spectral regions behave differently:
+
+- **The thermal bands are converged.** The 8–13 µm window settles by
+  `s4_modes: 20` and moves by less than `0.0003` thereafter. The 4–30 µm
+  broadband is still creeping at 30, flattens between 45 and 60
+  (`0.9205 → 0.9206`), and lands `0.03%` below the published value. Dome
+  discretisation matters weakly: 6 → 18 slices shifts the window by `0.0013`.
+- **The solar band is not converged in modes**, and the table shows why it
+  cannot be trusted at this cost: silicon absorptance is *non-monotonic*
+  (`0.8057 → 0.8048 → 0.8089` across modes 30, 45, 60). At λ = 0.3 µm the 10 µm
+  pitch is over thirty wavelengths wide, so the harmonic count needed there is
+  far beyond anything runnable in minutes. The `−0.43%` absorptance and
+  `+2.02%` reflectance differences reported above are therefore **within the
+  numerical scatter of the solar band, not evidence of a physical
+  disagreement** — in either direction.
+
+`s4_modes: 30` is the committed default because it converges the cooling bands
+in about 2.5 minutes, which is the number a reader is likely to actually run.
+Raise it to 45 or 60 to tighten the broadband figure; do not read the solar-band
+columns as converged at any setting in this table.
 
 ---
 

@@ -1,15 +1,16 @@
 # Validation evidence
 
-The repository contains five comparison groups. They do not have equal
+The repository contains six comparison groups. They do not have equal
 evidentiary strength. A successful run proves that a workflow executes; it
 does not prove solver convergence, correctness of every physical term, or
 agreement with a publication.
 
 ```{admonition} Use the status labels
 :class: warning
-Validation A is a stored-spectrum regression, A.1 is a smoke test, B contains
-digitized-data comparisons, C is partial, and E exposes a thermal-model
-contradiction. Do not describe all five as fully validated.
+Validation A is a stored-spectrum regression, A.1 is a smoke test, A.2 tests
+the optical backend at normal incidence only, B contains digitized-data
+comparisons, C is partial, and E exposes a thermal-model contradiction. Do not
+describe them all as fully validated.
 ```
 
 ## Status at a glance
@@ -18,6 +19,7 @@ contradiction. Do not describe all five as fully validated.
 |---|---|---|
 | A | Published reduced spectra | Conditional regression of Table 1 PV and thermal outputs |
 | A.1 | Committed S4 spectrum; optional live rebuild | End-to-end configuration smoke test, **not a validation** |
+| A.2 | Live S4 from the paper's stated PDMS geometry | Optical backend reproduces the published spectrum at normal incidence |
 | B | Digitized measured spectra and curves | Conditional cooling regression; one plot-only reproduction |
 | C | Committed or live S4 grating spectra | Partial validation of grating emittance and temperature |
 | E | Digitized measurements and optional live S4 | Cooling-band optics agree; paper-parameter thermal result fails |
@@ -114,6 +116,69 @@ as angle-independent.
 
 **Reference geometry context:** G. Silva-Oelker and J.
 Jaramillo-Fernandez (2022),
+[doi:10.1364/OE.466335](https://doi.org/10.1364/OE.466335).
+
+(validation-a2)=
+## Validation A.2 — live S4 optics against the published PDMS spectrum
+
+Same paper as Validation A, Fig. 3(c) blue. This is the case that tests the
+optical backend. Validation A *reads* the published spectra and exercises only
+the thermal and PV stages; A.2 *computes* the spectrum from the YAML geometry
+and compares it against the published one.
+
+It uses the PDMS row because the paper states that geometry completely — "both
+in a periodic cell of (17.3, 10) µm" for 8 µm hemispheres on a 75 µm layer.
+Since $\sqrt{3}\times10=17.32$, that is the centred-rectangular supercell of a
+hexagonal lattice of pitch 10 µm. Nothing is assumed, so any disagreement is
+attributable to the code. The soda-lime pitch appears nowhere in the paper,
+which is why A.1 remains a smoke test.
+
+### Main results
+
+Live S4, `s4_modes: 30`, twelve dome slices, unpolarized, normal incidence,
+2000 wavelengths, about 2.5 minutes; compared against the published
+normal-incidence columns.
+
+| Band average | Published | Computed | Rel. err |
+|---|---:|---:|---:|
+| Emittance 8–13 µm | 0.9868 | 0.9864 | −0.04% |
+| Emittance 17–24 µm | 0.8963 | 0.8962 | −0.01% |
+| Emittance 4–30 µm | 0.9209 | 0.9195 | −0.15% |
+| Silicon absorptance 0.3–1.12 µm | 0.8092 | 0.8057 | −0.43% |
+| Reflectance 0.3–1.12 µm | 0.1753 | 0.1789 | +2.02% |
+| Reflectance 1.12–4 µm | 0.8393 | 0.8444 | +0.61% |
+
+Maximum $|R+T+A-1|$ is $2.2\times10^{-16}$.
+
+The three emittance rows are converged and agree to better than 0.2%. The
+solar-band rows are **not** converged in `s4_modes`: silicon absorptance moves
+non-monotonically across modes 30, 45 and 60 (0.8057, 0.8048, 0.8089), because
+at $\lambda=0.3$ µm the 10 µm pitch is more than thirty wavelengths wide. Their
+−0.43% and +2.02% differences therefore lie inside the numerical scatter and
+are not evidence of a physical disagreement. The full convergence table is in
+[`validations/README.md`](https://github.com/gsilvaoelker/radcoolpv-py/blob/main/validations/README.md).
+
+Run from a checkout:
+
+```bash
+PYTHONPATH=. python "validations/validation A.2/run_pdms_optics_validation.py"
+```
+
+The script reports differences and always exits 0. It never asserts a
+tolerance, so a reader sees the numbers rather than a pass or fail they cannot
+interpret.
+
+**Status:** validation of the optical backend at normal incidence. It does not
+touch the hemispherical average the thermal model consumes, so it establishes
+nothing about Table 1 temperatures or PV quantities — that comparison costs 194
+S4 solves per wavelength instead of one, and has not been run. The paper states
+neither its mode count nor its dome discretisation, so those are established by
+the convergence table in
+[`validations/README.md`](https://github.com/gsilvaoelker/radcoolpv-py/blob/main/validations/README.md)
+rather than reproduced.
+
+**Reference:** G. Silva-Oelker and J. Jaramillo-Fernandez, *Optics Express*
+30, 32965–32977 (2022),
 [doi:10.1364/OE.466335](https://doi.org/10.1364/OE.466335).
 
 (validation-b)=
