@@ -174,9 +174,9 @@ this geometry:
 
 | `s4_modes` | per solve | 2000 λ, normal | 2000 λ, hemispherical |
 |---|---:|---:|---:|
-| 10 | 0.013 s | 12 s | ~1.4 h |
-| 30 | 0.044 s | 2.5 min | ~4.7 h |
-| 60 | 0.222 s | 15 min | ~24 h |
+| 10 | 0.0030 s | 12 s | ~19 min |
+| 30 | 0.0378 s | 2.5 min | ~4.1 h |
+| 60 | 0.250 s | 17 min | ~27 h |
 
 ### Not checked here
 
@@ -226,6 +226,73 @@ Read this honestly — the two spectral regions behave differently:
 in about 2.5 minutes, which is the number a reader is likely to actually run.
 Raise it to 45 or 60 to tighten the broadband figure; do not read the solar-band
 columns as converged at any setting in this table.
+
+---
+
+## Full hemispherical runs (server, hours)
+
+Everything above is cheap because it is normal-incidence or stored-spectrum
+work. The hemispherical average that the *thermal* model consumes costs
+`1 + 8*12 = 97` directions times two polarizations — 194 S4 solves per
+wavelength, so 388,000 solves on the standard 2000-point grid.
+
+```bash
+# Size the job before spending on it.
+python validations/run_full_validation.py --case both --dry-run
+
+# The citable run, detached.
+nohup python validations/run_full_validation.py --case pdms > full_pdms.log 2>&1 &
+```
+
+`--case pdms` uses `validation A.2/full_hemisph_pdms.yaml`; `--case sodalime`
+uses `validation A.1/full_hemisph_sodalime.yaml`. Overrides for exploratory
+passes: `--modes`, `--theta`, `--azimuth`, `--layers`, `--wavelengths`. The
+driver reports differences against Table 1 and always exits 0.
+
+### Run PDMS, not soda-lime, if you want a result you can cite
+
+The PDMS geometry is stated in full by the paper, so a disagreement is
+attributable to the code. The soda-lime pitch is assumed, so converging that
+run yields a converged calculation of a structure that may not be the paper's —
+agreement would not be evidence and disagreement would not be a defect. Both
+configs exist; only one supports a claim.
+
+### One process, never the two-step chain
+
+A.1's cheap workflow exports a spectrum and resumes it in a second run. **Do
+not do that for a full run.** `write_optics_export` writes five columns
+(`lambda, R, T, emit, abs_si`), which drops the normal-incidence columns *and*
+the angle-resolved atmospheric term. Resuming such a file silently degrades the
+thermal stage to `emit_atm = 1 - atm` with the product-of-averages form
+`emit_atm * emit`, whereas the correct hemispherical term is the angular
+average of the product, `<emit * emit_atm>`. Both full configs therefore set
+`run.optics` and `run.thermal` true together, keeping the in-memory
+`OpticsResult` that carries the right term. Live S4 with `run.thermal` also
+*requires* `angles: hemispherical`, so this is the only shape a full run takes.
+
+### Cost
+
+Rough, from the laptop cost model in the driver; a server will differ. Scale
+linearly in wavelengths and in `(1 + theta*azimuth) * polarizations`.
+
+| `s4_modes` | 388,000 solves (2000 λ, 8θ × 12φ, unpolarized) |
+|---:|---:|
+| 10 | ~19 min |
+| 20 | ~1.7 h |
+| 30 | ~4.1 h |
+| 45 | ~14 h |
+| 60 | ~27 h |
+
+The committed default is `s4_modes: 30`. Before a long run, do a
+`--wavelengths 500 --modes 20` pass to confirm the machine and the geometry
+behave, then scale up. Note that a reduced `--wavelengths` run reports `Refl`
+as `n/a`: its band edges use the MATLAB `find()` tolerance, which needs the
+fine grid.
+
+Angular convergence is *not* established anywhere in this repository. The
+8 × 12 grid is a default, not a converged choice, and the paper states no
+angular grid either. Sweep `--theta` and `--azimuth` before treating a
+hemispherical number as converged.
 
 ---
 

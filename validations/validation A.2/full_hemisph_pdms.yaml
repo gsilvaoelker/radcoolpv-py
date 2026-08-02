@@ -1,0 +1,85 @@
+# Validation A.2, FULL RUN: hemispherical live S4 optics + thermal + PV, in one
+# process. This is the expensive, server-grade version of A.2. Budget hours.
+#
+# This is the run that can be compared with Table 1. The paper states this
+# geometry completely -- 8 um hemispheres on a 75 um layer, "both in a periodic
+# cell of (17.3, 10) um" -- so nothing is assumed and a disagreement is
+# attributable to the code. Contrast ../validation A.1/full_hemisph_sodalime.yaml,
+# whose pitch is a guess.
+#
+# What this adds over A.2's cheap normal-incidence case: the hemispherical
+# average that the thermal model actually consumes, and therefore the Table 1
+# quantities (equilibrium temperature, Jsc, Voc, Pmpp, radiated power).
+# Published "Hemisph. PDMS" row: Jsc 360 A/m2, Pmpp 225 W/m2, Tequil 319 K,
+# Refl 153 W/m2, Radiat 483 W/m2, Voc 0.722 V.
+#
+# WHY ONE PROCESS AND NOT THE TWO-STEP CHAIN
+#
+# Do not export the spectrum and resume it. `write_optics_export` writes five
+# columns (lambda, R, T, emit, abs_si), dropping the normal-incidence columns
+# and the angle-resolved atmospheric term. A resumed file makes the thermal
+# stage fall back to emit_atm = 1 - atm and the product-of-averages form
+# emit_atm * emit, whereas the correct hemispherical term is the angular
+# average of the PRODUCT, <emit * emit_atm>. Keeping optics and thermal in one
+# process preserves the in-memory OpticsResult, which carries the correct term.
+#
+# Live S4 with run.thermal also *requires* angles: hemispherical, so this is
+# the only shape a full run can take.
+#
+# Run (see validations/run_full_validation.py for a server-friendly driver):
+#   radcoolpv run "validations/validation A.2/full_hemisph_pdms.yaml"
+
+run:
+  optics: true
+  thermal: true
+  plots: true
+  write_outputs: true
+  results_dir: results/full_hemisph
+  mode: standard
+
+simulation:
+  wavelength: {min: 0.3, max: 30.0, n: 2000}
+  angles: hemispherical
+  polarization: unpolarized
+  # 1 + 8*12 = 97 directions x 2 polarizations = 194 S4 solves per wavelength.
+  hemisphere_theta_points: 8
+  hemisphere_azimuth_points: 12
+  # Cooling bands converge by ~30; see the convergence table in
+  # validations/README.md. The solar band does not converge at any affordable
+  # setting, so treat solar-band differences as numerical scatter.
+  s4_modes: 30
+
+geometry:
+  source: s4
+  shape: semisphere
+  photonic_material: pdms
+  lattice: {type: hexagonal, x: 17.3205, y: 10.0}   # paper: periodic cell (17.3, 10) um
+  sphere: {radius: 4.0}                              # 8 um diameter
+  discretization_layers: 12
+
+structure:
+  - {material: pdms,    thickness: 75.0}
+  - {material: si3n4,   thickness: 0.075}   # 75 nm anti-reflection coating
+  - {material: silicon, thickness: 250.0}
+  - {material: ag,      thickness: 0.0, terminal: true}
+
+materials:
+  pdms: GuptaQuerry_PDMS
+  si3n4: DrudeSi3N4
+  silicon: SiliconNew
+  ag: Hagemann_Ag
+
+thermal:
+  ambient_temperature: 298       # K
+  convection_coefficient: 12     # W/m2-K
+  voltage: {min: 0.1, max: 0.8, n: 100}
+  equilibrium: auto
+  pv:
+    series_resistance: 0.00011   # Ohm m2 (= 1.1 Ohm cm2)
+    shunt_resistance: 0.1        # Ohm m2 (= 1000 Ohm cm2)
+    bandgap: {eg0: 1.166, alpha: 4.73e-4, beta: 636}
+    iqe_file: data/siliconIQE.txt   # resolves to radcoolpv's default
+
+data:
+  solar_spectrum: data/astmg173.xlsx           # resolves to radcoolpv's default (AM1.5G)
+  atmosphere: data/atmosphericData/cptrans_nq_100_15.dat
