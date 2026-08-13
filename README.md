@@ -279,14 +279,25 @@ or hemispherical theta–phi quadrature with TE, TM, or unpolarized illumination
 Increase `s4_modes` and the angular grid until a named reported quantity is
 converged.
 
-## Install locally on macOS or Linux
+## Install locally on macOS
 
 The thermal/PV path and stored-spectrum readers need only the Python package:
 
 ```bash
-./install.sh
-source .venv/bin/activate
+./setup.sh
+source ~/.venvs/radcoolpv-py/bin/activate
 ```
+
+Two things to know:
+
+- The environment is created outside the repository, at `~/.venvs/radcoolpv-py`
+  (override with `VENV_DIR`). A virtual environment placed inside an
+  iCloud-synced folder such as `~/Documents` or `~/Desktop` is marked hidden by
+  macOS, and Python skips hidden `.pth` files, which silently disables the
+  editable install: `radcoolpv` then fails to import outside the repository root.
+- Inside the activated environment use `python`, not `python3`. A `python3`
+  alias in your shell profile shadows the environment even when it is active,
+  and reports a missing dependency such as `No module named 'yaml'`.
 
 Live optics additionally needs the compiled S4 module. For example, on Apple
 silicon:

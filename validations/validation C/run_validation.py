@@ -12,7 +12,7 @@ Exercises BOTH radcoolpv stages against the paper:
               temperature of the paper's 200 um Si cell, bare and with the
               grating cooler, under 800 W/m2 and hc = 6 W/m2K (paper Fig. 3).
 
-Run from this directory (package installed, e.g. ../../install.sh):
+Run from this directory (package installed, e.g. ../../setup.sh):
 
     python run_validation.py            # rebuild S4 optics, then validate
     python run_validation.py --no-build # reuse data/optics/*.txt
