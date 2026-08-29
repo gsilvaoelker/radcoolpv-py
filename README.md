@@ -38,7 +38,15 @@ provenance, input hashes, and main scalar results.
 Nothing to install. Open the notebook, choose **Runtime → Run all**, and edit
 the YAML in the notebook itself.
 
-[![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/gsilvaoelker/radcoolpv-py/blob/main/docs/site/notebooks/radcoolpv_colab.ipynb)
+| Notebook | S4? | Purpose |
+|---|---|---|
+| Main tutorial | no | [![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/gsilvaoelker/radcoolpv-py/blob/main/docs/site/notebooks/radcoolpv_colab.ipynb) — edit a case, upload data, read powers, temperatures and PV parameters |
+| Validation A — optics | needed | [![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/gsilvaoelker/radcoolpv-py/blob/main/docs/site/notebooks/validation_a_optics.ipynb) — emittance from the geometry, against the paper's Fig. 3a |
+| Validation B — cooling | no | [![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/gsilvaoelker/radcoolpv-py/blob/main/docs/site/notebooks/validation_b_cooling.ipynb) — the energy balance alone, and where the paper contradicts itself |
+| Validation C — full cell | needed | [![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/gsilvaoelker/radcoolpv-py/blob/main/docs/site/notebooks/validation_c_pv.ipynb) — optics, heat and electricity coupled |
+
+Each validation notebook states the physics, shows its YAML in full so it can
+be edited, and accepts uploaded optical data.
 
 A full run takes about a minute and needs no electromagnetic solver. It
 produces the equilibrium temperature, every term in the energy balance, the

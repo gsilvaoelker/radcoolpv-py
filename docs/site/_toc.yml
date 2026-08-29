@@ -4,4 +4,8 @@ chapters:
   - file: theory
   - file: yaml-workflow
   - file: validations
+    sections:
+      - file: notebooks/validation_a_optics
+      - file: notebooks/validation_b_cooling
+      - file: notebooks/validation_c_pv
   - file: notebooks/radcoolpv_colab

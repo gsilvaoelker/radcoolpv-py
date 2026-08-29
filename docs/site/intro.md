@@ -21,6 +21,22 @@ optional section that computes optics from a geometry.
 
 [Open the notebook in Google Colab](https://colab.research.google.com/github/gsilvaoelker/radcoolpv-py/blob/main/docs/site/notebooks/radcoolpv_colab.ipynb)
 
+## The validation, notebook by notebook
+
+One published paper, reproduced in three steps. Each notebook states the
+physics it rests on, shows the YAML in full so it can be edited, accepts your
+own uploaded data, and ends with the numbers it produced.
+
+| Notebook | S4? | What it establishes |
+|---|---|---|
+| [A — calculated emittance](notebooks/validation_a_optics.ipynb) | needed | Emittance from the geometry. Mean over 7.5–16 µm: 0.032 / 0.842 / 0.984 against 0.036 / 0.843 / 0.977 digitized. **The optics agree.** |
+| [B — cooling power](notebooks/validation_b_cooling.ipynb) | no | The energy balance alone, on the paper's *measured* spectrum. At the paper's own *h* = 6 W/m²/K it gives 415.4 / 360.6 / 355.6 K against a reported 360 / 339 / 336. **The thermal model does not reproduce the paper.** |
+| [C — the full cell](notebooks/validation_c_pv.ipynb) | needed | Optics, heat and electricity coupled. 350.5 / 329.3 / 327.0 K and 14.17 / 18.09 / 18.64 %, reproducing the paper's 24 K drop as 23.5 K. |
+
+Read them in order: A shows the optics are right, which is what makes B's
+disagreement attributable to the thermal model rather than to the solver, and C
+shows what the whole chain predicts once both are in place.
+
 ## Scope
 
 `radcoolpv` couples RCWA optics, radiative exchange, convection, and a
