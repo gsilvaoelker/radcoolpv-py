@@ -9,7 +9,7 @@ from radcoolpv import config as config_module
 from radcoolpv.optics import freeform, geometry, s4_backend
 
 PKG_DATA = os.path.join(os.path.dirname(__file__), "..", "radcoolpv", "data")
-CONFIGS = os.path.join(os.path.dirname(__file__), "..", "configs")
+CONFIGS = os.path.join(os.path.dirname(__file__), "data")
 ATMOS = os.path.join(PKG_DATA, "cptrans_nq_100_15.dat")
 FF_FILE = os.path.join(PKG_DATA, "freeform_NIL_1um.txt")
 
@@ -72,7 +72,7 @@ def test_s4_backend_guard(full_cfg):
         pytest.skip("S4 is installed; guard not exercised.")
     with pytest.raises(RuntimeError, match="S4 Python module is not installed"):
         s4_backend.sweep(full_cfg, np.linspace(0.3, 30.0, 10),
-                         full_cfg.angle_array_deg())
+                         full_cfg.direction_arrays()[0])
 
 
 def test_resolve_eps(full_cfg):

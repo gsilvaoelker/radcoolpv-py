@@ -25,8 +25,6 @@ from ..io.results import OpticsResult
 _AUGER_T = np.array([195.0, 252.0, 294.0, 333.0, 372.0])
 _AUGER_A = np.array([3.03e-31, 3.51e-31, 3.88e-31, 4.15e-31, 4.55e-31])
 
-_N_TEMP = 151  # standard PV sweep: T_amb .. T_amb + 150 K
-
 
 @dataclass
 class IVResult:
@@ -81,7 +79,8 @@ def solve_iv(cfg, optics: OpticsResult, photon_flux_sun: np.ndarray) -> IVResult
     rsh = cfg.thermal.pv.shunt_resistance
     bg = cfg.thermal.pv.bandgap
 
-    emit_temp = cfg.thermal.ambient_temperature + np.arange(_N_TEMP, dtype=float)
+    emit_temp = cfg.temperature_array()
+    n_temp = len(emit_temp)
 
     # Band-gap wavelength and its grid index (inclusive upper bound for integrals).
     lam_eg = _bandgap_wavelength_um(emit_temp, bg.eg0, bg.alpha, bg.beta)
@@ -97,11 +96,11 @@ def solve_iv(cfg, optics: OpticsResult, photon_flux_sun: np.ndarray) -> IVResult
     jsc_spectral = iqe[eg] * abs_pv[eg] * photon_flux_sun[eg]
     isc = ECHARGE * trapz(jsc_spectral, lam[eg]) * MICRON
 
-    current_dens = np.zeros((_N_TEMP, len(volt)))
-    cell_power = np.zeros((len(volt), _N_TEMP))
-    max_power_point = np.zeros(_N_TEMP)
-    current_sat = np.zeros(_N_TEMP)
-    auger_current = np.zeros((_N_TEMP, len(volt)))
+    current_dens = np.zeros((n_temp, len(volt)))
+    cell_power = np.zeros((len(volt), n_temp))
+    max_power_point = np.zeros(n_temp)
+    current_sat = np.zeros(n_temp)
+    auger_current = np.zeros((n_temp, len(volt)))
 
     for it, temp in enumerate(emit_temp):
         # Intrinsic carrier concentration (m^-3) and Auger coefficient (m^6/s).

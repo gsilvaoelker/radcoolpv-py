@@ -1,0 +1,247 @@
+# Akerboom et al., "Passive Radiative Cooling of Silicon Solar Modules with
+# Photonic Silica Microcylinders", ACS Photonics 9 (2022) 3831-3840.
+# doi:10.1021/acsphotonics.2c01389
+#
+#   radcoolpv run validation/akerboom.yaml
+#
+# Twelve cases in three groups. Group B needs no S4 and runs in seconds; groups
+# A and C call the solver and are far more expensive.
+#
+#   A  optics    paper Fig. 3a, calculated normal-incidence emittance     S4
+#   B  cooling   paper Fig. 5b, cooling power vs temperature          no S4
+#   C  pv        full optical + thermal + electrical result               S4
+#
+# Each group covers the same three structures: the bare Au/Si module, the same
+# module under a flat silica slab, and the silica slab patterned into the
+# hexagonal microcylinder array that is the subject of the paper.
+
+definitions:
+
+  # ---- geometry and materials ------------------------------------------- #
+  # Hexagonal array, pitch 6.125 um. radcoolpv builds a hexagonal lattice as a
+  # centered-rectangular cell with a second motif at (x/2, y/2), which is
+  # hexagonal only when x = y*sqrt(3): 6.125 * sqrt(3) = 10.608811.
+  paper_lattice: &paper_lattice
+    type: hexagonal
+    x: 10.608811
+    y: 6.125
+
+  bare_structure: &bare_structure
+    - {material: silicon, thickness: 500.0}
+    - {material: gold, thickness: 0.08}
+    - {material: vacuum, thickness: 0.0, terminal: true}
+
+  covered_structure: &covered_structure
+    - {material: sio2, thickness: 500.0}
+    - {material: silicon, thickness: 500.0}
+    - {material: gold, thickness: 0.08}
+    - {material: vacuum, thickness: 0.0, terminal: true}
+
+  # Groups A and B reproduce the paper's own cooling-band calculation, which
+  # states silicon as nonabsorbing in the infrared (p. 3834).
+  cooling_materials: &cooling_materials
+    sio2: PalikKitamura_SiO2
+    silicon: Akerboom_Si_lossless
+    gold: RII_Olmon_2012_ev_Au
+
+  # Group C must generate carriers, so it needs the lossy table. A lossless
+  # silicon absorbs no sunlight at all: Jsc integrates to zero and the cell
+  # reports a few millivolts.
+  pv_materials: &pv_materials
+    sio2: PalikKitamura_SiO2
+    silicon: Palik_Si
+    gold: RII_Olmon_2012_ev_Au
+
+  paper_data: &paper_data
+    solar_spectrum: data/astmg173.xlsx
+    atmosphere: data/cptrans_nq_100_15.dat
+
+  # ---- group A: calculated optics --------------------------------------- #
+  optics_run: &optics_run
+    optics: true
+    thermal: false
+    plots: true
+    mode: standard
+    write_outputs: true
+
+  # 2-16 um in steps of exactly 0.05 um, matching the digitized trace.
+  normal_s4: &normal_s4
+    wavelength: {min: 2.0, max: 16.0, n: 281}
+    angles: normal
+    polarization: unpolarized
+    s4_modes: 60
+
+  # ---- group B: cooling from the measured spectrum ----------------------- #
+  # No geometry, no materials, no solver: the emittance is read from the
+  # digitized Fig. 5a trace, so this group isolates the thermal model from any
+  # optical-solver error. Runs on a machine with no S4 at all.
+  cooling_run: &cooling_run
+    optics: false
+    thermal: true
+    plots: true
+    mode: cooling_curve
+    write_outputs: true
+    optics_results: data/fig5a_measured_emittance.txt
+    optics_results_angles: hemispherical
+
+  cooling_simulation: &cooling_simulation
+    wavelength: {min: 2.0, max: 16.0, n: 281}
+    angles: hemispherical
+
+  cooling_inputs: &cooling_inputs
+    ambient_temperature: 300.0
+    absorbed_solar_power: 808.0   # paper eq. 2, not an irradiance
+    equilibrium: auto
+    reference_curve_file: data/fig5b_cooling_power.txt
+
+  paper_h: &paper_h
+    <<: *cooling_inputs
+    # The Methods value. These three cases exist to expose its disagreement
+    # with the paper's own Figure 5b, not to hide it.
+    convection_coefficient: 6.0
+    cooling_temperature: {min: 260.0, max: 440.0, n: 181}
+
+  fitted_h: &fitted_h
+    <<: *cooling_inputs
+    # Effective total coefficient from one least-squares fit to all three
+    # digitized Figure 5b curves. A calibration, not an independent result.
+    convection_coefficient: 12.54
+    cooling_temperature: {min: 260.0, max: 380.0, n: 121}
+
+  # ---- group C: full optical, thermal and electrical result -------------- #
+  pv_run: &pv_run
+    optics: true
+    thermal: true
+    plots: true
+    mode: standard
+    write_outputs: true
+
+  # The upper limit is set by gold: RII_Olmon_2012_ev_Au is tabulated to
+  # 24.93 um and the loader refuses to extrapolate.
+  pv_simulation: &pv_simulation
+    wavelength: {min: 0.3, max: 24.9, n: 1000}
+    angles: hemispherical
+    polarization: unpolarized
+    hemisphere_theta_points: 8
+    hemisphere_azimuth_points: 1
+    s4_modes: 60
+
+  pv_thermal: &pv_thermal
+    ambient_temperature: 300.0
+    convection_coefficient: 6.0
+    voltage: {min: 0.1, max: 0.8, n: 60}
+    equilibrium: auto
+
+cases:
+
+  # ===== A. calculated optics, paper Figure 3a ============================ #
+
+  - name: A1_optics_bare
+    run: {<<: *optics_run, results_dir: results/A1_optics_bare}
+    simulation: *normal_s4
+    geometry: {source: s4, shape: flat, photonic_material: vacuum, lattice: *paper_lattice}
+    structure: *bare_structure
+    materials: *cooling_materials
+    data: *paper_data
+    comparison:
+      spectra:
+        - {label: Paper Fig. 3a, file: data/fig3a_calculated_emittance.txt, column: 1, color: '#008000'}
+
+  - name: A2_optics_flat_silica
+    run: {<<: *optics_run, results_dir: results/A2_optics_flat_silica}
+    simulation: *normal_s4
+    geometry: {source: s4, shape: flat, photonic_material: sio2, lattice: *paper_lattice}
+    structure: *covered_structure
+    materials: *cooling_materials
+    data: *paper_data
+    comparison:
+      spectra:
+        - {label: Paper Fig. 3a, file: data/fig3a_calculated_emittance.txt, column: 2, color: '#ff0000'}
+
+  - name: A3_optics_cylinders
+    run: {<<: *optics_run, results_dir: results/A3_optics_cylinders}
+    simulation: *normal_s4
+    geometry:
+      source: s4
+      shape: cylinder
+      photonic_material: sio2
+      lattice: *paper_lattice
+      cylinder: {radius: 1.75, height: 2.25}
+    structure: *covered_structure
+    materials: *cooling_materials
+    data: *paper_data
+    comparison:
+      spectra:
+        - {label: Paper Fig. 3a, file: data/fig3a_calculated_emittance.txt, column: 3, color: '#0000ff'}
+
+  # ===== B. cooling curve, paper Figure 5b (no S4) ======================== #
+
+  - name: B1_cooling_h6_bare
+    run: {<<: *cooling_run, results_dir: results/B1_cooling_h6_bare, optics_results_emittance_column: 1}
+    simulation: *cooling_simulation
+    thermal: {<<: *paper_h, reference_curve_column: 1}
+    data: *paper_data
+
+  - name: B2_cooling_h6_flat_silica
+    run: {<<: *cooling_run, results_dir: results/B2_cooling_h6_flat_silica, optics_results_emittance_column: 2}
+    simulation: *cooling_simulation
+    thermal: {<<: *paper_h, reference_curve_column: 2}
+    data: *paper_data
+
+  - name: B3_cooling_h6_cylinders
+    run: {<<: *cooling_run, results_dir: results/B3_cooling_h6_cylinders, optics_results_emittance_column: 3}
+    simulation: *cooling_simulation
+    thermal: {<<: *paper_h, reference_curve_column: 3}
+    data: *paper_data
+
+  - name: B4_cooling_fitted_bare
+    run: {<<: *cooling_run, results_dir: results/B4_cooling_fitted_bare, optics_results_emittance_column: 1}
+    simulation: *cooling_simulation
+    thermal: {<<: *fitted_h, reference_curve_column: 1}
+    data: *paper_data
+
+  - name: B5_cooling_fitted_flat_silica
+    run: {<<: *cooling_run, results_dir: results/B5_cooling_fitted_flat_silica, optics_results_emittance_column: 2}
+    simulation: *cooling_simulation
+    thermal: {<<: *fitted_h, reference_curve_column: 2}
+    data: *paper_data
+
+  - name: B6_cooling_fitted_cylinders
+    run: {<<: *cooling_run, results_dir: results/B6_cooling_fitted_cylinders, optics_results_emittance_column: 3}
+    simulation: *cooling_simulation
+    thermal: {<<: *fitted_h, reference_curve_column: 3}
+    data: *paper_data
+
+  # ===== C. full optical, thermal and electrical result =================== #
+
+  - name: C1_pv_bare
+    run: {<<: *pv_run, results_dir: results/C1_pv_bare}
+    simulation: *pv_simulation
+    geometry: {source: s4, shape: flat, photonic_material: vacuum, lattice: *paper_lattice}
+    structure: *bare_structure
+    materials: *pv_materials
+    thermal: *pv_thermal
+    data: *paper_data
+
+  - name: C2_pv_flat_silica
+    run: {<<: *pv_run, results_dir: results/C2_pv_flat_silica}
+    simulation: *pv_simulation
+    geometry: {source: s4, shape: flat, photonic_material: sio2, lattice: *paper_lattice}
+    structure: *covered_structure
+    materials: *pv_materials
+    thermal: *pv_thermal
+    data: *paper_data
+
+  - name: C3_pv_cylinders
+    run: {<<: *pv_run, results_dir: results/C3_pv_cylinders}
+    simulation: *pv_simulation
+    geometry:
+      source: s4
+      shape: cylinder
+      photonic_material: sio2
+      lattice: *paper_lattice
+      cylinder: {radius: 1.75, height: 2.25}
+    structure: *covered_structure
+    materials: *pv_materials
+    thermal: *pv_thermal
+    data: *paper_data

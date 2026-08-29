@@ -113,47 +113,76 @@ def write_run_json(folder: str, cfg: Config, optics: Optional[OpticsResult],
             "angles": optics.angles,
             "polarization": optics.polarization,
             "n_lambda": int(len(optics.lambda_um)),
+            # True when the silicon absorptance was inferred from a supplied
+            # emittance column rather than solved for, so a PV result resumed
+            # from measured data is never mistaken for a solved one.
+            "silicon_from_emittance": optics.silicon_from_emittance,
+            "wavelength_range_um": [float(optics.lambda_um[0]),
+                                    float(optics.lambda_um[-1])],
         }
     if thermal is not None:
-        record["thermal_results"] = {
+        results = {
             "equilibrium_temperature_K": thermal.equil_temp,
             "temperature_reduction_K": thermal.temperature_reduction,
-            "vmpp_V": thermal.vmpp,
-            "short_circuit_current_A_per_m2": thermal.isc,
-            "mpp_ambient_W_per_m2": thermal.mpp_amb,
-            "mpp_equilibrium_W_per_m2": thermal.mpp_equil,
-            # Ambient pair is null when the voltage sweep did not reach the
-            # ambient Voc, which is the highest in the sweep.
-            "voc_ambient_V": thermal.voc_amb,
-            "voc_equilibrium_V": thermal.voc_equil,
-            "fill_factor_ambient": thermal.ff_amb,
-            "fill_factor_equilibrium": thermal.ff_equil,
+            # The energy balance at equilibrium, so run.json closes on its own:
+            # P_rad - P_atm + P_conv - P_sun + P_mpp + P_nonthermal = 0.
+            "radiative_power_W_per_m2": thermal.rad_power_equil,
             "atmospheric_power_W_per_m2": thermal.atm_power,
+            "convective_power_W_per_m2":
+                _at_equil(thermal.conv_power, thermal),
             "absorbed_solar_power_W_per_m2": thermal.solar_power,
-            "temperature_coefficient_perc_per_K": thermal.beta_p,
-            "efficiency_equilibrium": thermal.efficiency_equil,
-            # Diode terms reduced to the operating point; the full
-            # (temperature, voltage) sweeps stay out of the manifest.
-            "saturation_current_equilibrium_A_per_m2":
-                thermal.saturation_current_equil,
-            "auger_current_equilibrium_at_vmpp_A_per_m2":
-                thermal.auger_current_equil,
+            "net_cooling_power_W_per_m2":
+                _at_equil(thermal.cool_power, thermal),
         }
+        # A PV-free run has no operating point. Reporting its electrical
+        # quantities as 0.0 would read as "zero efficiency" rather than
+        # "no cell was solved", so they are omitted exactly like the
+        # PV-weighted band averages below.
+        if thermal.iv is not None:
+            results.update({
+                "vmpp_V": thermal.vmpp,
+                "short_circuit_current_A_per_m2": thermal.isc,
+                "mpp_ambient_W_per_m2": thermal.mpp_amb,
+                "mpp_equilibrium_W_per_m2": thermal.mpp_equil,
+                "non_thermal_power_W_per_m2":
+                    _at_equil(thermal.non_thermal_power, thermal),
+                # Ambient pair is null when the voltage sweep did not reach the
+                # ambient Voc, which is the highest in the sweep.
+                "voc_ambient_V": thermal.voc_amb,
+                "voc_equilibrium_V": thermal.voc_equil,
+                "fill_factor_ambient": thermal.ff_amb,
+                "fill_factor_equilibrium": thermal.ff_equil,
+                "temperature_coefficient_perc_per_K": thermal.beta_p,
+                "efficiency_equilibrium": thermal.efficiency_equil,
+                # Diode terms reduced to the operating point; the full
+                # (temperature, voltage) sweeps stay out of the manifest.
+                "saturation_current_equilibrium_A_per_m2":
+                    thermal.saturation_current_equil,
+                "auger_current_equilibrium_at_vmpp_A_per_m2":
+                    thermal.auger_current_equil,
+            })
+        record["thermal_results"] = results
         if thermal.band_averages is not None:
             avg = thermal.band_averages
             # Percent, weighted by AM1.5 below the gap and by the blackbody at
-            # the equilibrium temperature above it. Each is 0.0 when the
-            # wavelength grid has no sample at the band edge, so read them
-            # together with the grid that produced them.
-            record["band_averages_percent"] = {
+            # the equilibrium temperature above it. A band the wavelength grid
+            # does not span is omitted rather than reported as zero.
+            band = {
                 "solar_absorptance_silicon": avg.solar_abs,
                 "solar_reflectance": avg.solar_ref,
                 "subgap_reflectance": avg.subgap_ref,
                 "emittance_8_13um": avg.emit_window1,
-                "emittance_4_30um": avg.emit_broad,
+                "emittance_broadband": avg.emit_broad,
             }
+            record["band_averages_percent"] = {
+                k: v for k, v in band.items() if v is not None}
     with open(os.path.join(folder, "run.json"), "w") as fh:
         json.dump(record, fh, indent=2)
+
+
+def _at_equil(values, thermal) -> float:
+    """One sweep quantity interpolated to the equilibrium temperature."""
+    return float(np.interp(thermal.equil_temp, thermal.emit_temp, values))
 
 
 def _sha256(path: str) -> str:

@@ -61,20 +61,36 @@ not apply to a case are omitted rather than populated with invented values.
 
 `provenance` records `python`, `platform`, `git_commit`, `git_dirty`, hashed
 `inputs`, and the loaded `s4` binary when live optics was used. `optics`
-records `angles`, `polarization`, and `n_lambda`.
+records `angles`, `polarization`, `n_lambda`, `wavelength_range_um`, and
+`silicon_from_emittance` -- the last is `true` when the silicon absorptance was
+inferred from a supplied emittance column rather than solved for, so a PV
+result resumed from measured data is never mistaken for a solved one.
 
-The thermal scalar keys are `equilibrium_temperature_K`,
-`temperature_reduction_K`, `vmpp_V`, `short_circuit_current_A_per_m2`,
-`mpp_ambient_W_per_m2`, `mpp_equilibrium_W_per_m2`, `voc_ambient_V`,
-`voc_equilibrium_V`, `fill_factor_ambient`, `fill_factor_equilibrium`,
-`atmospheric_power_W_per_m2`, `absorbed_solar_power_W_per_m2`,
+The energy balance at equilibrium is reported in full, and closes on its own as
+`radiative_power_W_per_m2` - `atmospheric_power_W_per_m2` +
+`convective_power_W_per_m2` - `absorbed_solar_power_W_per_m2` +
+`mpp_equilibrium_W_per_m2` + `non_thermal_power_W_per_m2` =
+`net_cooling_power_W_per_m2`, which is zero at the solved temperature.
+
+Every thermal run also reports `equilibrium_temperature_K` and
+`temperature_reduction_K`.
+
+A run that solves the cell adds `vmpp_V`, `short_circuit_current_A_per_m2`,
+`mpp_ambient_W_per_m2`, `mpp_equilibrium_W_per_m2`,
+`non_thermal_power_W_per_m2`, `voc_ambient_V`, `voc_equilibrium_V`,
+`fill_factor_ambient`, `fill_factor_equilibrium`,
 `temperature_coefficient_perc_per_K`, `efficiency_equilibrium`,
 `saturation_current_equilibrium_A_per_m2`, and
-`auger_current_equilibrium_at_vmpp_A_per_m2`.
+`auger_current_equilibrium_at_vmpp_A_per_m2`. A PV-free run has no operating
+point, so it omits all of them rather than reporting zeros that would read as
+"zero efficiency" instead of "no cell was solved".
 
 The PV-weighted spectral summary contains `solar_absorptance_silicon`,
 `solar_reflectance`, `subgap_reflectance`, `emittance_8_13um`, and
-`emittance_4_30um`. Ambient-voltage quantities may be `null` when the voltage
+`emittance_broadband` (4 um to the end of the grid -- read it together with
+`wavelength_range_um`). A band the wavelength grid does not span is omitted
+rather than reported as zero, so a missing key means "not covered by this
+grid", never "zero". Ambient-voltage quantities may be `null` when the voltage
 sweep does not bracket the ambient open-circuit voltage.
 
 ## From demonstration to scientific calculation
@@ -94,4 +110,7 @@ resume thermal parameter sweeps from that file. A stored hemispherical spectrum
 does not retain the full directional field; the atmospheric term is then an
 angle-independent approximation. State that limitation.
 
-The repository provides complete examples in [`configs/`](https://github.com/gsilvaoelker/radcoolpv-py/tree/main/configs).
+The repository provides complete examples in
+[`examples/`](https://github.com/gsilvaoelker/radcoolpv-py/tree/main/examples)
+and the one literature case in
+[`validation/`](https://github.com/gsilvaoelker/radcoolpv-py/tree/main/validation).

@@ -77,12 +77,14 @@ def _zero_crossing(x: np.ndarray, y: np.ndarray, what: str = "equilibrium") -> t
     if y[0] >= 0:
         raise ValueError(
             f"{what}: the balance is already non-negative at the lowest swept "
-            f"point ({x[0]:g}); extend the temperature range downward.")
+            f"point ({x[0]:g} K), so the equilibrium lies below it. Set "
+            "thermal.cooling_temperature to sweep a range that brackets it.")
     idx = np.where(y >= 0)[0]
     if idx.size == 0:
         raise ValueError(
-            f"{what}: no zero crossing within {x[0]:g}-{x[-1]:g}; the result is "
-            "unresolved. Extend the temperature range upward.")
+            f"{what}: no zero crossing within {x[0]:g}-{x[-1]:g} K; the result "
+            "is unresolved. Set thermal.cooling_temperature to sweep a range "
+            "that brackets it.")
     i = idx[0]
     x0, x1, y0, y1 = x[i - 1], x[i], y[i - 1], y[i]
     xc = x0 + (x1 - x0) * (0.0 - y0) / (y1 - y0)
@@ -112,8 +114,7 @@ def run(cfg, optics: OpticsResult, solar: SolarSpectrum) -> ThermalResult:
         reference = cfg.thermal.reference_temperature
         return None if reference is None else reference - temperature
 
-    emit_temp = (cfg.thermal.cooling_temperature.array() if is_cooling_curve
-                 else t_amb + np.arange(pv._N_TEMP, dtype=float))
+    emit_temp = cfg.temperature_array()
     atm_power = np.pi * rad_power(lam, optics.emitt_spec_times_emit_atm, t_amb)
     rad_p = np.array([np.pi * rad_power(lam, optics.emit, t) for t in emit_temp])
     conv_p = h * (emit_temp - t_amb)
@@ -180,7 +181,13 @@ def run(cfg, optics: OpticsResult, solar: SolarSpectrum) -> ThermalResult:
         ntp, cool = assemble(vmpp)
 
     # Report every equilibrium quantity at the same interpolated temperature.
-    mpp_amb = pv.refine_peak(iv.volt, iv.cell_power[:, 0])[1]
+    # The ambient pair is interpolated to T_amb rather than read off the first
+    # swept temperature: the default sweep starts at T_amb, but a configured
+    # thermal.cooling_temperature need not, and taking index 0 would then label
+    # some other temperature's operating point "ambient".
+    power_amb = _at_equilibrium(iv.cell_power, emit_temp, t_amb, axis=1)
+    current_amb = _at_equilibrium(iv.current_dens, emit_temp, t_amb, axis=0)
+    mpp_amb = pv.refine_peak(iv.volt, power_amb)[1]
     power_equil = _at_equilibrium(iv.cell_power, emit_temp, equil_temp, axis=1)
     current_equil = _at_equilibrium(iv.current_dens, emit_temp, equil_temp, axis=0)
     mpp_equil = pv.refine_peak(iv.volt, power_equil)[1]
@@ -191,7 +198,7 @@ def run(cfg, optics: OpticsResult, solar: SolarSpectrum) -> ThermalResult:
     # so it becomes None and is reported as null; voc_equil above still raises,
     # because that one is the result.
     try:
-        voc_amb = pv.open_circuit_voltage(iv.current_dens[0, :], iv.volt)
+        voc_amb = pv.open_circuit_voltage(current_amb, iv.volt)
     except ValueError:
         voc_amb = None
     if voc_amb is None:
@@ -212,7 +219,7 @@ def run(cfg, optics: OpticsResult, solar: SolarSpectrum) -> ThermalResult:
     auger_equil = float(np.interp(vmpp, iv.volt, auger_at_temp))
 
     # Solar- and blackbody-weighted band averages (port of averagePropsFunc.m).
-    # Cheap, and the numbers Validation A previously had to recompute by hand.
+    # Cheap, and saves the caller recomputing them by hand.
     band_avgs = pv_band_averages(lam, optics.abs_silicon, optics.ref, optics.emit,
                                  solar.irradiance_per_um, equil_temp)
 

@@ -21,7 +21,7 @@ import pytest
 from radcoolpv import config as cm
 from radcoolpv import pipeline
 
-CONFIGS = os.path.join(os.path.dirname(__file__), "..", "configs")
+EXAMPLES = os.path.join(os.path.dirname(__file__), "..", "examples")
 DOCUMENTATION = os.path.join(os.path.dirname(__file__), "..", "docs", "site",
                              "yaml-workflow.md")
 
@@ -38,7 +38,7 @@ def _documented_names(section: str) -> set:
 
 
 def _run(tmp_path, config_name):
-    cfg = cm.load(os.path.join(CONFIGS, config_name))
+    cfg = cm.load(os.path.join(EXAMPLES, config_name))
     cfg.run.results_dir = str(tmp_path)
     cfg.run.plots = False
     cfg.run.write_outputs = True
@@ -48,7 +48,7 @@ def _run(tmp_path, config_name):
 
 
 def test_every_run_json_key_appears_in_the_site(tmp_path):
-    record = _run(tmp_path, "freeform.yaml")
+    record = _run(tmp_path, "freeform_pv.yaml")
     emitted = (set(record)
                | set(record["thermal_results"])
                | set(record["band_averages_percent"])
@@ -63,6 +63,6 @@ def test_every_run_json_key_appears_in_the_site(tmp_path):
 
 
 def test_manifest_section_documents_the_top_level_shape(tmp_path):
-    record = _run(tmp_path, "freeform.yaml")
+    record = _run(tmp_path, "freeform_pv.yaml")
     assert set(record) == {"resolved_config", "provenance", "optics",
                            "thermal_results", "band_averages_percent"}

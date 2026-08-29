@@ -33,13 +33,48 @@ _INSTALL_HINT = (
 )
 
 
-def is_available() -> bool:
-    """True if the S4 Python module can be imported."""
+# S4 is a C++ extension compiled against the numpy 1.x ABI, so an interpreter
+# carrying numpy >= 2 raises on import even though the .so is present and fine.
+# Reporting that as "not installed" sends you off to rebuild a working build.
+_ABI_HINT = (
+    "S4 is installed at {path}, but this interpreter cannot load it:\n"
+    "    {exc}\n"
+    "S4 was compiled against the numpy 1.x ABI and this interpreter has numpy "
+    "{numpy}. The build is fine; the interpreter is wrong.\n"
+    "Pin this environment with:  pip install 'numpy<2'\n"
+    "or run from one that already is, naming the interpreter outright rather "
+    "than relying on a python3 alias to follow the activated environment."
+)
+
+
+def _import_failure():
+    """None if ``import S4`` succeeds, else a message naming the actual cause."""
     try:
         import S4  # noqa: F401
-        return True
-    except Exception:
-        return False
+        return None
+    except ImportError as exc:
+        if "numpy" not in str(exc).lower():
+            return _INSTALL_HINT
+        spec = None
+        try:
+            import importlib.util
+            spec = importlib.util.find_spec("S4")
+        except Exception:
+            pass
+        return _ABI_HINT.format(
+            path=(spec.origin if spec is not None else "an unknown location"),
+            exc=exc, numpy=np.__version__)
+    except Exception as exc:
+        return f"S4 is present but failed to import: {type(exc).__name__}: {exc}"
+
+
+def is_available() -> bool:
+    """True if the S4 Python module can be imported.
+
+    A pure predicate: callers use it to skip, never to diagnose. ``sweep``
+    reports *why* the import failed via :func:`_import_failure`.
+    """
+    return _import_failure() is None
 
 
 def _build_sim(structure: S4Structure, num_basis: int, eps0: Dict[str, complex]):
@@ -118,8 +153,9 @@ def sweep(cfg: Config, lambda_grid: np.ndarray,
     ``angles_deg`` is retained only for compact solver-level tests and MATLAB
     parity. Production runs obtain polar angle, azimuth, and weights from YAML.
     """
-    if not is_available():
-        raise RuntimeError(_INSTALL_HINT)
+    failure = _import_failure()
+    if failure is not None:
+        raise RuntimeError(failure)
 
     structure = build_structure(cfg)
     eps_funcs = resolve_eps(cfg)

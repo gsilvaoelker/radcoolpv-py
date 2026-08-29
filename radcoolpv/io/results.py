@@ -40,6 +40,9 @@ class OpticsResult:
     abs_silicon_norm: np.ndarray = None
     angles: str = "normal"                # normal | specific | hemispherical
     polarization: str = "unpolarized"
+    #: True when ``abs_silicon`` was inferred from the emittance rather than
+    #: solved for, so a resumed PV result is never mistaken for a solved one.
+    silicon_from_emittance: bool = False
 
     def __post_init__(self) -> None:
         if self.ref_norm is None:

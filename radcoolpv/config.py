@@ -106,9 +106,6 @@ class SimulationConfig:
             "simulation.angles must be normal|specific|hemispherical, "
             f"got {self.angles!r}")
 
-    def angle_array_deg(self) -> np.ndarray:
-        return self.directions()[0]
-
     def polarization_names(self) -> List[str]:
         value = self.polarization.lower()
         if value == "te":
@@ -231,8 +228,23 @@ class Config:
     def wavelength_array(self) -> np.ndarray:
         return self.simulation.wavelength.array()
 
-    def angle_array_deg(self) -> np.ndarray:
-        return self.simulation.angle_array_deg()
+    def temperature_array(self) -> np.ndarray:
+        """Temperature sweep shared by the energy balance and the PV I-V.
+
+        ``thermal.cooling_temperature`` drives it in every run mode, not only
+        ``cooling_curve``, so a module that settles below ambient can be swept
+        through its own equilibrium.
+
+        The default is deliberately left at the MATLAB range, T_amb to
+        T_amb + 150 K. It is not merely a search window: ``pv.py`` collapses
+        the Varshni gap over this whole array into the single scalar
+        ``lambda_g`` that cuts off every photogeneration integral, so widening
+        the default would move Jsc and the temperature coefficient.
+        """
+        sweep = self.thermal.cooling_temperature
+        if sweep is not None:
+            return sweep.array()
+        return self.thermal.ambient_temperature + np.arange(151, dtype=float)
 
     def direction_arrays(self) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
         return self.simulation.directions()
@@ -493,6 +505,19 @@ def validate(cfg: Config) -> None:
             if sweep is None or sweep.n < 2 or sweep.max <= sweep.min:
                 raise ConfigError(
                     "cooling_curve mode requires thermal.cooling_temperature with max > min and n >= 2."
+                )
+        else:
+            # The PV stage reports an ambient operating point alongside the
+            # equilibrium one, so the sweep has to contain ambient. Without
+            # this the ambient column would be a silent extrapolation to the
+            # nearest swept temperature.
+            sweep = cfg.thermal.cooling_temperature
+            t_amb = cfg.thermal.ambient_temperature
+            if sweep is not None and not (sweep.min <= t_amb <= sweep.max):
+                raise ConfigError(
+                    f"thermal.cooling_temperature ({sweep.min}-{sweep.max} K) "
+                    f"must include the ambient temperature ({t_amb} K), because "
+                    f"the PV stage reports the ambient operating point."
                 )
             if cfg.thermal.solar_irradiance is not None and cfg.thermal.solar_irradiance <= 0.0:
                 raise ConfigError("thermal.solar_irradiance must be positive when set.")

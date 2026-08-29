@@ -1,343 +1,113 @@
 # Validation evidence
 
-The repository contains six comparison groups. They do not have equal
-evidentiary strength. A successful run proves that a workflow executes; it
-does not prove solver convergence, correctness of every physical term, or
-agreement with a publication.
+There is one literature case. It reproduces the paper's optics and fails the
+paper's own stated thermal coefficient — and the failure is the more instructive
+half, so it is kept in view rather than fitted away.
 
-```{admonition} Use the status labels
-:class: warning
-Validation A is a stored-spectrum regression, A.1 is a smoke test, A.2 tests
-the optical backend at normal incidence only, B contains digitized-data
-comparisons, C is partial, and E exposes a thermal-model contradiction. Do not
-describe them all as fully validated.
-```
+**Akerboom, Doeleman, Scherer, Zeman, Smith, Isabella and Garnett, "Passive
+Radiative Cooling of Silicon Solar Modules with Photonic Silica
+Microcylinders", *ACS Photonics* 9 (2022) 3831–3840.**
+[doi:10.1021/acsphotonics.2c01389](https://doi.org/10.1021/acsphotonics.2c01389)
 
-## Status at a glance
+## The structure
 
-| Case | Main input | Strongest defensible claim |
-|---|---|---|
-| A | Published reduced spectra | Conditional regression of Table 1 PV and thermal outputs |
-| A.1 | Committed S4 spectrum; optional live rebuild | End-to-end configuration smoke test, **not a validation** |
-| A.2 | Live S4 from the paper's stated PDMS geometry | Optical backend reproduces the published spectrum at normal incidence |
-| B | Digitized measured spectra and curves | Conditional cooling regression; one plot-only reproduction |
-| C | Committed or live S4 grating spectra | Partial validation of grating emittance and temperature |
-| E | Digitized measurements and optional live S4 | Cooling-band optics agree; paper-parameter thermal result fails |
+A hexagonal array of silica microcylinders — radius 1.75 µm, height 2.25 µm,
+pitch 6.125 µm — on 500 µm of silica over 500 µm of silicon over 80 nm of gold.
+Two references accompany it: the bare Au/Si module, and the same module under an
+unpatterned silica slab. The gold blocks transmission, so emissivity is
+1 − *R*.
 
-(validation-a)=
-## Validation A — Table 1 PV and thermal regression
-
-[Run Validation A in Google Colab](https://colab.research.google.com/github/gsilvaoelker/radcoolpv-py/blob/main/docs/site/notebooks/validation_a_colab.ipynb)
-
-The five cases use the reduced spectra supplied with the original work. They
-exercise the PV and thermal pipeline but do not run S4. Because the source
-files contain no direction-resolved TE/TM data, the atmospheric contribution
-uses the documented angle-independent approximation.
-
-### Main results
-
-| Observable | Comparison with published Table 1 |
-|---|---|
-| Short-circuit current density, $J_{sc}$ | Within 3% for all structures |
-| Maximum power, $P_{mpp}$ | Within 3% for all structures |
-| Equilibrium temperature | Within 3 K |
-| Open-circuit voltage, $V_{oc}$ | Within 0.02 V |
-| Reflected power | Weakest quantity; discrepancies reach about 10% |
-
-```{figure} _static/validations/validation_a_table1_errors_preview.png
-:alt: Maximum error by output quantity for Validation A
-:width: 760px
-
-Validation A error envelope across the five Table 1 structures. Reflected
-power is visibly the weakest matched quantity.
-```
-
-Run from a checkout:
+`validation/akerboom.yaml` defines twelve cases in three groups.
 
 ```bash
-PYTHONPATH=. python "validations/validation A/run_table1_validation.py"
+radcoolpv run validation/akerboom.yaml
+radcoolpv run validation/akerboom.yaml --case B3_cooling_h6_cylinders
 ```
 
-**Status:** conditional regression. It supports the stored-spectrum thermal/PV
-implementation under the stated angular approximation; it does not validate
-the live S4 backend.
+Group B needs no solver and runs in seconds. Groups A and C call S4 and are
+expensive — roughly four minutes and two hours respectively at the converged
+settings in the file. A case that cannot run does not abort the others.
 
-**Reference:** G. Silva-Oelker and J. Jaramillo-Fernandez, “Numerical study of
-sodalime and PDMS hemisphere photonic structures for radiative cooling of
-silicon solar cells,” *Optics Express* 30, 32965–32977 (2022),
-[doi:10.1364/OE.466335](https://doi.org/10.1364/OE.466335).
+## Group A — optics
 
-(validation-a1)=
-## Validation A.1 — soda-lime hemisphere workflow
+Normal-incidence emittance, 2–16 µm in steps of 0.05 µm, 60 Fourier modes,
+compared against Figure 3a. Silicon is modeled as nonabsorbing, which is the
+paper's own stated assumption for the cooling band.
 
-[Run Validation A.1 in Google Colab](https://colab.research.google.com/github/gsilvaoelker/radcoolpv-py/blob/main/docs/site/notebooks/validation_a1_colab.ipynb)
-
-A.1 separates the workflow into an optional live S4 optics calculation and a
-fast thermal/PV step driven by the committed spectrum. The geometry assumes a
-close-packed pitch that is not documented as a paper input. The live option
-uses 10 S4 modes, nine hemisphere slices, TE polarization, and normal
-incidence. None of those numerical choices has a convergence claim.
-
-### Main results from the committed spectrum
-
-| Quantity | Result |
-|---|---:|
-| Maximum $|R+T+A-1|$ | $1.1\times10^{-16}$ |
-| Solar-band silicon absorptance | 0.823 |
-| Mean 8–13 µm emittance | 0.973 |
-| Equilibrium temperature | 317.09 K |
-| $I_{sc}$ | 365.92 A/m² |
-| Equilibrium $V_{oc}$ | 0.7264 V |
-| Equilibrium maximum power | 230.61 W/m² |
-| Fill factor | 0.868 |
-| Efficiency | 0.2314 |
-
-```{figure} _static/validations/validation_a1_power_preview.png
-:alt: Validation A.1 power-voltage curve
-:width: 760px
-
-The committed A.1 spectrum produces a maximum-power point of 230.61 W/m².
-```
-
-Run from a checkout:
-
-```bash
-# Optional and expensive: rebuild the S4 spectrum.
-radcoolpv run "validations/validation A.1/optics_hemisph_sodalime.yaml"
-
-# Fast path used by default in Colab.
-radcoolpv run "validations/validation A.1/pv_hemisph_sodalime.yaml"
-```
-
-**Status:** configuration smoke test, not a literature validation. Energy
-closure is necessary but does not establish angular, polarization, geometry,
-or mode convergence. The thermal step treats a normal-incidence TE spectrum
-as angle-independent.
-
-**Reference geometry context:** G. Silva-Oelker and J.
-Jaramillo-Fernandez (2022),
-[doi:10.1364/OE.466335](https://doi.org/10.1364/OE.466335).
-
-(validation-a2)=
-## Validation A.2 — live S4 optics against the published PDMS spectrum
-
-Same paper as Validation A, Fig. 3(c) blue. This is the case that tests the
-optical backend. Validation A *reads* the published spectra and exercises only
-the thermal and PV stages; A.2 *computes* the spectrum from the YAML geometry
-and compares it against the published one.
-
-It uses the PDMS row because the paper states that geometry completely — "both
-in a periodic cell of (17.3, 10) µm" for 8 µm hemispheres on a 75 µm layer.
-Since $\sqrt{3}\times10=17.32$, that is the centred-rectangular supercell of a
-hexagonal lattice of pitch 10 µm. Nothing is assumed, so any disagreement is
-attributable to the code. The soda-lime pitch appears nowhere in the paper,
-which is why A.1 remains a smoke test.
-
-### Main results
-
-Live S4, `s4_modes: 30`, twelve dome slices, unpolarized, normal incidence,
-2000 wavelengths, about 2.5 minutes; compared against the published
-normal-incidence columns.
-
-| Band average | Published | Computed | Rel. err |
+| Surface | radcoolpv | Digitized Fig. 3a | Paper text |
 |---|---:|---:|---:|
-| Emittance 8–13 µm | 0.9868 | 0.9864 | −0.04% |
-| Emittance 17–24 µm | 0.8963 | 0.8962 | −0.01% |
-| Emittance 4–30 µm | 0.9209 | 0.9195 | −0.15% |
-| Silicon absorptance 0.3–1.12 µm | 0.8092 | 0.8057 | −0.43% |
-| Reflectance 0.3–1.12 µm | 0.1753 | 0.1789 | +2.02% |
-| Reflectance 1.12–4 µm | 0.8393 | 0.8444 | +0.61% |
+| Bare Au/Si | 0.032 | 0.036 | ~3.5% |
+| Flat silica | 0.842 | 0.843 | — |
+| Silica cylinders | 0.984 | 0.977 | — |
 
-Maximum $|R+T+A-1|$ is $2.2\times10^{-16}$.
+Mean over 7.5–16 µm. The optics agree.
 
-The three emittance rows are converged and agree to better than 0.2%. The
-solar-band rows are **not** converged in `s4_modes`: silicon absorptance moves
-non-monotonically across modes 30, 45 and 60 (0.8057, 0.8048, 0.8089), because
-at $\lambda=0.3$ µm the 10 µm pitch is more than thirty wavelengths wide. Their
-−0.43% and +2.02% differences therefore lie inside the numerical scatter and
-are not evidence of a physical disagreement. The full convergence table is in
-[`validations/README.md`](https://github.com/gsilvaoelker/radcoolpv-py/blob/main/validations/README.md).
+## Group B — cooling curve, and where it breaks
 
-Run from a checkout:
+This group runs the **thermal model alone**, driven by the *measured* emittance
+digitized from Figure 5a. No geometry, no materials, no solver. That isolation
+is deliberate: any disagreement here belongs to the thermal model, not to the
+optics.
 
-```bash
-PYTHONPATH=. python "validations/validation A.2/run_pdms_optics_validation.py"
-```
+With the convection coefficient the paper's Methods state, *h* = 6.0 W/m²/K:
 
-The script reports differences and always exits 0. It never asserts a
-tolerance, so a reader sees the numbers rather than a pass or fail they cannot
-interpret.
-
-**Status:** validation of the optical backend at normal incidence. It does not
-touch the hemispherical average the thermal model consumes, so it establishes
-nothing about Table 1 temperatures or PV quantities — that comparison costs 194
-S4 solves per wavelength instead of one, and has not been run. The paper states
-neither its mode count nor its dome discretisation, so those are established by
-the convergence table in
-[`validations/README.md`](https://github.com/gsilvaoelker/radcoolpv-py/blob/main/validations/README.md)
-rather than reproduced.
-
-**Reference:** G. Silva-Oelker and J. Jaramillo-Fernandez, *Optics Express*
-30, 32965–32977 (2022),
-[doi:10.1364/OE.466335](https://doi.org/10.1364/OE.466335).
-
-(validation-b)=
-## Validation B — PDMS-based radiative-cooling layers
-
-[Run Validation B in Google Colab](https://colab.research.google.com/github/gsilvaoelker/radcoolpv-py/blob/main/docs/site/notebooks/validation_b_colab.ipynb)
-
-The Figure 4d cases calculate cooling-power curves from digitized optical
-spectra for three films. The Figure 5d case is different: it redraws digitized
-published curves because the raw commercial-module optical stack is not
-available.
-
-### Main results
-
-| Figure 4d film | Calculated zero-cooling-power temperature |
-|---|---:|
-| PDMS | 329.92 K |
-| SDS/PDMS | 328.28 K |
-| ADS/PDMS | 325.44 K |
-
-```{figure} _static/validations/validation_b_fig4d_preview.png
-:alt: Cooling power curves for the three Validation B films
-:width: 760px
-
-Calculated cooling-power curves from digitized film spectra. The zero
-crossing is the predicted equilibrium temperature.
-```
-
-```{figure} _static/validations/validation_b_fig5d_preview.png
-:alt: Digitized Figure 5d cooling power family
-:width: 760px
-
-Figure 5d is a digitized-curve reproduction, not an independently calculated
-commercial-module result.
-```
-
-Run from a checkout:
-
-```bash
-for case in fig4d_pdms fig4d_sds fig4d_ads fig5d_cooling_family; do
-  radcoolpv run "validations/validation B/${case}.yaml"
-done
-```
-
-**Status:** Figure 4d is a conditional regression. The calculation assumes an
-unconfirmed ambient temperature of 298.0 K and uses the bundled Cerro Pachón
-atmosphere instead of Hiroshima conditions. Figure 5d is plot reproduction
-only.
-
-**Reference:** T. H. Le et al., *ACS Photonics* 13, 1108–1121 (2026),
-[doi:10.1021/acsphotonics.5c02627](https://doi.org/10.1021/acsphotonics.5c02627).
-
-(validation-c)=
-## Validation C — silica micro-grating cooler
-
-[Run Validation C in Google Colab](https://colab.research.google.com/github/gsilvaoelker/radcoolpv-py/blob/main/docs/site/notebooks/validation_c_colab.ipynb)
-
-This case compares planar silica with a one-dimensional silica grating and
-then applies the spectra to bare and grating-equipped silicon cells. Colab
-uses committed spectra by default; students may explicitly enable the live S4
-rebuild.
-
-### Main results
-
-| Quantity | Paper | radcoolpv |
+| Surface | radcoolpv | Paper Fig. 5b |
 |---|---:|---:|
-| Grating mean emittance, 8–13 µm | approximately 0.90 | 0.938 |
-| Grating-equipped cell temperature rise | 37.5 °C | 37.8 °C |
-| Bare-cell temperature rise | 77.5 °C | 93.9 °C |
+| Bare Au/Si | 415.4 K | 360 K |
+| Flat silica | 360.6 K | 339 K |
+| Silica cylinders | 355.6 K | 336 K |
 
-```{figure} _static/validations/validation_c_emittance_preview.png
-:alt: Planar and grating silica emittance in the atmospheric window
-:width: 760px
+A single least-squares fit to all three digitized curves gives *h* = 12.54
+W/m²/K, which reproduces 359.7 / 340.1 / 337.5 K — all three at once.
 
-The grating fills the planar silica dip near 9 µm and raises the unweighted
-8–13 µm mean emittance from 0.767 to 0.938.
+```{admonition} That agreement is a calibration
+:class: warning
+Fitting one coefficient to the curves you are trying to reproduce is not an
+independent validation of the thermal model, and citing it as one would be
+wrong. Cases `B4`–`B6` exist so the fit is labeled, not hidden.
 ```
 
-Run from a checkout:
+The inconsistency can be decided without any optics at all. Put a perfect
+non-emitter under the paper's stated balance: nothing radiates, and 808 W/m² is
+absorbed, so the temperature must be
 
-```bash
-cd "validations/validation C"
-python run_validation.py --no-build  # committed spectra
-python run_validation.py             # live S4 rebuild
-```
+$$T = T_\mathrm{amb} + \frac{P_\mathrm{sun}}{h} = 300 + \frac{808}{6} = 434.67~\mathrm{K}.$$
 
-**Status:** partial validation. The grating result agrees closely, but the bare
-cell does not. Solar absorptance is fixed at 0.95, normal optics are treated as
-angle-independent, and the bare-silicon result is material-model sensitive.
+Every real emitter must land below that. The paper's Figure 5b implies about
+366.5 K for the zero-emitter limit, which no emitter can produce at *h* = 6. So
+either the stated coefficient or the plotted figure is inconsistent with the
+paper's own equation 2. `tests/test_validation_akerboom.py` pins both halves.
 
-**Reference:** B. Zhao et al., “Radiative cooling of solar cells with
-micro-grating photonic cooler,” *Renewable Energy* 191, 662–668 (2022),
-[doi:10.1016/j.renene.2022.04.063](https://doi.org/10.1016/j.renene.2022.04.063).
+## Group C — full optical, thermal and electrical result
 
-(validation-e)=
-## Validation E — Akerboom silica emitters
+0.3–24.9 µm hemispherical, with the lossy silicon table. The upper limit is set
+by gold: `RII_Olmon_2012_ev_Au` is tabulated to 24.93 µm and the loader refuses
+to extrapolate.
 
-[Run Validation E in Google Colab](https://colab.research.google.com/github/gsilvaoelker/radcoolpv-py/blob/main/docs/site/notebooks/validation_e_colab.ipynb)
+This group needs the **lossy** `Palik_Si`, not the `Akerboom_Si_lossless` used
+by groups A and B. Lossless silicon absorbs no sunlight, so the photocurrent
+integrates to zero and the cell reports a few millivolts — a failure mode that
+looks like a solver bug and is a materials choice.
 
-One YAML defines three optional live-optics cases, three thermal cases using
-the paper-stated nonradiative coefficient, and three cases using one fitted
-effective coefficient. The fitted cases are retained to localize the
-disagreement, not to erase it.
+| Surface | *T*<sub>eq</sub> | Efficiency | MPP | *β*<sub>P</sub> |
+|---|---:|---:|---:|---:|
+| Bare Au/Si | 350.5 K | 14.17% | 142.6 W/m² | −0.303 %/K |
+| Flat silica | 329.3 K | 18.09% | 182.1 W/m² | −0.299 %/K |
+| Silica cylinders | 327.0 K | 18.64% | 187.7 W/m² | −0.300 %/K |
 
-### Optical results
+The temperature drops agree with the paper: 21.2 K bare → flat silica against
+21 K, 2.3 K flat → cylinders against 3 K, 23.5 K bare → cylinders against 24 K.
 
-| Emitter | Paper mean, 7.5–16 µm | S4 mean | RMSE, 7.5–16 µm |
-|---|---:|---:|---:|
-| Bare silicon | 0.036 | 0.032 | 0.030 |
-| Flat silica | 0.843 | 0.842 | 0.029 |
-| Silica cylinders | 0.976 | 0.984 | 0.025 |
+Note what the efficiency column does *not* say. Absorbed sunlight rises from
+507.5 to 598.6 to 614.3 W/m² across the three surfaces, so most of the gain is
+the silica acting as an antireflection layer, not as a radiative cooler. Of the
+efficiency gained from flat silica to cylinders, only a small part is thermal.
 
-The cooling-band averages agree closely. Across the broader 2–16 µm range,
-the flat-silica RMSE rises to 0.174. No fresh S4 mode-convergence result is
-claimed here.
+## What to retain
 
-### Thermal results
-
-| Emitter | Paper | $h=6.0$ W/m²/K | Fitted $h=12.54$ W/m²/K |
-|---|---:|---:|---:|
-| Bare silicon | 360.0 K | 415.4 K | 359.7 K |
-| Flat silica | 339.0 K | 360.6 K | 340.1 K |
-| Silica cylinders | 336.0 K | 355.6 K | 337.5 K |
-
-```{figure} _static/validations/validation_e_temperatures_preview.png
-:alt: Paper and calculated Validation E temperatures
-:width: 760px
-
-The paper-stated coefficient fails. The fitted coefficient reproduces the
-temperatures because it was calibrated to them.
-```
-
-Run all nine cases from a checkout:
-
-```bash
-radcoolpv run "validations/validation E/validation.yaml"
-```
-
-The default Colab notebook runs only the six fast thermal cases; live S4
-optics is an explicit option.
-
-**Status:** the cooling-band optical comparison is good, subject to the stated
-convergence limit. The thermal model does not reproduce the paper using
-$h=6.0$ W/m²/K. A zero-emitter check gives 434.67 K from the stated balance,
-whereas the paper reports 366.5 K. The $h=12.54$ W/m²/K match is calibration,
-not independent validation.
-
-**Reference:** S. Akerboom et al., “Passive radiative cooling of silicon solar
-modules with photonic silica microcylinders,” *ACS Photonics* 9, 3831–3840
-(2022), [doi:10.1021/acsphotonics.2c01389](https://doi.org/10.1021/acsphotonics.2c01389).
-
-## What students should retain
-
-For every calculation, preserve `run.json` and report:
-
-1. the YAML inputs and solver or data provenance;
-2. numerical checks, including energy closure and convergence of a named
-   observable when live S4 is used;
-3. the exact reference and every approximation that limits the claim.
-
-The complete case definitions and diagnostic notes are in the repository's
-[validation README](https://github.com/gsilvaoelker/radcoolpv-py/blob/main/validations/README.md).
+* The optics are validated against the published spectra.
+* The thermal model is **not** independently validated by this case.
+* A model that only matches after one coefficient is fitted has been calibrated,
+  not confirmed — and saying so is part of the result.
+* A published paper can be internally inconsistent. Checking a limiting case
+  costs one line of arithmetic and settles it.

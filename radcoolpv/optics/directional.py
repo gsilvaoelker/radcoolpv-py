@@ -20,6 +20,7 @@ import numpy as np
 
 from ..io.results import OpticsResult
 from ..thermal.spectra import load_atmosphere
+from .averages import LAMBDA_GAP
 
 
 @dataclass
@@ -48,11 +49,6 @@ class RawOptics:
     @property
     def n_directions(self) -> int:
         return len(self.theta_deg)
-
-    @property
-    def n_theta(self) -> int:
-        """Historical alias used by the MATLAB parity fixtures."""
-        return self.n_directions
 
     @property
     def n_lambda(self) -> int:
@@ -177,7 +173,14 @@ def from_reduced_file(path: str, atmosphere_path: str,
                 f"{path}: emittance column {emittance_column} is outside "
                 f"the {data.shape[1]}-column table.")
         emit = data[:, emittance_column]
-        ref, tran, abs_si = 1.0 - emit, np.zeros_like(emit), np.zeros_like(emit)
+        ref, tran = 1.0 - emit, np.zeros_like(emit)
+        # A single emittance column carries no layer-resolved absorptance, so
+        # the silicon share is inferred: above the gap essentially everything
+        # absorbed is absorbed in the silicon, below it nothing is. pv.py then
+        # truncates at its own temperature-dependent lambda_g, which is the
+        # stricter cut-off, so this only has to be right about which side of
+        # the gap a wavelength falls on.
+        abs_si = np.where(lam < LAMBDA_GAP, emit, 0.0)
         ref_norm = emit_norm = abs_si_norm = None
     elif data.shape[1] == 5:
         ref, tran, emit, abs_si = data[:, 1], data[:, 2], data[:, 3], data[:, 4]
@@ -197,7 +200,7 @@ def from_reduced_file(path: str, atmosphere_path: str,
         lambda_um=lam, ref=ref, tran=tran, emit=emit, abs_silicon=abs_si,
         emit_atm=emit_atm, emitt_spec_times_emit_atm=emit_atm * emit,
         ref_norm=ref_norm, emit_norm=emit_norm, abs_silicon_norm=abs_si_norm,
-        angles=angles,
+        angles=angles, silicon_from_emittance=emittance_column is not None,
     )
 
 
