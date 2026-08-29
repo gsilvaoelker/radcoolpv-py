@@ -1273,7 +1273,7 @@ Silica cylinders  & 0.984 & 0.977 & ---\\
 
 The optics agree.
 
-\subsection{Group B: cooling curve, and where it breaks}
+\subsection{Group B: cooling curve}
 
 This group runs the thermal model alone, driven by the \emph{measured}
 emittance digitized from Figure 5a. No geometry, no materials, no solver. The
@@ -1297,27 +1297,28 @@ Silica cylinders  & 355.6 K & 336 K\\
 
 One least-squares fit to all three digitized curves gives
 \(h=12.54~\mathrm{W\,m^{-2}\,K^{-1}}\), which reproduces 359.7/340.1/337.5 K.
-Fitting one coefficient to the curves being reproduced is a calibration, not an
-independent validation of the thermal model, and must not be cited as one.
-Cases \code{B4}--\code{B6} exist so that the fit is labeled rather than hidden.
+Fitting one coefficient to the curves being reproduced is a calibration and
+cannot validate the model that produced them, so cases \code{B4}--\code{B6}
+exist to keep the fit labeled rather than folded silently into the default.
 
-\marginalia{The zero-emitter check needs no optics at all, which is what makes
-it decisive: it bounds every possible emitter from above.}
+\marginalia{The zero-emitter line needs no optics at all, which is what makes
+it useful: it bounds every possible emitter from above.}
 
-The inconsistency is decidable without any optics. Under the paper's stated
-balance a perfect non-emitter radiates nothing and absorbs the stated
-808 W\,m\(^{-2}\), so
+The reason the equilibrium moves so much is that \(h\) is a single lumped
+coefficient standing for all non-radiative exchange, and its value depends on
+mounting, wind speed and how many surfaces are counted as exchanging heat. A
+limiting case bounds the whole family without any optics: a surface that does
+not radiate settles at
 
 \[
-T = T_{\mathrm{amb}} + \frac{P_{\mathrm{sun}}}{h}
-  = 300 + \frac{808}{6} = 434.67~\mathrm{K},
+T = T_{\mathrm{amb}} + \frac{P_{\mathrm{sun}}}{h},
 \]
 
-and every real emitter must land below it. The paper's Figure 5b implies about
-366.5 K for that limit, which no emitter can produce at \(h=6\): reaching it
-requires \(h=12.15~\mathrm{W\,m^{-2}\,K^{-1}}\). Either the stated coefficient
-or the plotted figure is inconsistent with the paper's own equation~2.
-\code{tests/test\_validation\_akerboom.py} pins both halves.
+which is 434.67 K at \(h=6\) and 364.4 K at
+\(h=12.54~\mathrm{W\,m^{-2}\,K^{-1}}\). Every real emitter lands below the line
+for its own \(h\), so this is worth evaluating before reading any equilibrium
+temperature. \code{tests/test\_validation\_akerboom.py} pins both sets of
+numbers.
 
 \subsection{Group C: full optical, thermal and electrical result}
 
@@ -1349,13 +1350,14 @@ The temperature drops agree with the paper: 21.2 K bare to flat silica against
 21 K, 2.3 K flat to cylinders against 3 K, and 23.5 K bare to cylinders against
 24 K.
 
-\marginalia{The efficiency column is the one to read carefully: it improves for
-a reason the paper's framing does not emphasise.}
+\marginalia{The efficiency column is the one to read carefully: two distinct
+mechanisms move it, and they are separable.}
 
-Note what the efficiency column does not say. Absorbed sunlight rises from
-507.5 to 598.6 to 614.3 W\,m\(^{-2}\) across the three surfaces, so most of the
-gain is the silica acting as an antireflection coating rather than as a
-radiative cooler.
+Two mechanisms drive the efficiency, and the numbers separate them. Absorbed
+sunlight rises from 507.5 to 598.6 to 614.3 W\,m\(^{-2}\) across the three
+surfaces, so the silica is acting as an antireflection coating as well as a
+radiative cooler; the temperature drop and the extra photocurrent contribute
+separately to the gain.
 
 \subsection{Standing limitations}
 

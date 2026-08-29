@@ -96,15 +96,16 @@ definitions:
 
   paper_h: &paper_h
     <<: *cooling_inputs
-    # The Methods value. These three cases exist to expose its disagreement
-    # with the paper's own Figure 5b, not to hide it.
+    # The value stated in the paper's Methods. Kept as its own labelled group
+    # so it can be compared with the fitted coefficient below.
     convection_coefficient: 6.0
     cooling_temperature: {min: 260.0, max: 440.0, n: 181}
 
   fitted_h: &fitted_h
     <<: *cooling_inputs
     # Effective total coefficient from one least-squares fit to all three
-    # digitized Figure 5b curves. A calibration, not an independent result.
+    # digitized Figure 5b curves. A calibration: it reproduces the published
+    # temperatures by construction, so it is not independent evidence.
     convection_coefficient: 12.54
     cooling_temperature: {min: 260.0, max: 380.0, n: 121}
 

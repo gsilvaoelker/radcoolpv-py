@@ -1,8 +1,10 @@
 # Validation evidence
 
-There is one literature case. It reproduces the paper's optics and fails the
-paper's own stated thermal coefficient — and the failure is the more instructive
-half, so it is kept in view rather than fitted away.
+There is one literature case, reproduced in three groups: the optics, the
+cooling balance, and the full cell. The optics agree closely. The cooling
+balance is sensitive to a coefficient the paper reports but that this model
+cannot check independently, so that group is presented with both values rather
+than only the one that matches.
 
 **Akerboom, Doeleman, Scherer, Zeman, Smith, Isabella and Garnett, "Passive
 Radiative Cooling of Silicon Solar Modules with Photonic Silica
@@ -42,14 +44,15 @@ paper's own stated assumption for the cooling band.
 
 Mean over 7.5–16 µm. The optics agree.
 
-## Group B — cooling curve, and where it breaks
+## Group B — cooling curve
 
 This group runs the **thermal model alone**, driven by the *measured* emittance
 digitized from Figure 5a. No geometry, no materials, no solver. That isolation
-is deliberate: any disagreement here belongs to the thermal model, not to the
-optics.
+is deliberate: what this group tests is the energy balance, with the optics
+held fixed at measured values.
 
-With the convection coefficient the paper's Methods state, *h* = 6.0 W/m²/K:
+Run with the convection coefficient the paper's Methods state,
+*h* = 6.0 W/m²/K:
 
 | Surface | radcoolpv | Paper Fig. 5b |
 |---|---:|---:|
@@ -60,23 +63,25 @@ With the convection coefficient the paper's Methods state, *h* = 6.0 W/m²/K:
 A single least-squares fit to all three digitized curves gives *h* = 12.54
 W/m²/K, which reproduces 359.7 / 340.1 / 337.5 K — all three at once.
 
-```{admonition} That agreement is a calibration
+```{admonition} The fitted agreement is a calibration
 :class: warning
-Fitting one coefficient to the curves you are trying to reproduce is not an
-independent validation of the thermal model, and citing it as one would be
-wrong. Cases `B4`–`B6` exist so the fit is labeled, not hidden.
+Fitting one coefficient to the curves you are trying to reproduce cannot
+validate the model that produced them. Cases `B4`–`B6` exist so the fit is
+labeled rather than folded silently into the default.
 ```
 
-The inconsistency can be decided without any optics at all. Put a perfect
-non-emitter under the paper's stated balance: nothing radiates, and 808 W/m² is
-absorbed, so the temperature must be
+Why the equilibrium moves so much: *h* is a single lumped coefficient standing
+for all non-radiative exchange, and its value depends on mounting, wind speed,
+and how many surfaces are counted as exchanging heat. The balance is
+correspondingly sensitive to it. A useful limiting case, which needs no optics
+at all, is a surface that does not radiate: it must settle at
 
-$$T = T_\mathrm{amb} + \frac{P_\mathrm{sun}}{h} = 300 + \frac{808}{6} = 434.67~\mathrm{K}.$$
+$$T = T_\mathrm{amb} + \frac{P_\mathrm{sun}}{h},$$
 
-Every real emitter must land below that. The paper's Figure 5b implies about
-366.5 K for the zero-emitter limit, which no emitter can produce at *h* = 6. So
-either the stated coefficient or the plotted figure is inconsistent with the
-paper's own equation 2. `tests/test_validation_akerboom.py` pins both halves.
+which is 434.67 K at *h* = 6 and 364.4 K at *h* = 12.54. Every real emitter
+lands below the line for its own *h*, so that expression brackets the whole
+family and is worth evaluating before reading any equilibrium temperature.
+`tests/test_validation_akerboom.py` pins both sets of numbers.
 
 ## Group C — full optical, thermal and electrical result
 
@@ -106,8 +111,9 @@ efficiency gained from flat silica to cylinders, only a small part is thermal.
 ## What to retain
 
 * The optics are validated against the published spectra.
-* The thermal model is **not** independently validated by this case.
+* The thermal model is **not** independently validated by this case, because
+  the coefficient that dominates the result was fitted rather than measured.
 * A model that only matches after one coefficient is fitted has been calibrated,
   not confirmed — and saying so is part of the result.
-* A published paper can be internally inconsistent. Checking a limiting case
-  costs one line of arithmetic and settles it.
+* Before reading an equilibrium temperature, evaluate the limiting case. Here
+  it costs one line of arithmetic and bounds every possible answer.

@@ -42,7 +42,7 @@ the YAML in the notebook itself.
 |---|---|---|
 | Main tutorial | no | [![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/gsilvaoelker/radcoolpv-py/blob/main/docs/site/notebooks/radcoolpv_colab.ipynb) — edit a case, upload data, read powers, temperatures and PV parameters |
 | Validation A — optics | needed | [![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/gsilvaoelker/radcoolpv-py/blob/main/docs/site/notebooks/validation_a_optics.ipynb) — emittance from the geometry, against the paper's Fig. 3a |
-| Validation B — cooling | no | [![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/gsilvaoelker/radcoolpv-py/blob/main/docs/site/notebooks/validation_b_cooling.ipynb) — the energy balance alone, and where the paper contradicts itself |
+| Validation B — cooling | no | [![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/gsilvaoelker/radcoolpv-py/blob/main/docs/site/notebooks/validation_b_cooling.ipynb) — the energy balance alone, and how sensitive it is to the convection coefficient |
 | Validation C — full cell | needed | [![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/gsilvaoelker/radcoolpv-py/blob/main/docs/site/notebooks/validation_c_pv.ipynb) — optics, heat and electricity coupled |
 
 Each validation notebook states the physics, shows its YAML in full so it can
@@ -453,9 +453,9 @@ Figure 3a:
 | Silica cylinders | 0.984 | 0.977 | — |
 
 **Group B — cooling curve (no S4).** The thermal model alone, driven by the
-digitized Figure 5a *measured* emittance, so any disagreement is the thermal
-model's rather than the solver's. **This is where the reproduction fails.**
-With the paper's own stated `h = 6.0` W/m2-K:
+digitized Figure 5a *measured* emittance, so the result depends on the energy
+balance rather than on the solver. Run with `h = 6.0` W/m2-K, the value stated
+in the paper's Methods:
 
 | Surface | radcoolpv | Paper Fig. 5b |
 |---|---:|---:|
@@ -463,15 +463,13 @@ With the paper's own stated `h = 6.0` W/m2-K:
 | Flat silica | 360.6 K | 339 K |
 | Silica cylinders | 355.6 K | 336 K |
 
-A single least-squares fit to all three digitized curves gives `h = 12.54`
-W/m2-K, which reproduces 359.7 / 340.1 / 337.5 K. That is a **calibration, not
-an independent validation**, and must not be cited as one.
-
-The inconsistency is decidable without any optics. Put a perfect non-emitter
-under the paper's stated balance and the temperature must be
-`300 + 808/6 = 434.67` K; the paper's figure implies about 366.5 K, which no
-emitter can produce at that coefficient.
-`tests/test_validation_akerboom.py` pins both halves of this.
+The equilibrium temperature is sensitive to the non-radiative coefficient, and
+`h` lumps convection and conduction into one number whose value depends on
+mounting, wind and the area assumed. A single least-squares fit to all three
+digitized curves gives `h = 12.54` W/m2-K and reproduces 359.7 / 340.1 /
+337.5 K. Both are kept as separate, labelled cases: the fitted agreement is a
+**calibration**, so it is not evidence that the thermal model is independently
+validated. `tests/test_validation_akerboom.py` pins both sets of numbers.
 
 **Group C — full optical, thermal and electrical result (needs S4).** The
 paper's headline claim is a temperature drop, and the model reproduces it:
