@@ -1,0 +1,1418 @@
+% !TEX program = pdflatex
+% Literary-editorial layout. Content fields are set below; the geometry,
+% fonts, and spacing follow the house template and are not to be altered.
+\documentclass[11pt,a4paper,twoside]{article}
+
+% Page: 210 mm wide = 25 mm inner + 130 mm text + 55 mm outer.
+\usepackage[
+  a4paper,
+  twoside,
+  inner=25mm,
+  outer=55mm,
+  top=22mm,
+  bottom=24mm,
+  marginparwidth=39mm,
+  marginparsep=8mm,
+  headheight=14pt,
+  headsep=7mm,
+  footskip=11mm,
+  includeheadfoot
+]{geometry}
+
+\usepackage[T1]{fontenc}
+\usepackage[english]{babel}
+\usepackage{amsmath,amssymb}
+\usepackage{libertinus}
+\usepackage{libertinust1math}
+\usepackage[protrusion=true,expansion=true]{microtype}
+\usepackage{setspace}
+\usepackage{marginnote}
+\usepackage{graphicx}
+\usepackage{caption}
+\usepackage{array}
+\usepackage{booktabs}
+\usepackage{fancyhdr}
+\usepackage{titlesec}
+\usepackage{xcolor}
+\usepackage{listings}
+\usepackage[hidelinks]{hyperref}
+
+\definecolor{editorialgray}{gray}{0.34}
+\setstretch{1.16}
+\setlength{\parindent}{1.2em}
+\setlength{\parskip}{0pt}
+\setlength{\emergencystretch}{1.5em}
+\raggedbottom
+
+\newcommand{\marginalia}[1]{%
+  \marginnote{\footnotesize\color{editorialgray}\raggedright
+    \setlength{\parindent}{0pt}\setstretch{1.05}#1}}
+
+\titleformat{\section}
+  {\normalfont\large}
+  {}{0pt}{}
+  [\vspace{2pt}\rule{20mm}{0.4pt}]
+\titlespacing*{\section}{0pt}{1.6\baselineskip}{0.8\baselineskip}
+
+\titleformat{\subsection}
+  {\normalfont\normalsize\scshape}
+  {}{0pt}{}
+\titlespacing*{\subsection}{0pt}{1.2\baselineskip}{0.5\baselineskip}
+
+\titleformat{\paragraph}[runin]
+  {\normalfont\bfseries}
+  {}{0pt}{}
+\titlespacing*{\paragraph}{0pt}{0.8\baselineskip}{0.33em}
+
+\captionsetup{
+  font=small,
+  labelfont=sc,
+  labelsep=period,
+  justification=raggedright,
+  singlelinecheck=false
+}
+
+% ---- Document-specific macros -------------------------------------------
+\DeclareRobustCommand{\code}[1]{\begingroup\upshape\ttfamily
+  \def\_{\allowbreak\textunderscore\allowbreak}#1\endgroup}
+\newcolumntype{L}[1]{>{\raggedright\arraybackslash}p{#1}}
+\lstset{
+  basicstyle=\ttfamily\small,
+  breaklines=true,
+  breakatwhitespace=false,
+  columns=fullflexible,
+  keepspaces=true,
+  showstringspaces=false,
+  xleftmargin=1.2em,
+  aboveskip=8pt,
+  belowskip=8pt,
+  frame=none
+}
+% ---------------------------------------------------------------------------
+
+% ---- Content fields -------------------------------------------------------
+\newcommand{\doceyebrow}{TECHNICAL MANUAL}
+\newcommand{\doctitle}{radcoolpv}
+\newcommand{\docsubtitle}{Physics, Numerical Models, YAML Cases, and Validation}
+\newcommand{\docbyline}{Project manual \textperiodcentered\ 13 August 2026}
+\newcommand{\docrunninghead}{RADCOOLPV}          % verso (even pages)
+\newcommand{\docrunningfoot}{TECHNICAL MANUAL}   % recto (odd pages)
+% -------------------------------------------------------------------------
+
+\pagestyle{fancy}
+\fancyhf{}
+\renewcommand{\headrulewidth}{0pt}
+\fancyhead[LE]{\footnotesize\color{editorialgray}\textls[70]{\docrunninghead}}
+\fancyhead[RO]{\footnotesize\color{editorialgray}\textls[70]{\docrunningfoot}}
+\fancyfoot[LE,RO]{\small\thepage}
+
+\begin{document}
+
+\noindent{\footnotesize\color{editorialgray}\textls[160]{\doceyebrow}}\par
+\vspace{5mm}
+{\fontsize{25}{28}\selectfont \doctitle\par}
+\vspace{3mm}
+{\large \docsubtitle\par}
+\vspace{4mm}
+{\small \docbyline\par}
+\vspace{5mm}
+
+\tableofcontents
+\newpage
+
+\section{Purpose and scientific status}
+
+\code{radcoolpv} calculates optical properties of periodic photonic structures
+for radiative cooling and couples them to a silicon PV thermal/electrical model.
+Live optics use only the Stanford S4 Python
+extension. S4 is imported lazily; reduced-spectrum and free-form readers can run
+without it.
+\marginalia{S4 solves RCWA (rigorous coupled-wave analysis): the unit cell is
+laterally infinite and strictly periodic, layers are coherent, and the Fourier
+basis is truncated at \code{s4\_modes}.}
+
+The package reports spectral reflectance \(R\), transmittance \(T\), total
+absorptance \(A\), silicon-layer absorptance \(A_{\mathrm{Si}}\), and, under the
+conditions stated in Section~\ref{sec:kirchhoff}, emittance. The thermal stage
+reports operating temperature, I--V characteristics, maximum-power-point output,
+efficiency, and a temperature reduction relative to a user-specified reference.
+
+The library is not a universal PV module model. Its central assumptions are a
+periodic coherent optical unit cell, scalar material permittivities, a lumped
+steady-state thermal balance, and a single-diode silicon PV model. Validation
+status is evidence-labelled in
+Section~\ref{sec:validation}; a passing software test is not treated as proof of
+physical validity.
+
+\section{Installation}
+\label{sec:install}
+
+\begin{lstlisting}[language=bash]
+./setup.sh
+source ~/.venvs/radcoolpv-py/bin/activate
+python -c "import radcoolpv; print(radcoolpv.__version__)"
+\end{lstlisting}
+
+\marginalia{A stale \code{radcoolpv} on \code{PATH}---from an earlier
+\code{pip install -e .} into another interpreter---still resolves to the
+repository path recorded at that install, and reports \code{No module named
+'radcoolpv'}. Check \code{which -a radcoolpv}.}%
+\code{setup.sh} creates the environment outside the repository, at
+\code{\textasciitilde/\allowbreak.venvs/\allowbreak radcoolpv-py} by default (override with
+\code{VENV\_DIR}). A virtual environment placed inside an iCloud-synced folder
+such as \code{\textasciitilde/Documents} or \code{\textasciitilde/Desktop} is
+marked hidden by the operating system, and Python skips hidden \code{.pth}
+files, which silently disables the editable install. Inside the activated
+environment use \code{python}, not \code{python3}: a \code{python3} alias in
+the shell profile shadows the environment even when it is active, and reports a
+missing dependency such as \code{No module named 'yaml'} instead of naming the
+real cause.
+\marginalia{Figure~\ref{fig:workflow} lays out both supported entry
+points side by side: a local install and a zero-install Colab session.}
+
+The thermal/PV stage and spectrum readers use only the Python dependencies
+installed by \code{setup.sh}. Live optics additionally requires a separately
+compiled S4 Python module, pinned to a specific fork and revision:
+
+\begin{lstlisting}[language=bash]
+brew install fftw suite-sparse openblas lapack boost
+git clone https://github.com/phoebe-p/S4
+cd S4
+git checkout 9569f5e555b967a4324eb1ea593d0f9f40761a61
+make -f Makefile.m1 S4_pyext
+python -c "import S4; print(S4.__file__)"
+\end{lstlisting}
+
+The S4 import occurs only when a case with \code{geometry.source: s4} executes;
+other forks or revisions of S4 are not compatibility targets. Git is optional
+everywhere: without it the manifest records a null commit and the run
+proceeds.
+
+\section{Running the code: macOS and Colab}
+\label{sec:workflow}
+
+\begin{figure}[ht]
+  \centering
+  \includegraphics[width=\linewidth]{figures/macos_colab_workflow.pdf}
+  \caption{The two supported entry points. A local macOS install
+  (Section~\ref{sec:install}) is a one-time, persistent setup; a Colab
+  notebook needs no local install but resets with the runtime. Both drive the
+  identical YAML case through the same three-stage pipeline
+  (Section~\ref{sec:codemap}) to the same outputs
+  (Section~\ref{sec:outputs}).}
+  \label{fig:workflow}
+\end{figure}
+
+The Colab notebooks require no local Python or S4: opening the notebook badge
+and choosing \textbf{Runtime~\(\to\)~Run all} installs \code{radcoolpv} in the
+temporary checkout and, where a case needs it, rebuilds S4 inside the Colab
+virtual machine. A Colab runtime is temporary --- the setup cell must run again
+after any reset --- whereas a local install persists across sessions. Both
+paths call the identical entry point, \code{radcoolpv run case.yaml}, on the
+identical YAML schema described in Section~\ref{sec:examples}, and produce the
+identical outputs described in Section~\ref{sec:outputs}.
+
+\section{Where each quantity is computed}
+\label{sec:codemap}
+
+Every equation in this manual is implemented in one place. The table below is
+the index from physics to source, so a reader checking a result never has to
+guess which function produced it.
+
+\begin{table}[ht]
+\centering
+\small
+\begin{tabular}{L{30mm}L{40mm}L{46mm}}
+\toprule
+Quantity & Module & Function\\
+\midrule
+YAML parsing, defaults, validation & \code{config.py} &
+\code{from\_dict}, \code{validate}\\
+Stage sequencing & \code{pipeline.py} & \code{run}\\
+Layer stack from geometry & \code{optics/\allowbreak geometry.py} &
+\code{build\_structure}, \code{\_photonic\_layers}\\
+Permittivity per material & \code{materials/\allowbreak tabulated.py},
+\code{materials/\allowbreak analytic.py} & \code{\_interpolator}, \code{drude\_si3n4}\\
+\(R,T,A,A_{\mathrm{Si}}\) from S4 & \code{optics/\allowbreak s4\_backend.py} &
+\code{sweep}, \code{\_fluxes}\\
+Angular quadrature nodes & \code{config.py}
+(\code{SimulationConfig}) & \code{directions}\\
+Directional \(\to\) hemispherical & \code{optics/\allowbreak directional.py} &
+\code{reduce}, \code{\_selected}\\
+Resuming a stored spectrum & \code{optics/\allowbreak directional.py} &
+\code{from\_reduced\_file}\\
+Band averages & \code{optics/\allowbreak averages.py} &
+\code{band\_average}, \code{pv\_band\_averages}\\
+Solar spectrum, photon flux & \code{thermal/\allowbreak spectra.py} &
+\code{load\_solar}, \code{load\_atmosphere}\\
+Planck-weighted radiated power & \code{thermal/\allowbreak radiative.py} &
+\code{rad\_power}\\
+Band gap, \(J_{\mathrm{sc}}\), \(J_0\), Auger, I--V &
+\code{thermal/pv.py} & \code{solve\_iv}\\
+Luminescence term & \code{thermal/pv.py} & \code{non\_thermal\_power}\\
+MPP and \(V_{\mathrm{oc}}\) refinement & \code{thermal/pv.py} &
+\code{refine\_peak}, \code{open\_circuit\_voltage}\\
+Energy balance, \(T_{\mathrm{eq}}\) & \code{thermal/}
+\code{energy\_balance.py} & \code{run}, \code{\_zero\_crossing}\\
+CSV, export, manifest & \code{io/\allowbreak clean\_writers.py} &
+\code{\_write\_csv}, \code{write\_optics\_export}, \code{write\_run\_json}\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\section{Optical model}
+
+\subsection{The S4 problem}
+\label{sec:s4problem}
+
+The YAML structure is ordered from the incident medium toward one
+semi-infinite terminal layer. S4 expands the in-plane fields in a Fourier basis
+of size \code{simulation.s4\_modes}. Flat, circular, rectangular, and
+polygonal regions are supplied to S4 analytically; spheres and hemispheres use
+the configured stack of circular slices.
+
+At each wavelength, direction, and polarization, the code evaluates the
+integrated normal Poynting flux. With incident flux \(P_{\mathrm{inc}}\),
+
+\begin{align}
+R &= -\frac{P_{\mathrm{top}}^-}{P_{\mathrm{inc}}},\\
+T &= \frac{P_{\mathrm{bottom}}^+}{P_{\mathrm{inc}}},\\
+A &= 1-R-T.
+\end{align}
+
+Unlike the old Lua output, \(T\) is normalized by incident flux at oblique
+incidence. The silicon-layer absorptance uses the net flux at the two interfaces
+of the silicon layer itself:
+
+\begin{equation}
+A_{\mathrm{Si}} =
+\frac{P_{\mathrm{net}}(z_{\mathrm{Si,top}})
+      -P_{\mathrm{net}}(z_{\mathrm{Si,bottom}})}
+     {P_{\mathrm{inc}}}.
+\end{equation}
+
+This prevents absorption in a layer below silicon from being assigned to the
+PV cell.
+
+Because \(A\) is formed as \(1-R-T\), energy conservation is structural rather
+than a diagnostic: what it tests is the flux normalisation, not the solver. The
+residual \(|R+T+A-1|\) computed in memory is at machine precision
+(\(\sim10^{-16}\)); the \(\sim10^{-7}\) seen in stored spectra is the
+\code{\%.6e} text format, not a physical error.
+
+\subsection{Unit cell and shape discretisation}
+\label{sec:geometry}
+
+\code{geometry.lattice.type} selects the Bravais cell. \code{square} builds
+vectors \((x,0),(0,x)\) and \emph{ignores} \code{lattice.y}. \code{hexagonal}
+builds \((x,0),(0,y)\) and additionally places a second copy of every circular
+motif at the cell centre \((x/2,y/2)\): the hexagonal array is represented as a
+centred-rectangular supercell with two motifs. For nearest-neighbour pitch
+\(p\), the correct entries are
+
+\begin{equation}
+x=\sqrt{3}\,p,\qquad y=p,
+\end{equation}
+
+which places all nearest neighbours at distance \(p\).
+\marginalia{A centred-rectangular cell with aspect ratio \(\sqrt3:1\) and a
+mid-cell motif is the standard representation of a triangular (hexagonal)
+lattice --- not a coincidence of this code.}
+The centred motif is
+added only for \code{cylinder}, \code{sphere}, and \code{semisphere}; for
+\code{triangle} and \code{grating} a hexagonal setting changes the cell vectors
+but yields a single motif, so those shapes are effectively rectangular.
+
+Curved shapes are stacks of uniform slices, since S4 layers are
+\(z\)-invariant. For a sphere or hemisphere of radius \(a\) discretised into
+\(N=\)~\code{discretization\_layers} slices of thickness
+\(\delta=2a/N\), slice \(i\) is a circle of radius
+
+\begin{equation}
+r_i=\sqrt{\max\!\left(a^2-(y_i-a)^2,\;0\right)},
+\qquad y_i = 2a-\tfrac{\delta}{2}-i\,\delta .
+\end{equation}
+
+A hemisphere keeps the top \(\lfloor N/2\rfloor\) whole slices and, for odd
+\(N\), one half-thickness slice straddling the equator, so the dome spans
+exactly \(a\) for either parity. A triangle of base \(b\) and height \(H\) uses
+rectangles of half-width \(b\,y/2H\). \code{grating} is a one-dimensional
+lamellar layer: ridges of \code{photonic\_material} with period
+\code{lattice.x}, duty \(r\), and a vacuum groove of half-width
+\((1-r)\,p/2\) spanning the full cell in \(y\).
+
+\(N\) is a convergence parameter, not a free choice: a slice stack is a
+staircase approximation of a curved surface, and only \code{cylinder},
+\code{grating}, and \code{flat} are represented exactly.
+
+\subsection{Directions and polarization}
+\label{sec:directions}
+
+One YAML case supports one of three modes:
+
+\begin{itemize}
+  \item \code{normal}: \(\theta=0\);
+  \item \code{specific}: one user-defined polar angle \(\theta\) and azimuth
+        \(\phi\);
+  \item \code{hemispherical}: a two-dimensional \((\theta,\phi)\) quadrature.
+\end{itemize}
+
+\code{polarization} is \code{TE}, \code{TM}, or \code{unpolarized}. TE and TM
+are never assumed equal solely because \(\theta=0\); anisotropic unit cells such
+as one-dimensional gratings can give different normal-incidence responses.
+Unpolarized output is
+
+\begin{equation}
+X_{\mathrm{unpol}}=\frac{X_{\mathrm{TE}}+X_{\mathrm{TM}}}{2},
+\qquad X\in\{R,T,A,A_{\mathrm{Si}}\}.
+\end{equation}
+
+For one polarization \(p\), the hemispherical property is
+
+\begin{equation}
+X_{\mathrm{h},p}(\lambda)=\frac{1}{\pi}
+\int_0^{2\pi}\int_0^{\pi/2}
+X_p(\lambda,\theta,\phi)\cos\theta\sin\theta
+\,d\theta\,d\phi.
+\end{equation}
+
+The implementation applies Gauss--Legendre quadrature in
+\(u=\sin^2\theta\) and a uniform periodic azimuth rule. It avoids the grazing
+endpoint and includes a separate zero-weight normal probe for the PV
+luminescence term. Quadrature weights sum to one. A true hemispherical result
+therefore requires convergence with respect to both
+\code{hemisphere\_theta\_points} and
+\code{hemisphere\_azimuth\_points}.
+
+\subsection{Emittance and Kirchhoff's law}
+\label{sec:kirchhoff}
+
+The code labels total absorptance as emittance using directional Kirchhoff
+reciprocity,
+
+\begin{equation}
+\epsilon_p(\lambda,\theta,\phi,T)
+=A_p(\lambda,\theta,\phi,T).
+\end{equation}
+\marginalia{The equality is per direction, wavelength, polarization, and
+temperature --- not a single scalar statement that a surface simply `is' some
+one emittance.}
+
+This identification requires a passive reciprocal structure in local thermal
+equilibrium, evaluated with the same wavelength, direction, polarization, and
+temperature-dependent material state. It is not automatically valid for
+nonreciprocal, active, nonlinear, or nonequilibrium emitters. The present
+material models are temperature-independent.
+
+\subsection{Materials and numerical validity}
+\label{sec:materials}
+
+Tabulated models interpolate \(n\) and \(k\) linearly and use
+\(\epsilon=(n+ik)^2\). Requests outside a table's wavelength interval raise an
+error; endpoint clamping and silent extrapolation are forbidden. The Akerboom case
+uses the unmodified refractiveindex.info Olmon evaporated-Au record. Its
+SiO2 and Si refractive-index tables are inherited from an earlier
+implementation: the former is labelled Palik/Kitamura; the latter has
+no bibliographic source and is made lossless to implement the paper's explicit
+nonabsorbing-Si assumption. The current refractiveindex.info database has no
+records labelled with the paper-cited Palik/Kitamura Si or SiO2 sources. This
+provenance gap is retained as a limitation rather than silently replacing the
+models.
+
+Every scientific result must demonstrate:
+
+\begin{enumerate}
+  \item passivity and finite \(R,T,A,A_{\mathrm{Si}}\), with
+        \(R+T+A\approx1\);
+  \item convergence in S4 Fourier basis size;
+  \item for hemispherical results, convergence in both angular counts.
+\end{enumerate}
+
+\section{Atmosphere, thermal balance, and PV model}
+
+\subsection{Atmospheric and thermal radiation}
+\label{sec:atmosphere}
+
+For zenith transmittance \(\tau_{\mathrm{atm}}(\lambda)\), the directional
+atmospheric emittance is
+
+\begin{equation}
+\epsilon_{\mathrm{atm}}(\lambda,\theta)
+=1-\tau_{\mathrm{atm}}(\lambda)^{1/\cos\theta}.
+\end{equation}
+
+The surface--atmosphere product is integrated with the same angular quadrature
+as the surface emittance. With Planck spectral radiance \(B_\lambda(T)\),
+
+\begin{align}
+P_{\mathrm{rad}}(T)
+ &= \pi\int \epsilon_{\mathrm{h}}(\lambda)B_\lambda(T)\,d\lambda,\\
+P_{\mathrm{atm}}(T_{\mathrm{amb}})
+ &= \pi\int
+ \left\langle\epsilon\epsilon_{\mathrm{atm}}\right\rangle_{\mathrm{h}}
+ B_\lambda(T_{\mathrm{amb}})\,d\lambda,\\
+P_{\mathrm{conv}}(T)
+ &= h\left(T-T_{\mathrm{amb}}\right).
+\end{align}
+
+The convection coefficient \(h\) is the total effective nonradiative
+coefficient for the reference area used by the balance. It is an external
+lumped-model input and is not deduced from geometry or weather data. A
+per-surface coefficient must be combined explicitly by the user; the library
+does not multiply \(h\) by an assumed number of exposed surfaces.
+\marginalia{\(h\) is a single lumped number for everything non-radiative:
+convection and any other loss the user has not separated out.}
+
+\code{rad\_power} returns the radiance integral
+\(\int\epsilon(\lambda)B_\lambda(T)\,\mathrm{d}\lambda\) in
+\(\mathrm{W\,m^{-2}\,sr^{-1}}\), with
+
+\begin{equation}
+B_\lambda(T)=\frac{2hc^2}{\lambda^5}
+\left[\exp\!\left(\frac{hc}{\lambda k_B T}\right)-1\right]^{-1},
+\end{equation}
+
+evaluated on the micrometre grid. The caller multiplies by \(\pi\) to integrate
+the cosine-weighted hemisphere, so \(\pi\int B_\lambda\,\mathrm{d}\lambda\) over
+a broad band reproduces \(\sigma T^4\); that identity is a useful check on any
+new wavelength range. Because the integral is trapezoidal on the configured
+grid, a range that truncates the Planck peak silently understates
+\(P_{\mathrm{rad}}\): at \(300~\mathrm{K}\) the peak lies near
+\(9.7~\mathrm{\mu m}\) and a \(4\)--\(30~\mathrm{\mu m}\) window is the usual
+minimum.
+
+\subsection{Solar absorption and steady state}
+\label{sec:solar}
+
+Total absorbed solar power is
+
+\begin{equation}
+P_{\mathrm{sun}}=\int A(\lambda)I_{\mathrm{AM1.5G}}(\lambda)\,d\lambda.
+\end{equation}
+
+\begin{sloppypar}
+For a literature cooling curve that prescribes absorbed solar power directly,
+the \code{absorbed\_solar\_power} key in the \code{thermal} section overrides
+this integral. The Akerboom case uses the paper value
+\(808~\mathrm{W\,m^{-2}}\).
+\end{sloppypar}
+
+The cooling-power convention is
+
+\begin{equation}
+P_{\mathrm{cool}}(T)=
+P_{\mathrm{rad}}-P_{\mathrm{atm}}+P_{\mathrm{conv}}-P_{\mathrm{sun}}
++P_{\mathrm{MPP}}+P_{\mathrm{nt}},
+\end{equation}
+
+where \(P_{\mathrm{MPP}}\) is electrical power removed from the cell and
+\(P_{\mathrm{nt}}\) is the non-thermal luminescence term. Equilibrium satisfies
+\(P_{\mathrm{cool}}(T_{\mathrm{eq}})=0\).
+
+Cooling-curve cases specify their temperature interval in YAML. Standard PV
+cases evaluate \(T_{\mathrm{amb}}\) through \(T_{\mathrm{amb}}+150~\mathrm{K}\).
+If the balance does not bracket a root, the run raises an error. It never
+reports a sweep endpoint as an equilibrium temperature.
+
+\subsection{I--V calculation}
+\label{sec:ivcalc}
+
+The short-circuit current uses IQE, silicon-layer absorptance, and the solar
+photon flux up to the silicon bandgap:
+
+\begin{equation}
+J_{\mathrm{sc}}=q\int_0^{\lambda_g}
+\mathrm{IQE}(\lambda)A_{\mathrm{Si}}(\lambda)
+\Phi_{\mathrm{sun}}(\lambda)\,d\lambda.
+\end{equation}
+
+At each \(T,V\), the current density \(J\) solves
+
+\begin{multline}
+0=-J+\frac{V-JR_s}{R_{\mathrm{sh}}}
++J_0(T)\left[
+\exp\left(\frac{q(V-JR_s)}{k_BT}\right)-1\right]\\
++J_{\mathrm{Auger}}(T,V)-J_{\mathrm{sc}}.
+\end{multline}
+
+Output power is \(-JV\). Each voltage is solved with \code{scipy.optimize.fsolve},
+warm-started from the previous voltage's solution, which keeps the strongly
+exponential diode equation in its convergence basin across the sweep.
+
+The saturation current is itself a spectral integral rather than a fitted
+constant, using the same IQE and silicon absorptance against a blackbody photon
+flux at the cell temperature:
+
+\begin{equation}
+J_0(T)=q\int_0^{\lambda_g}
+\mathrm{IQE}(\lambda)A_{\mathrm{Si}}(\lambda)\Phi_{\mathrm{bb}}(\lambda,T)
+\,\mathrm{d}\lambda .
+\end{equation}
+
+Auger recombination uses the intrinsic carrier concentration
+
+\begin{equation}
+n_i = 5.29\times10^{19}
+\left(\frac{T}{300}\right)^{2.54}
+\exp\!\left(\frac{-6726}{T}\right)~\mathrm{cm^{-3}},
+\end{equation}
+
+with a coefficient \(A(T)\) interpolated from five tabulated points
+(\(195\)--\(372~\mathrm{K}\), \(3.03\)--\(4.55\times10^{-31}~\mathrm{cm^6/s}\)),
+giving
+
+\begin{equation}
+J_{\mathrm{Auger}}=2qA(T)n_i^3 d_{\mathrm{Si}}
+\exp\!\left(\frac{3qV}{2k_BT}\right).
+\end{equation}
+
+Extrapolating outside that temperature range flattens to the endpoint values,
+so results far outside \(195\)--\(372~\mathrm{K}\) should be treated as
+unsupported.
+
+The band-gap wavelength preserves a scalar-reduction convention from an
+earlier implementation: it evaluated \(E_{g0}-\alpha T^2/(T+\beta)\) with
+matrix right division on a row vector, which collapses to the single scalar
+\(\alpha\,(T^2\!\cdot\!(T+\beta))/((T+\beta)\!\cdot\!(T+\beta))\). One
+\(\lambda_g\) therefore serves the whole temperature sweep. This is a
+model-compatibility choice, not a temperature-resolved band-gap model, and it
+sets the upper limit of every spectral integral above.
+
+\subsection{Solving for the operating point}
+\label{sec:fixedpoint}
+
+\(P_{\mathrm{MPP}}\) and the luminescence term depend on \(V_{\mathrm{mpp}}\),
+which depends on the temperature that the balance is trying to find. The code
+resolves this by fixed-point iteration from \(V_{\mathrm{mpp}}=0.65~\mathrm{V}\):
+assemble the balance, locate \(T_{\mathrm{eq}}\), re-evaluate the power curve
+there, and refine \(V_{\mathrm{mpp}}\), stopping once successive values agree to
+the configured tolerance. Failure to settle raises a
+\code{RuntimeWarning} naming the last value rather than silently returning it.
+
+Three numerical choices matter for reproducibility, and all three depart
+deliberately from an earlier grid-based implementation:
+
+\begin{itemize}
+  \item \textbf{Equilibrium temperature} is the linearly interpolated zero
+        crossing of \(P_{\mathrm{cool}}\), not the nearest grid point. A balance
+        that never crosses zero, or is already non-negative at the lowest swept
+        temperature, raises an error naming the swept interval. An endpoint is
+        never reported as a solution.
+  \item \textbf{MPP and \(V_{\mathrm{mpp}}\)} come from a three-point parabolic
+        fit through the largest sample and its neighbours, so they are not
+        quantised to the \code{thermal.voltage} step. It falls back to the raw
+        sample at a boundary or for collinear points.
+  \item \textbf{\(V_{\mathrm{oc}}\)} is the interpolated crossing of \(-J\). A
+        prior grid-search approach returned the last grid point before the
+        crossing, biasing \(V_{\mathrm{oc}}\) low by up to one step
+        (\(7~\mathrm{mV}\) on the default sweep).
+\end{itemize}
+\marginalia{All three choices trade a small, deliberate departure from an
+earlier grid-based implementation for an answer that does not depend on where
+the sweep happened to land a grid point.}
+
+Every equilibrium quantity is then reported at that same interpolated
+temperature, so \(T_{\mathrm{eq}}\), \(P_{\mathrm{MPP}}\),
+\(V_{\mathrm{oc}}\), and the fill factor describe one consistent operating
+point.
+
+\subsection{Temperature reduction}
+\label{sec:tempreduction}
+
+When \code{thermal.reference\_temperature} is supplied,
+
+\begin{equation}
+\Delta T_{\mathrm{reduction}}
+=T_{\mathrm{reference}}-T_{\mathrm{eq}}.
+\end{equation}
+
+The user must define the reference physically, for example the operating
+temperature of a bare module under the same boundary conditions. The library
+does not invent or silently substitute a reference.
+
+\section{Numerical methods and their failure modes}
+\label{sec:numerics}
+
+\begin{table}[ht]
+\centering
+\small
+\begin{tabular}{L{30mm}L{37mm}L{49mm}}
+\toprule
+Step & Method & Fails when\\
+\midrule
+Polar quadrature & Gauss--Legendre in \(u=\sin^2\theta\) &
+too few nodes for a sharply directional emitter\\
+Azimuth quadrature & uniform periodic rule &
+anisotropic cells with few azimuth points\\
+Material \(n,k\) & linear interpolation, extrapolation refused &
+requested \(\lambda\) outside the table (raises)\\
+Spectral integrals & trapezoidal on the configured grid &
+grid truncates the Planck peak or undersamples the solar band\\
+Band averages & exact band, endpoints interpolated &
+band not spanned by the grid (omitted, never zero)\\
+Diode I--V & \code{fsolve}, warm-started per voltage &
+no bracket, or a jump too large between voltages\\
+MPP, \(V_{\mathrm{mpp}}\) & three-point parabolic refinement &
+peak on a sweep boundary (falls back to the sample)\\
+\(V_{\mathrm{oc}}\) & interpolated \(-J\) zero crossing &
+sweep does not bracket it (raises)\\
+\(T_{\mathrm{eq}}\) & interpolated \(P_{\mathrm{cool}}\) zero crossing &
+no crossing in range (raises, never returns an endpoint)\\
+\(V_{\mathrm{mpp}}\) coupling & fixed-point iteration &
+does not settle (warns, naming the last value)\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{sloppypar}
+The band-average row is worth dwelling on, because the obvious implementation
+fails quietly rather than loudly. A legacy convention located each band edge by
+taking the first sample within a fixed \(\pm 0.015~\mathrm{\mu m}\) of it; on a
+grid with no sample that close to 1.12, 4, 8, 13, 17 or 24 \(\mu\)m the average
+returned \(0.0\) rather than raising, and that zero reached \code{run.json} as
+though it were a result. Whether it happened was essentially luck: on a
+\(0.3\)--\(24.9~\mathrm{\mu m}\) grid, \(n=400\) finds four of the six edges,
+\(n=800\) finds five, and only \(n=1600\) finds all six.
+\marginalia{Choosing a wavelength range freely is only safe once the band
+averages stop depending on where the samples happen to land.}
+
+Both \code{band\_average} and \code{pv\_band\_averages} now integrate exactly
+the band requested, interpolating the two endpoints onto the grid, so the value
+does not depend on whether a sample lands on an edge. A band the grid does not
+span returns \code{None} and is omitted from the manifest. A missing key
+therefore means ``not covered by this grid'', never ``zero''. This is what lets
+the wavelength range be chosen for the problem at hand rather than for the band
+edges.
+\end{sloppypar}
+
+\section{YAML examples}
+\label{sec:examples}
+
+\subsection{Configuration key reference}
+\label{sec:configref}
+
+The \code{run} block selects which stages execute:
+
+\begin{itemize}
+  \item \code{optics: true} runs the optical simulation (S4 or the freeform
+        solver) to compute the spectral reflectance/emittance; \code{false}
+        skips it, and \code{run.optics\_results} must then point at a prior
+        optics-run results folder (a five-column spectrum file), since the
+        thermal stage needs a spectrum to consume. E.g.\
+        \code{run: \{optics: false\}}.
+  \item \code{thermal: true} solves the atmospheric/thermal energy balance
+        and, for a PV case, the I--V curve, from that spectrum; \code{false}
+        skips it, leaving an optics-only run (for example, to write a
+        spectrum with \code{run.optics\_export} without solving anything
+        downstream). E.g.\ \code{run: \{thermal: false\}}.
+  \item \code{plots: true} writes the run's figures alongside its CSV/JSON
+        outputs (Section~\ref{sec:outputs}); \code{false} skips figure
+        generation. E.g.\ \code{run: \{plots: false\}}.
+\end{itemize}
+
+\code{run.mode} selects the physics variant, and which figures it produces:
+
+\begin{itemize}
+  \item \code{standard} (default): the full PV path. Absorbed solar power is
+        the band-integrated spectrum against the AM1.5 irradiance, and the
+        energy balance is solved jointly with the I--V curve for equilibrium
+        temperature, MPP, and \(V_{\mathrm{oc}}\).
+        \textit{Requires} a \code{silicon} layer in \code{structure}: the
+        I--V solve reads its thickness for the Auger term and raises if none
+        is present. E.g.\ \code{run: \{mode: standard\}}.
+  \item \code{test}: a PV-free cooling curve checked against a literature case
+        (Perrakis Fig.~2). Absorbed solar power is pinned to a fixed
+        \(620\ \mathrm{W/m^2}\) test constant instead of the spectrum, and the
+        figure overlays the literature curve.
+        \textit{Requires} \code{run.thermal: true}; it takes no PV-specific
+        config and produces no output when \code{run.thermal} is false. E.g.\
+        \code{run: \{mode: test, optics: false\}}.
+  \item \code{cooling\_curve}: also a PV-free cooling curve, but swept over
+        \code{thermal.cooling\_temperature} (\code{min}/\code{max}/\code{n})
+        rather than a small window near ambient temperature. Absorbed solar
+        power comes from \code{thermal.absorbed\_solar\_power} or the real
+        spectrum, optionally rescaled by \code{thermal.solar\_irradiance}.
+        \textit{Requires} \code{run.thermal: true} and
+        \code{thermal.cooling\_temperature} with \code{max > min} and
+        \code{n} \(\geq\) \code{2}; \code{thermal.solar\_irradiance} and
+        \code{thermal.absorbed\_solar\_power}, when set, must each be
+        positive. E.g.\ \code{run: \{mode: cooling\_curve\}} with
+        \code{thermal: \{cooling\_temperature: \{min: 260.0, max: 380.0,
+        n: 121\}\}}.
+  \item \code{spectral\_compare}: runs neither stage --- it requires
+        \code{run.optics: false} and \code{run.thermal: false} --- and instead
+        overlays the digitized spectra listed in \code{comparison.spectra}
+        on one comparison figure.
+        \textit{Requires} a non-empty \code{comparison.spectra}, each entry
+        giving \code{label} and \code{file}, and \code{comparison.xlim} /
+        \code{comparison.ylim} each holding exactly two values. E.g.\
+        \code{comparison: \{spectra: [\{label: "Digitized", file:
+        data/ref.txt\}]\}}.
+\end{itemize}
+
+The remaining \code{run} keys:
+
+\begin{itemize}
+  \item \code{results\_dir} (default \code{results}): parent folder for the
+        timestamped output directory (Section~\ref{sec:outputs}), resolved
+        relative to the YAML file. E.g.\
+        \code{results\_dir: results/flat\_pdms}.
+  \item \code{write\_outputs} (default \code{true}): write the timestamped
+        CSV/JSON folder. \code{false} is for tests or programmatic use; it
+        does not affect \code{run.optics\_export}, which is written whenever
+        set, by explicit path. E.g.\ \code{write\_outputs: false}.
+  \item \code{optics\_results}: path to a prior optics folder or reduced
+        spectrum file, read when \code{optics: false}. \textit{Requires} a
+        value whenever \code{thermal: true} and \code{optics: false}. E.g.\
+        \code{optics\_results: data/Fig. 3C red/opticalProps-PVcode.txt}.
+  \item \code{optics\_results\_angles} (default \code{hemispherical}): a
+        provenance label recorded in \code{run.json}, not a behavioural
+        switch --- \code{normal} and \code{hemispherical} read the same file
+        identically. \textit{Requires} \code{normal} or
+        \code{hemispherical}. E.g.\ \code{optics\_results\_angles: normal}.
+  \item \code{optics\_results\_emittance\_column}: zero-based column to read
+        as hemispherical emittance from a digitized multi-column table (column
+        \(0\) is wavelength). \textit{Requires} \(\geq 1\) when set. E.g.\
+        \code{optics\_results\_emittance\_column: 2}.
+  \item \code{optics\_export}: path to write the resumable five-column
+        spectrum (\code{lambda\_um R T emit abs\_si}) for a later
+        \code{optics\_results} to read back. E.g.\
+        \code{optics\_export: data/optics/case.txt}.
+\end{itemize}
+
+\code{simulation.wavelength} sets the spectral grid as \code{min}/\code{max}/
+\code{n} in \(\mu\)m, linearly spaced. \textit{Requires} \code{min} \(>\)
+\(0\), \code{max} \(>\) \code{min}, and \code{n} \(\geq\) \code{2}. E.g.\ the
+full-spectrum default, \code{wavelength: \{min: 0.3, max: 30.0, n: 2000\}}.
+
+\code{simulation.angles} selects one of three direction modes
+(Section~\ref{sec:directions} gives the physics):
+
+\begin{itemize}
+  \item \code{normal}: one direction at \(\theta=0\), \(\phi=\)
+        \code{azimuth\_angle\_deg}. E.g.\ \code{angles: normal}.
+  \item \code{specific}: one direction at \(\theta=\)
+        \code{polar\_angle\_deg}, \(\phi=\)
+        \code{azimuth\_angle\_deg}. \textit{Requires}
+        \code{polar\_angle\_deg} \(\in[0,90)\). E.g.\
+        \code{angles: specific, polar\_angle\_deg: 35.0,
+        azimuth\_angle\_deg: 90.0}.
+  \item \code{hemispherical} (default): Gauss--Legendre quadrature over
+        \code{hemisphere\_theta\_points} \(\times\)
+        \code{hemisphere\_azimuth\_points} directions (default
+        \(8\times12=96\)), plus one zero-weight normal probe.
+        \textit{Requires} both point counts \(\geq 1\). A live S4 thermal run
+        additionally requires \code{angles: hemispherical}: a directional
+        spectrum cannot define the radiative energy balance. E.g.\
+        \code{angles: hemispherical, hemisphere\_theta\_points: 8,
+        hemisphere\_azimuth\_points: 12}.
+\end{itemize}
+
+The remaining direction and polarization keys:
+
+\begin{itemize}
+  \item \code{polar\_angle\_deg} (default \(0\)): polar angle, read only by
+        \code{specific}. E.g.\ \code{polar\_angle\_deg: 35.0}.
+  \item \code{azimuth\_angle\_deg} (default \(0\)): azimuth, read by
+        \code{normal} and \code{specific}. \textit{Requires} \([0,360)\) in
+        any mode. E.g.\ \code{azimuth\_angle\_deg: 90.0}.
+  \item \code{polarization}: \code{TE}, \code{TM}, or \code{unpolarized}
+        (default; averages TE and TM equally). E.g.\ \code{polarization: TM}.
+  \item \code{s4\_modes} (default \(10\)): S4 Fourier truncation
+        (\code{NumBasis}). \textit{Requires} \(\geq 1\); read only when
+        \code{geometry.source: s4}. E.g.\ \code{s4\_modes: 80}.
+\end{itemize}
+
+\code{geometry.*} configures a live S4 sweep; every key below is validated
+only when \code{run.optics: true} and \code{geometry.source: s4}
+(Section~\ref{sec:geometry} gives the shape mathematics). With
+\code{run.optics: false} the frozen spectrum at \code{run.optics\_results}
+governs the result and \code{geometry}/\code{structure} are not consulted at
+all, silicon thickness for the Auger term excepted.
+
+\begin{itemize}
+  \item \code{source} (default \code{s4}): \code{s4} runs a live sweep;
+        \code{freeform} instead loads a precomputed dataset (\(\lambda\),
+        total reflectance, total absorptance, \ldots, silicon absorptance in
+        column \(6\)) from \code{geometry.freeform.file}, interpolated onto
+        \code{simulation.wavelength.n} points spanning the file's own range.
+        \textit{Requires} \code{s4} or \code{freeform}; \code{freeform}
+        additionally requires \code{geometry.freeform.file} to be set. E.g.\
+        \code{geometry: \{source: freeform, freeform: \{file:
+        data/optics\_dataset.csv\}\}}.
+  \item \code{shape}: \code{flat}, \code{sphere}, \code{semisphere},
+        \code{triangle}, \code{cylinder}, or \code{grating}. Each non-flat
+        shape reads its parameters from a same-named block, \emph{except}
+        \code{semisphere}, which reuses \code{sphere: \{radius: ...\}}.
+        \textit{Requires}: \code{sphere}/\code{semisphere} need
+        \code{radius}; \code{triangle} needs \code{base} and \code{height};
+        \code{cylinder} needs \code{radius} and \code{height}; \code{grating}
+        needs \code{duty} \(\in(0,1)\) and \code{depth}. All lengths must be
+        \(>0\); \code{grating}'s period is \code{lattice.x}, not a separate
+        key. E.g.\ \code{shape: cylinder, cylinder: \{radius: 1.75,
+        height: 2.25\}}.
+  \item \code{photonic\_material} (default \code{sio2}): the shape's
+        material key, resolved through \code{materials} like every layer.
+        E.g.\ \code{photonic\_material: sio2}.
+  \item \code{lattice.type}: \code{square} (ignores \code{lattice.y}) or
+        \code{hexagonal} (Section~\ref{sec:geometry}).
+        \code{lattice.x}/\code{lattice.y} (default \(20\ \mu\)m): cell
+        vectors. \textit{Requires} both \(>0\). E.g.\
+        \code{lattice: \{type: hexagonal, x: 10.608811, y: 6.125\}}.
+  \item \code{discretization\_layers} (default \(1\)): slice count
+        approximating a curved shape. \textit{Requires} \(\geq 1\) for
+        \code{sphere}, \code{semisphere}, and \code{triangle}; unused for
+        \code{cylinder}, \code{grating}, and \code{flat}, which are
+        represented exactly. E.g.\ \code{discretization\_layers: 20}.
+\end{itemize}
+
+\code{structure} is the ordered layer stack, incident medium first
+(Section~\ref{sec:s4problem}). Each entry is \code{\{material, thickness,
+terminal\}} (\code{terminal} default \code{false}), thickness in \(\mu\)m.
+\textit{Requires}, for a live S4 sweep: a non-empty list; exactly one layer
+\code{terminal: true}, which must be last and have \code{thickness: 0} (S4
+treats it as semi-infinite); every thickness \(\geq 0\); and at most one
+layer with \code{material: silicon}. Outside a live sweep, only that silicon
+layer's thickness is read, for the Auger term (Section~\ref{sec:ivcalc}). E.g.\
+\code{structure: [\{material: silicon, thickness: 250.0\}, \{material:
+substrate, thickness: 0.0, terminal: true\}]}.
+
+\code{materials} maps every material name used in
+\code{geometry.photonic\_material} and \code{structure} to a tabulated or
+analytic model key (Section~\ref{sec:materials}). \textit{Requires} every
+such name to appear here, except \code{vacuum}, which is built in. E.g.\
+\code{materials: \{sio2: PalikKitamura\_SiO2, silicon:
+Akerboom\_Si\_lossless\}}.
+
+\code{thermal.*} parameterizes the energy balance and, for \code{standard}
+mode, the I--V solve:
+
+\begin{itemize}
+  \item \code{ambient\_temperature} (default \(298\) K) and
+        \code{convection\_coefficient} (default \(12\ \mathrm{W/m^2K}\)):
+        \(T_{\mathrm{amb}}\) and the lumped nonradiative coefficient \(h\)
+        (Section~\ref{sec:atmosphere}). E.g.\
+        \code{thermal: \{ambient\_temperature: 298.0,
+        convection\_coefficient: 12.0\}}.
+  \item \code{voltage: \{min, max, n\}} (default \(0.1\)--\(0.8\) V,
+        \(100\) points): the I--V sweep (Section~\ref{sec:ivcalc}).
+        \textit{Requires} \code{n} \(\geq 2\). E.g.\
+        \code{voltage: \{min: 0.1, max: 0.8, n: 100\}}.
+  \item \code{equilibrium} (default \code{auto}): \code{auto} finds
+        \(T_{\mathrm{eq}}\) and \(V_{\mathrm{mpp}}\) by fixed-point iteration
+        (Section~\ref{sec:fixedpoint}); \code{manual} instead takes
+        \code{emit\_temp} and \code{vmpp} directly, for MATLAB parity.
+        \textit{Requires} \code{auto} or \code{manual}. E.g.\
+        \code{equilibrium: manual}.
+  \item \code{cooling\_temperature: \{min, max, n\}}: the swept temperature
+        range, read only in \code{run.mode: cooling\_curve} (required there;
+        see above). E.g.\
+        \code{cooling\_temperature: \{min: 260.0, max: 380.0, n: 121\}}.
+  \item \code{solar\_irradiance}: in \code{cooling\_curve} mode, rescales
+        the computed solar power by \code{solar\_irradiance}\,/\,AM1.5-total;
+        unused otherwise. \textit{Requires} \(>0\) when set. E.g.\
+        \code{solar\_irradiance: 900.0}.
+  \item \code{absorbed\_solar\_power}: in \code{cooling\_curve} mode,
+        overrides the band-integrated solar power with a direct value
+        (Section~\ref{sec:solar}), e.g.\ a paper's stated
+        \(P_{\mathrm{sun}}\); unused in \code{standard} or \code{test}.
+        \textit{Requires} \(>0\) when set. E.g.\
+        \code{absorbed\_solar\_power: 808.0}.
+  \item \code{reference\_curve\_file}/\code{reference\_curve\_column}
+        (column default \(1\)): a digitized curve overlaid on the
+        \code{cooling\_curve} figure; column \(0\) is temperature. E.g.\
+        \code{reference\_curve\_file: data/digitized\_curve.txt,
+        reference\_curve\_column: 2}.
+  \item \code{reference\_temperature}: enables the temperature-reduction
+        report, \(\Delta T=T_{\mathrm{reference}}-T_{\mathrm{eq}}\)
+        (Section~\ref{sec:tempreduction}). \textit{Requires} \(>0\) K when
+        set. E.g.\ \code{reference\_temperature: 360.0}.
+  \item \code{emit\_temp} (default \(319\) K) / \code{vmpp} (default
+        \(0.6586\) V): fixed operating point, read only when
+        \code{equilibrium: manual}. E.g.\
+        \code{emit\_temp: 319.0, vmpp: 0.6586}.
+\end{itemize}
+
+\code{thermal.pv.*} configures the diode model (Section~\ref{sec:ivcalc}):
+
+\begin{itemize}
+  \item \code{series\_resistance} (default \(0.00011\ \Omega\,\mathrm{m^2}\))
+        and \code{shunt\_resistance} (default \(0.1\ \Omega\,\mathrm{m^2}\)):
+        \(R_s\) and \(R_{\mathrm{sh}}\) in the diode equation. E.g.\
+        \code{pv: \{series\_resistance: 0.00011, shunt\_resistance: 0.1\}}.
+  \item \code{bandgap.\{eg0, alpha, beta\}} (default \(1.166\),
+        \(4.73\times10^{-4}\), \(636\)): the \(E_{g0}-\alpha T^2/(T+\beta)\)
+        band-gap model. E.g.\
+        \code{bandgap: \{eg0: 1.166, alpha: 4.73e-4, beta: 636\}}.
+  \item \code{iqe\_file} (default bundled \code{data/siliconIQE.txt}):
+        internal quantum efficiency table for \(J_{\mathrm{sc}}\) and
+        \(J_0\). E.g.\ \code{iqe\_file: data/siliconIQE.txt}.
+\end{itemize}
+
+\code{data.solar\_spectrum} and \code{data.atmosphere} point to the AM1.5
+spectrum and the atmospheric transmittance table, each resolved relative to
+the YAML file, then falling back to the file bundled with the package under
+the same basename --- so a config may name the default file without a path.
+E.g.\ \code{data: \{solar\_spectrum: data/astmg173.xlsx, atmosphere:
+data/cptrans\_nq\_100\_15.dat\}}.
+
+\code{comparison.*} configures \code{run.mode: spectral\_compare}
+(\code{spectra}, \code{xlim}, and \code{ylim}, with their requirements, are
+given above); \code{xlabel}, \code{ylabel}, \code{title}, and
+\code{output\_file} are cosmetic, defaulted for a mid-/long-wave emissivity
+comparison. E.g.\ \code{comparison: \{title: "PDMS emissivity", output\_file:
+pdms\_comparison.png\}}.
+
+\subsection{One file with multiple cases}
+
+A top-level \code{cases} list lets one YAML file define several named runs.
+The CLI executes them in order:
+
+\begin{lstlisting}
+cases:
+  - name: normal_TE
+    run: {optics: true, thermal: false}
+    simulation:
+      wavelength: {min: 8.0, max: 13.0, n: 201}
+      angles: normal
+      polarization: TE
+    # geometry, structure, materials, and data follow
+  - name: directional_TM
+    run: {optics: true, thermal: false}
+    simulation:
+      wavelength: {min: 8.0, max: 13.0, n: 201}
+      angles: specific
+      polar_angle_deg: 35.0
+      azimuth_angle_deg: 90.0
+      polarization: TM
+\end{lstlisting}
+
+YAML anchors may hold shared sections. The Akerboom case uses one such file for twelve
+cases and references digitized text data directly; no helper script is needed.
+
+\subsection{Normal and directional emittance}
+
+\begin{lstlisting}
+run:
+  optics: true
+  thermal: false
+  plots: false
+  write_outputs: true
+
+simulation:
+  wavelength: {min: 8.0, max: 13.0, n: 300}
+  angles: specific
+  polar_angle_deg: 35.0
+  azimuth_angle_deg: 90.0
+  polarization: TM
+  s4_modes: 80
+\end{lstlisting}
+
+For normal incidence, set \code{angles: normal}; the requested TE, TM, or both
+are still computed explicitly.
+
+\subsection{Hemispherical emittance}
+
+\begin{lstlisting}
+simulation:
+  wavelength: {min: 3.0, max: 30.0, n: 1000}
+  angles: hemispherical
+  polarization: unpolarized
+  hemisphere_theta_points: 8
+  hemisphere_azimuth_points: 12
+  s4_modes: 100
+\end{lstlisting}
+
+A live S4 thermal case requires \code{angles: hemispherical}: the energy balance
+integrates emissivity over the hemisphere, so a single normal-incidence spectrum
+does not define it. Convergence must be checked by increasing the polar-angle
+count, azimuth count, and S4 Fourier basis size independently.
+
+That requirement is what makes a live thermal run expensive. The solver cost
+scales as
+\(n_\lambda \times n_\theta \times n_\phi \times n_{\mathrm{pol}}\):
+the listing above is \(1000\) wavelengths over \(8\times12=96\) quadrature
+directions, plus one zero-weight normal probe, and an unpolarized case evaluates
+both TE and TM at every one of those points. Changing a convection coefficient
+or an ambient temperature does not change any of it.
+
+The practical workflow is therefore to run the optics once, write the reduced
+spectrum, and re-drive the thermal stage from that file with
+\code{run.optics\_results}, which costs no S4 time. Group B of the Akerboom case
+is built this way, and so is any run driven by measured data: with
+\code{run.optics: false} the S4 module is never imported at all, so the whole
+thermal and PV chain works on a machine that has no solver built.
+
+To chain the two runs without any intermediate step, set
+\code{run.optics\_export} in the optics case to a fixed path and point
+\code{run.optics\_results} at that same path in the thermal case. These are the
+write and read halves of one five-column format
+(\code{lambda\_um R T emit abs\_si}). The export is written even when
+\code{run.write\_outputs} is false, because it is requested by explicit path.
+Note that \code{optics.csv} cannot be reused here: it is comma-separated with a
+text header, which the resume reader rejects, and it lands in a timestamped
+folder that a later case cannot name in advance.
+\code{examples/freeform\_pv.yaml} is the minimal end-to-end example: optics,
+energy balance and cell, with no S4.
+
+A resumed spectrum retains no directional information, so the atmospheric term
+is angle-independent whatever the file represents. Be aware that
+\code{run.optics\_results\_angles} does not change this, or any other number:
+it is recorded in \code{run.json} and in the export header as a statement of
+what the stored spectrum is, and \code{normal} and \code{hemispherical} produce
+bit-identical results. Driving the thermal stage from a normal-incidence
+spectrum remains an angle-independent approximation rather than a hemispherical
+calculation, and must be reported as such --- but it is the provenance of the
+file, not this key, that makes it so.
+
+\subsection{Layer stack and materials}
+
+\begin{lstlisting}
+geometry:
+  source: s4
+  shape: cylinder
+  photonic_material: sio2
+  lattice: {type: hexagonal, x: 10.608811, y: 6.125}
+  cylinder: {radius: 1.75, height: 2.25}
+
+structure:
+  - {material: sio2, thickness: 500.0}
+  - {material: silicon, thickness: 500.0}
+  - {material: gold, thickness: 0.08}
+  - {material: vacuum, thickness: 0.0, terminal: true}
+
+materials:
+  sio2: PalikKitamura_SiO2
+  silicon: Akerboom_Si_lossless
+  gold: RII_Olmon_2012_ev_Au
+\end{lstlisting}
+
+Exactly one terminal layer is required, it must be last, and its thickness must
+be zero because S4 treats it as semi-infinite.
+
+\subsection{Thermal case and temperature reduction}
+
+\begin{lstlisting}
+thermal:
+  ambient_temperature: 300.0
+  # Calibrated effective total coefficient; the paper states 6.0.
+  convection_coefficient: 12.54
+  absorbed_solar_power: 808.0
+  reference_temperature: 360.0
+  cooling_temperature: {min: 260.0, max: 380.0, n: 121}
+  equilibrium: auto
+\end{lstlisting}
+
+For a digitized table whose first column is wavelength and later columns are
+different measured emittances, set
+\code{run.optics\_results\_emittance\_column} to the desired zero-based column.
+Column zero is reserved for wavelength.
+
+\section{Outputs and reproducibility}
+\label{sec:outputs}
+
+New runs write:
+
+\begin{itemize}
+  \item \code{optics.csv}: selected directional or hemispherical spectrum;
+  \item \code{optics\_directional.csv}: every S4 wavelength, polar angle,
+        azimuth, polarization, angular weight, \(R,T,A,A_{\mathrm{Si}}\);
+  \item \code{iv.csv}, \code{power.csv}, or \code{cooling\_power.csv};
+  \item \code{run.json}: full resolved configuration, Git revision, dirty flag,
+        interpreter/platform, S4 binary hash, input paths and SHA-256 hashes,
+        and scalar results;
+  \item figures when \code{run.plots: true}.
+\end{itemize}
+
+\subsection{The \code{run.json} manifest}
+\label{sec:manifest}
+
+Five top-level keys. \code{resolved\_config} is the complete configuration after
+defaults and validation, so a run can be reproduced without the original YAML.
+\marginalia{\code{resolved\_config} alone is enough to reproduce a run: it is
+the configuration after every default and validation step has already been
+applied.}
+\code{provenance} carries \code{python}, \code{platform}, \code{git\_commit},
+\code{git\_dirty}, \code{inputs} (every resolved input path with its SHA-256),
+and \code{s4} (module path and hash, \code{null} when no live optics ran).
+\code{optics} records \code{angles}, \code{polarization}, \code{n\_lambda},
+\code{wavelength\_range\_um}, and \code{silicon\_from\_emittance} --- the last
+is true when the silicon absorptance was inferred from a supplied emittance
+column rather than solved for, so a PV result resumed from measured data is
+never mistaken for a solved one.
+
+\begin{table}[ht]
+\centering
+\scriptsize
+\begin{tabular}{L{66mm}L{50mm}}
+\toprule
+\code{thermal\_results} key & Meaning\\
+\midrule
+\code{equilibrium\_temperature\_K} & interpolated root of \(P_{\mathrm{cool}}\)\\
+\code{temperature\_reduction\_K} & \(T_{\mathrm{ref}}-T_{\mathrm{eq}}\);
+\code{null} without a reference\\
+\code{vmpp\_V} & converged fixed-point MPP voltage\\
+\code{short\_circuit\_current\_A\_per\_m2} & \(J_{\mathrm{sc}}\)\\
+\code{mpp\_ambient\_W\_per\_m2} & MPP at \(T_{\mathrm{amb}}\)\\
+\code{mpp\_equilibrium\_W\_per\_m2} & MPP at \(T_{\mathrm{eq}}\)\\
+\code{voc\_ambient\_V} & \(V_{\mathrm{oc}}\) at \(T_{\mathrm{amb}}\);
+\code{null} if outside the sweep\\
+\code{voc\_equilibrium\_V} & \(V_{\mathrm{oc}}\) at \(T_{\mathrm{eq}}\)\\
+\code{fill\_factor\_ambient} & \code{null} with \code{voc\_ambient\_V}\\
+\code{fill\_factor\_equilibrium} & fill factor at \(T_{\mathrm{eq}}\)\\
+\code{radiative\_power\_W\_per\_m2} & \(P_{\mathrm{rad}}(T_{\mathrm{eq}})\)\\
+\code{atmospheric\_power\_W\_per\_m2} & \(P_{\mathrm{atm}}\)\\
+\code{convective\_power\_W\_per\_m2} & \(P_{\mathrm{conv}}(T_{\mathrm{eq}})\)\\
+\code{absorbed\_solar\_power\_W\_per\_m2} & \(P_{\mathrm{sun}}\)\\
+\code{non\_thermal\_power\_W\_per\_m2} & \(P_{\mathrm{nt}}(T_{\mathrm{eq}})\)\\
+\code{net\_cooling\_power\_W\_per\_m2} & \(P_{\mathrm{cool}}\), zero at
+\(T_{\mathrm{eq}}\)\\
+\code{temperature\_coefficient\_perc\_per\_K} & \(\beta_P\), negative for
+silicon\\
+\code{efficiency\_equilibrium} & \(P_{\mathrm{mpp}}/\)AM1.5 total\\
+\code{saturation\_current\_equilibrium\_A\_per\_m2} & \(J_0(T_{\mathrm{eq}})\)\\
+\code{auger\_current\_equilibrium\_at\_vmpp\_A\_per\_m2} &
+\(J_{\mathrm{Auger}}(T_{\mathrm{eq}},V_{\mathrm{mpp}})\)\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The six power terms are the energy balance at equilibrium, reported so the
+manifest closes on itself: \(P_{\mathrm{rad}}-P_{\mathrm{atm}}+P_{\mathrm{conv}}
+-P_{\mathrm{sun}}+P_{\mathrm{mpp}}+P_{\mathrm{nt}}=P_{\mathrm{cool}}=0\).
+
+Only a run that actually solves a cell reports the electrical rows. A PV-free
+cooling-curve run omits every one of them rather than writing \(0.0\), which
+would read as ``zero efficiency'' instead of ``no cell was solved''; the same
+rule governs \code{band\_averages\_percent} below.
+
+Ambient and equilibrium appear as pairs so the cost of running hot reads
+directly off the manifest. The ambient \(V_{\mathrm{oc}}\) is the highest in the
+sweep, so a voltage range that legitimately brackets the operating point may not
+reach it; that case reports \code{null} rather than \(0.0\), and does not stop
+the run, because the equilibrium point is the result.
+
+\(J_0\) and \(J_{\mathrm{Auger}}\) exist across the whole \((T,V)\) sweep inside
+\code{IVResult} --- the Auger array spans the whole sweep --- so each
+is interpolated to \(T_{\mathrm{eq}}\), the Auger term additionally at
+\(V_{\mathrm{mpp}}\). The sweeps themselves belong in \code{iv.csv} and
+\code{power.csv}, not in a scalar manifest.
+
+\begin{sloppypar}
+A PV run adds a fifth key, \code{band\_averages\_percent}, holding
+\code{solar\_absorptance\_silicon}, \code{solar\_reflectance},
+\code{subgap\_reflectance}, \code{emittance\_8\_13um} and
+\code{emittance\_broadband}: the weighted averages of
+Section~\ref{sec:numerics}, taken against AM1.5 below the gap and against the
+blackbody at \(T_{\mathrm{eq}}\) above it. A PV-free \code{cooling\_curve} run
+has no operating point to weight them at and omits the key rather than
+reporting zeros. \code{emittance\_broadband} runs from 4 \(\mu\)m to the end of
+the grid, so read it together with \code{optics.wavelength\_range\_um}. A band
+the grid does not span is omitted, never reported as \(0.0\): a missing key
+means ``not covered by this grid'', never ``zero''.
+\end{sloppypar}
+
+Set \code{run.write\_outputs: false} for tests or programmatic validation.
+Historical reference files from the earlier implementation remain only as
+read-only parity fixtures; they are
+never emitted by the active package.
+
+\section{Validation evidence}
+\label{sec:validation}
+
+There is one literature case. It reproduces the paper's optics and fails the
+paper's own stated thermal coefficient, and the failure is the more instructive
+half, so it is kept in view rather than fitted away.
+
+\medskip
+\noindent
+Akerboom, Doeleman, Scherer, Zeman, Smith, Isabella and Garnett, ``Passive
+Radiative Cooling of Silicon Solar Modules with Photonic Silica
+Microcylinders'', \emph{ACS Photonics} \textbf{9} (2022) 3831--3840,
+\code{doi:10.1021/acsphotonics.2c01389}.
+
+\marginalia{Evidence label is doing real work: reproduction, digitized
+comparison, and calibrated fit are not interchangeable claims. This case
+supplies one of each.}
+
+A hexagonal array of silica microcylinders --- radius 1.75 \(\mu\)m, height
+2.25 \(\mu\)m, pitch 6.125 \(\mu\)m --- on 500 \(\mu\)m silica over 500
+\(\mu\)m silicon over 80 nm gold, with the bare module and an unpatterned
+silica slab as references. The gold blocks transmission, so the emissivity is
+\(1-R\). \code{validation/akerboom.yaml} defines twelve cases in three groups:
+
+\begin{lstlisting}[language=bash]
+radcoolpv run validation/akerboom.yaml
+radcoolpv run validation/akerboom.yaml --case B3_cooling_h6_cylinders
+\end{lstlisting}
+
+Group B needs no solver and runs in seconds. Groups A and C call S4 and cost
+roughly four minutes and two hours at the converged settings in the file. A
+case that cannot run does not abort the others.
+
+\subsection{Group A: optics}
+
+Normal-incidence emittance, 2--16 \(\mu\)m in steps of 0.05 \(\mu\)m, 60
+Fourier modes, against Figure 3a. Silicon is modeled as nonabsorbing, which is
+the paper's own stated assumption for the cooling band. Mean emittance over
+7.5--16 \(\mu\)m:
+
+\begin{table}[ht]
+\centering
+\small
+\begin{tabular}{L{45mm}R{25mm}R{25mm}R{25mm}}
+\toprule
+Surface & radcoolpv & Digitized & Paper text\\
+\midrule
+Bare Au/Si        & 0.032 & 0.036 & \(\sim\)3.5\%\\
+Flat silica       & 0.842 & 0.843 & ---\\
+Silica cylinders  & 0.984 & 0.977 & ---\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The optics agree.
+
+\subsection{Group B: cooling curve, and where it breaks}
+
+This group runs the thermal model alone, driven by the \emph{measured}
+emittance digitized from Figure 5a. No geometry, no materials, no solver. The
+isolation is deliberate: a disagreement here belongs to the thermal model
+rather than to the optics. With the coefficient the paper's Methods state,
+\(h=6.0~\mathrm{W\,m^{-2}\,K^{-1}}\):
+
+\begin{table}[ht]
+\centering
+\small
+\begin{tabular}{L{45mm}R{30mm}R{30mm}}
+\toprule
+Surface & radcoolpv & Paper Fig.~5b\\
+\midrule
+Bare Au/Si        & 415.4 K & 360 K\\
+Flat silica       & 360.6 K & 339 K\\
+Silica cylinders  & 355.6 K & 336 K\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+One least-squares fit to all three digitized curves gives
+\(h=12.54~\mathrm{W\,m^{-2}\,K^{-1}}\), which reproduces 359.7/340.1/337.5 K.
+Fitting one coefficient to the curves being reproduced is a calibration, not an
+independent validation of the thermal model, and must not be cited as one.
+Cases \code{B4}--\code{B6} exist so that the fit is labeled rather than hidden.
+
+\marginalia{The zero-emitter check needs no optics at all, which is what makes
+it decisive: it bounds every possible emitter from above.}
+
+The inconsistency is decidable without any optics. Under the paper's stated
+balance a perfect non-emitter radiates nothing and absorbs the stated
+808 W\,m\(^{-2}\), so
+
+\[
+T = T_{\mathrm{amb}} + \frac{P_{\mathrm{sun}}}{h}
+  = 300 + \frac{808}{6} = 434.67~\mathrm{K},
+\]
+
+and every real emitter must land below it. The paper's Figure 5b implies about
+366.5 K for that limit, which no emitter can produce at \(h=6\): reaching it
+requires \(h=12.15~\mathrm{W\,m^{-2}\,K^{-1}}\). Either the stated coefficient
+or the plotted figure is inconsistent with the paper's own equation~2.
+\code{tests/test\_validation\_akerboom.py} pins both halves.
+
+\subsection{Group C: full optical, thermal and electrical result}
+
+0.3--24.9 \(\mu\)m hemispherical with the lossy silicon table. The upper limit
+is set by gold: \code{RII\_Olmon\_2012\_ev\_Au} is tabulated to 24.93 \(\mu\)m
+and the loader refuses to extrapolate.
+
+This group requires the lossy \code{Palik\_Si}, not the
+\code{Akerboom\_Si\_lossless} used by groups A and B. Lossless silicon absorbs
+no sunlight at all, so the photocurrent integrates to zero and the cell reports
+a few millivolts --- a failure that looks like a solver bug and is a materials
+choice.
+
+\begin{table}[ht]
+\centering
+\small
+\begin{tabular}{L{34mm}R{18mm}R{20mm}R{22mm}R{20mm}}
+\toprule
+Surface & \(T_{\mathrm{eq}}\) & Efficiency & \(P_{\mathrm{mpp}}\) & \(\beta_P\)\\
+\midrule
+Bare Au/Si       & 350.5 K & 14.17\% & 142.6 W\,m\(^{-2}\) & \(-0.303\) \%/K\\
+Flat silica      & 329.3 K & 18.09\% & 182.1 W\,m\(^{-2}\) & \(-0.299\) \%/K\\
+Silica cylinders & 327.0 K & 18.64\% & 187.7 W\,m\(^{-2}\) & \(-0.300\) \%/K\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The temperature drops agree with the paper: 21.2 K bare to flat silica against
+21 K, 2.3 K flat to cylinders against 3 K, and 23.5 K bare to cylinders against
+24 K.
+
+\marginalia{The efficiency column is the one to read carefully: it improves for
+a reason the paper's framing does not emphasise.}
+
+Note what the efficiency column does not say. Absorbed sunlight rises from
+507.5 to 598.6 to 614.3 W\,m\(^{-2}\) across the three surfaces, so most of the
+gain is the silica acting as an antireflection coating rather than as a
+radiative cooler.
+
+\subsection{Standing limitations}
+
+The optics are validated against the published spectra. The thermal model is
+not independently validated by this case. This case has not received a fresh
+Fourier-mode convergence sweep at the settings quoted above, and the silica
+cases carry a 2--16 \(\mu\)m residual because the finite stack differs from the
+paper's semi-infinite-silica absorption convention.
+
+\section{Required verification for new cases}
+
+For every new publication or device case:
+
+\begin{enumerate}
+  \item place all geometry, materials, directions, polarization, wavelength,
+        and numerical settings in YAML;
+  \item record source data and reject unavailable parameters rather than
+        inventing them;
+  \item verify \(R+T+A\), passivity, material wavelength coverage, and
+        layer-resolved absorption;
+  \item demonstrate wavelength, Fourier-mode, polar-angle, and azimuth
+        convergence as applicable;
+  \item distinguish unit tests, legacy-implementation parity, independent
+        optical validation, literature reproduction, digitized comparison,
+        and calibrated fit;
+  \item compare published and calculated values with absolute or relative
+        errors and retain unresolved failures.
+\end{enumerate}
+
+\phantomsection
+\addcontentsline{toc}{section}{References}
+\footnotesize
+\begin{thebibliography}{9}
+\bibitem{S4}
+V. Liu and S. Fan, ``S4: A free electromagnetic solver for layered periodic
+structures,'' \url{https://web.stanford.edu/group/fan/S4/}.
+
+\bibitem{Zhao2022}
+B. Zhao et al., ``Radiative cooling of solar cells with micro-grating photonic
+cooler,'' \emph{Renewable Energy} 191, 662--668 (2022),
+\url{https://doi.org/10.1016/j.renene.2022.04.063}.
+
+\bibitem{Akerboom2022}
+E. Akerboom et al., ``Passive Radiative Cooling of Silicon Solar Modules with
+Photonic Silica Microcylinders,'' \emph{ACS Photonics} 9, 3831--3840 (2022),
+\url{https://doi.org/10.1021/acsphotonics.2c01389}.
+
+\bibitem{Olmon2012}
+R. L. Olmon et al., ``Optical dielectric function of gold,''
+\emph{Physical Review B} 86, 235147 (2012),
+\url{https://doi.org/10.1103/PhysRevB.86.235147}.
+
+\bibitem{Polyanskiy2024}
+M. N. Polyanskiy, ``Refractiveindex.info database of optical constants,''
+\emph{Scientific Data} 11, 94 (2024),
+\url{https://doi.org/10.1038/s41597-023-02898-2}.
+
+\end{thebibliography}
+
+\end{document}

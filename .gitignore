@@ -12,10 +12,6 @@ dist/
 
 # Run outputs
 results/
-configs/results/
-
-# Local historical sources and superseded implementations
-archive/
 
 # Editor / tooling
 .claude/
@@ -35,10 +31,6 @@ docs/manual/*.log
 docs/manual/*.out
 docs/manual/*.synctex.gz
 docs/manual/*.toc
-
-# Legacy manual source and compiled document
-docs/manual/radcoolpv_manual.tex
-docs/manual/radcoolpv_manual.pdf
 
 # Generated documentation artifacts (keep the docs sources tracked)
 docs/**/_build/

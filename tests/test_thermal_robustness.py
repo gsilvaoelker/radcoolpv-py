@@ -16,6 +16,9 @@ Three defects motivated them:
   a real equilibrium.
 """
 
+import contextlib
+import io
+import os
 import warnings
 
 import numpy as np
@@ -121,3 +124,66 @@ def test_zero_crossing_rejects_unbracketed_low_root():
     y = np.ones_like(x)                            # already non-negative
     with pytest.raises(ValueError, match="already non-negative"):
         _zero_crossing(x, y)
+
+
+def _load(name):
+    from radcoolpv import config as cm
+    return cm.load(os.path.join(os.path.dirname(__file__), "data", name))
+
+
+def test_explicit_sweep_matching_the_default_changes_nothing():
+    """thermal.cooling_temperature drives standard mode, and the default is one.
+
+    lambda_g is a weighted mean over the whole swept array, so the sweep is not
+    merely a search window: stating the default explicitly must reproduce it
+    exactly, or the coupling has been broken.
+    """
+    from radcoolpv import config as cm, pipeline
+    path = os.path.join(os.path.dirname(__file__), "..", "examples", "freeform_pv.yaml")
+
+    def run(sweep):
+        cfg = cm.load(path)
+        cfg.run.plots = cfg.run.write_outputs = False
+        if sweep is not None:
+            cfg.thermal.cooling_temperature = cm.TemperatureSweep(**sweep)
+        with contextlib.redirect_stdout(io.StringIO()):
+            return pipeline.run(cfg).thermal
+
+    t_amb = 298.0
+    default = run(None)
+    explicit = run({"min": t_amb, "max": t_amb + 150.0, "n": 151})
+
+    assert explicit.equil_temp == pytest.approx(default.equil_temp, abs=1e-9)
+    assert explicit.mpp_amb == pytest.approx(default.mpp_amb, abs=1e-9)
+    assert explicit.isc == pytest.approx(default.isc, abs=1e-9)
+    assert explicit.beta_p == pytest.approx(default.beta_p, abs=1e-9)
+
+
+def test_standard_mode_sweep_must_contain_ambient():
+    """Otherwise the reported 'ambient' operating point is a silent extrapolation."""
+    from radcoolpv import config as cm
+    cfg_path = os.path.join(os.path.dirname(__file__), "..", "examples", "freeform_pv.yaml")
+    cfg = cm.load(cfg_path)
+    cfg.thermal.cooling_temperature = cm.TemperatureSweep(min=400.0, max=500.0, n=51)
+    with pytest.raises(cm.ConfigError, match="ambient temperature"):
+        cm.validate(cfg)
+
+
+def test_sub_ambient_equilibrium_resolves():
+    """A cooler good enough to go below ambient must not fail to report it."""
+    from radcoolpv import pipeline
+    cfg = _load("cooling_curve.yaml")
+    cfg.thermal.absorbed_solar_power = 10.0     # near-perfect solar rejection
+    with contextlib.redirect_stdout(io.StringIO()):
+        result = pipeline.run(cfg).thermal
+    assert result.equil_temp < cfg.thermal.ambient_temperature
+
+
+def test_equilibrium_outside_the_sweep_names_the_key_that_fixes_it():
+    from radcoolpv import pipeline
+    cfg = _load("cooling_curve.yaml")
+    cfg.thermal.absorbed_solar_power = 10.0
+    cfg.thermal.cooling_temperature.min = 340.0     # equilibrium is below this
+    with pytest.raises(ValueError, match="thermal.cooling_temperature"):
+        with contextlib.redirect_stdout(io.StringIO()):
+            pipeline.run(cfg)

@@ -17,14 +17,15 @@ from radcoolpv import pipeline
 from radcoolpv.io import clean_writers
 from radcoolpv.optics import directional
 
-CONFIGS = os.path.join(os.path.dirname(__file__), "..", "configs")
+CONFIGS = os.path.join(os.path.dirname(__file__), "data")
+EXAMPLES = os.path.join(os.path.dirname(__file__), "..", "examples")
 ATMOSPHERE = os.path.join(os.path.dirname(__file__), "..", "radcoolpv", "data",
                           "cptrans_nq_100_15.dat")
 
 
 @pytest.fixture
 def optics(tmp_path):
-    cfg = cm.load(os.path.join(CONFIGS, "freeform.yaml"))
+    cfg = cm.load(os.path.join(EXAMPLES, "freeform_pv.yaml"))
     cfg.run.results_dir = str(tmp_path)
     return pipeline.run(cfg).optics
 
@@ -56,7 +57,7 @@ def test_optics_csv_is_not_resumable(optics, tmp_path):
 
 
 def test_pipeline_writes_the_export_when_configured(tmp_path):
-    cfg = cm.load(os.path.join(CONFIGS, "freeform.yaml"))
+    cfg = cm.load(os.path.join(EXAMPLES, "freeform_pv.yaml"))
     cfg.run.results_dir = str(tmp_path)
     target = tmp_path / "exported" / "spectrum.txt"
     cfg.run.optics_export = str(target)
@@ -67,7 +68,7 @@ def test_pipeline_writes_the_export_when_configured(tmp_path):
 
 def test_export_is_written_even_without_the_results_folder(tmp_path):
     """It is requested by explicit path, so write_outputs must not suppress it."""
-    cfg = cm.load(os.path.join(CONFIGS, "freeform.yaml"))
+    cfg = cm.load(os.path.join(EXAMPLES, "freeform_pv.yaml"))
     cfg.run.results_dir = str(tmp_path)
     cfg.run.write_outputs = False
     target = tmp_path / "spectrum.txt"

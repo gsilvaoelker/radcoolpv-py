@@ -11,12 +11,13 @@ from radcoolpv import pipeline
 from radcoolpv.io import clean_writers
 from radcoolpv.optics.directional import RawOptics
 
-CONFIGS = os.path.join(os.path.dirname(__file__), "..", "configs")
+CONFIGS = os.path.join(os.path.dirname(__file__), "data")
+EXAMPLES = os.path.join(os.path.dirname(__file__), "..", "examples")
 
 
 @pytest.fixture
 def freeform_ctx(tmp_path):
-    cfg = cm.load(os.path.join(CONFIGS, "freeform.yaml"))
+    cfg = cm.load(os.path.join(EXAMPLES, "freeform_pv.yaml"))
     cfg.run.results_dir = str(tmp_path)
     return pipeline.run(cfg)
 

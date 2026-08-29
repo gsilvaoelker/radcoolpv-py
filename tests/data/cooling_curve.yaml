@@ -1,0 +1,22 @@
+# PV-free cooling curve resumed from a supplied emittance column: the no-S4
+# path, exercised on the bundled Akerboom Fig. 5a trace.
+run:
+  optics: false
+  thermal: true
+  plots: false
+  mode: cooling_curve
+  write_outputs: false
+  optics_results: ../../validation/data/fig5a_measured_emittance.txt
+  optics_results_angles: hemispherical
+  optics_results_emittance_column: 3
+
+simulation:
+  wavelength: {min: 2.0, max: 16.0, n: 281}
+  angles: hemispherical
+
+thermal:
+  ambient_temperature: 300.0
+  convection_coefficient: 12.54
+  absorbed_solar_power: 808.0
+  equilibrium: auto
+  cooling_temperature: {min: 260.0, max: 380.0, n: 121}

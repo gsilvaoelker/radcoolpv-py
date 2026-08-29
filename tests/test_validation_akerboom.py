@@ -1,4 +1,9 @@
-"""Validation E: one YAML, paper geometry, digitized emittance and cooling."""
+"""The one validation: Akerboom et al., ACS Photonics 9 (2022) 3831-3840.
+
+One YAML, three groups. A computes the optics with S4, B runs the thermal model
+alone from the digitized measured emittance, and C is the full optical, thermal
+and electrical result. Only the B group runs here: A and C need a compiled S4.
+"""
 
 import os
 
@@ -11,12 +16,11 @@ from radcoolpv.io.results import OpticsResult
 from radcoolpv.thermal import energy_balance
 from radcoolpv.thermal.spectra import SolarSpectrum
 
-ROOT = os.path.join(
-    os.path.dirname(__file__), "..", "validations", "validation E")
-YAML = os.path.join(ROOT, "validation.yaml")
-FIG3A = os.path.join(ROOT, "data", "digitized", "fig3a_calculated_emittance.txt")
-FIG5A = os.path.join(ROOT, "data", "digitized", "fig5a_measured_emittance.txt")
-FIG5B = os.path.join(ROOT, "data", "digitized", "fig5b_cooling_power.txt")
+ROOT = os.path.join(os.path.dirname(__file__), "..", "validation")
+YAML = os.path.join(ROOT, "akerboom.yaml")
+FIG3A = os.path.join(ROOT, "data", "fig3a_calculated_emittance.txt")
+FIG5A = os.path.join(ROOT, "data", "fig5a_measured_emittance.txt")
+FIG5B = os.path.join(ROOT, "data", "fig5b_cooling_power.txt")
 
 
 def _cases():
@@ -30,21 +34,18 @@ def _zero_crossing(x, y):
 
 def test_one_yaml_defines_all_optical_and_thermal_cases():
     assert set(_cases()) == {
-        "optics_bare",
-        "optics_flat_silica",
-        "optics_silica_cylinders",
-        "cooling_paper_h6_bare",
-        "cooling_paper_h6_flat_silica",
-        "cooling_paper_h6_silica_cylinders",
-        "cooling_calibrated_bare",
-        "cooling_calibrated_flat_silica",
-        "cooling_calibrated_silica_cylinders",
+        "A1_optics_bare", "A2_optics_flat_silica", "A3_optics_cylinders",
+        "B1_cooling_h6_bare", "B2_cooling_h6_flat_silica",
+        "B3_cooling_h6_cylinders",
+        "B4_cooling_fitted_bare", "B5_cooling_fitted_flat_silica",
+        "B6_cooling_fitted_cylinders",
+        "C1_pv_bare", "C2_pv_flat_silica", "C3_pv_cylinders",
     }
 
 
 def test_yaml_uses_paper_geometry_and_material_models():
     cases = _cases()
-    cyl = cases["optics_silica_cylinders"]
+    cyl = cases["A3_optics_cylinders"]
 
     assert cyl.geometry.cylinder == {"radius": 1.75, "height": 2.25}
     assert cyl.geometry.lattice.x == pytest.approx(np.sqrt(3.0) * 6.125)
@@ -84,9 +85,9 @@ def test_digitized_cooling_curves_preserve_reported_zero_crossings(
 @pytest.mark.parametrize(
     "case_name,calculated_temperature",
     [
-        ("cooling_paper_h6_bare", 415.4),
-        ("cooling_paper_h6_flat_silica", 360.6),
-        ("cooling_paper_h6_silica_cylinders", 355.6),
+        ("B1_cooling_h6_bare", 415.4),
+        ("B2_cooling_h6_flat_silica", 360.6),
+        ("B3_cooling_h6_cylinders", 355.6),
     ],
 )
 def test_paper_stated_convection_coefficient_exposes_temperature_mismatch(
@@ -102,7 +103,7 @@ def test_paper_stated_convection_coefficient_exposes_temperature_mismatch(
 
 
 def test_paper_zero_emitter_exposes_convection_inconsistency():
-    cfg = _cases()["cooling_paper_h6_bare"]
+    cfg = _cases()["B1_cooling_h6_bare"]
     grid = cfg.wavelength_array()
     zeros = np.zeros_like(grid)
     optics = OpticsResult(
@@ -133,9 +134,9 @@ def test_paper_zero_emitter_exposes_convection_inconsistency():
 @pytest.mark.parametrize(
     "case_name,paper_temperature,column",
     [
-        ("cooling_calibrated_bare", 360.0, 1),
-        ("cooling_calibrated_flat_silica", 339.0, 2),
-        ("cooling_calibrated_silica_cylinders", 336.0, 3),
+        ("B4_cooling_fitted_bare", 360.0, 1),
+        ("B5_cooling_fitted_flat_silica", 339.0, 2),
+        ("B6_cooling_fitted_cylinders", 336.0, 3),
     ],
 )
 def test_inferred_convection_coefficient_reproduces_figure_5b(
@@ -162,3 +163,28 @@ def test_digitized_calculated_emittance_is_complete():
     assert data[0, 0] == pytest.approx(2.0)
     assert data[-1, 0] == pytest.approx(16.0)
     assert np.all((data[:, 1:] >= 0.0) & (data[:, 1:] <= 1.0))
+
+
+def test_pv_group_uses_lossy_silicon():
+    """Group C cannot inherit the paper's lossless silicon.
+
+    ``Akerboom_Si_lossless`` is the paper's own cooling-band assumption, k = 0
+    at every wavelength. That is right for groups A and B and fatal for C: with
+    no absorption in the silicon, Jsc integrates to zero and the cell reports a
+    few millivolts instead of an operating point. The two groups therefore have
+    to disagree about the silicon table, which is easy to lose in a refactor.
+    """
+    cases = _cases()
+    for name in ("C1_pv_bare", "C2_pv_flat_silica", "C3_pv_cylinders"):
+        assert cases[name].materials["silicon"] == "Palik_Si"
+    for name in ("A1_optics_bare", "A2_optics_flat_silica", "A3_optics_cylinders"):
+        assert cases[name].materials["silicon"] == "Akerboom_Si_lossless"
+
+
+def test_pv_group_wavelength_range_stays_inside_the_gold_table():
+    """RII_Olmon_2012_ev_Au is tabulated to 24.93 um and refuses to extrapolate."""
+    from radcoolpv.materials import registry
+    for name in ("C1_pv_bare", "C2_pv_flat_silica", "C3_pv_cylinders"):
+        grid = _cases()[name].wavelength_array()
+        for model in ("RII_Olmon_2012_ev_Au", "Palik_Si", "PalikKitamura_SiO2"):
+            registry.get(model)(grid)   # raises if the range is out of bounds
