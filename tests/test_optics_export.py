@@ -40,6 +40,25 @@ def test_export_round_trips_through_the_resume_reader(optics, tmp_path):
     assert np.allclose(resumed.ref, optics.ref, atol=1e-6)
     assert np.allclose(resumed.emit, optics.emit, atol=1e-6)
     assert np.allclose(resumed.abs_silicon, optics.abs_silicon, atol=1e-6)
+    # The sixth column is the whole point: without it the atmospheric term is
+    # rebuilt at the zenith and the resumed balance is not the one exported.
+    assert np.allclose(resumed.emitt_spec_times_emit_atm,
+                       optics.emitt_spec_times_emit_atm, atol=1e-6)
+
+
+def test_five_column_files_still_load(optics, tmp_path):
+    """Older exports and hand-written HEMSIPH tables must keep working."""
+    path = tmp_path / "legacy.txt"
+    np.savetxt(path, np.column_stack([optics.lambda_um, optics.ref, optics.tran,
+                                      optics.emit, optics.abs_silicon]))
+
+    resumed = directional.from_reduced_file(str(path), ATMOSPHERE, "normal")
+
+    assert np.allclose(resumed.emit, optics.emit, atol=1e-6)
+    # No exported product, so the atmospheric term falls back to the zenith
+    # approximation rather than silently claiming the angular one.
+    assert np.allclose(resumed.emitt_spec_times_emit_atm,
+                       resumed.emit_atm * resumed.emit)
 
 
 def test_export_creates_missing_parent_directories(optics, tmp_path):
@@ -63,7 +82,7 @@ def test_pipeline_writes_the_export_when_configured(tmp_path):
     cfg.run.optics_export = str(target)
     pipeline.run(cfg)
     assert target.is_file()
-    assert np.loadtxt(target).shape[1] == 5
+    assert np.loadtxt(target).shape[1] == 6
 
 
 def test_export_is_written_even_without_the_results_folder(tmp_path):
@@ -76,3 +95,31 @@ def test_export_is_written_even_without_the_results_folder(tmp_path):
     ctx = pipeline.run(cfg)
     assert target.is_file()
     assert not os.path.exists(os.path.join(ctx.results_dir, "optics.csv"))
+
+
+def test_a_resumed_run_does_not_re_export_over_its_own_source(tmp_path):
+    """Reading a spectrum and writing it back is never what was wanted.
+
+    The validation cases set optics_export so the case that produces a
+    committed spectrum names it. A resumed run of the same case still carries
+    that key, and without this guard it overwrites the file it just read --
+    with whatever grid the resumed run happened to use.
+    """
+    cfg = cm.load(os.path.join(EXAMPLES, "freeform_pv.yaml"))
+    cfg.run.results_dir = str(tmp_path)
+    cfg.run.plots = cfg.run.write_outputs = False
+    source = tmp_path / "spectrum.txt"
+    cfg.run.optics_export = str(source)
+    pipeline.run(cfg)
+    original = source.read_bytes()
+
+    resumed = cm.load(os.path.join(EXAMPLES, "freeform_pv.yaml"))
+    resumed.run.results_dir = str(tmp_path)
+    resumed.run.plots = resumed.run.write_outputs = False
+    resumed.run.optics = False
+    resumed.run.optics_results = str(source)
+    resumed.run.optics_export = str(source)          # still set, as in the YAML
+    resumed.simulation.wavelength.n = 50             # a different grid
+    pipeline.run(resumed)
+
+    assert source.read_bytes() == original, "the resumed run overwrote its source"

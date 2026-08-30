@@ -35,20 +35,27 @@ def write_optics_csv(folder: str, optics: OpticsResult) -> None:
 
 
 def write_optics_export(path: str, optics: OpticsResult) -> None:
-    """Write the spectrum in the five-column form ``optics_results`` reads.
+    """Write the spectrum in the six-column form ``optics_results`` reads.
 
     ``optics.csv`` cannot serve this purpose: it is comma-separated with a text
     header, while the resume reader uses whitespace-separated numeric columns.
-    Columns are ``lambda_um R T emit abs_si``, matching that reader exactly, so
-    an optics run and a later thermal run chain with no conversion step.
+
+    The sixth column is what makes a resumed run reproduce the run it came from.
+    A hemispherical sweep forms the atmospheric term as the angular average of
+    ``emit_atm(lambda, theta) * emit(lambda, theta)``, and no spectrum carries
+    enough information to rebuild that: a reader given only the averaged
+    emittance has to fall back on the zenith atmosphere, which is a different
+    number. Exporting the pre-integrated product removes the approximation.
     """
     folder = os.path.dirname(path)
     if folder:
         os.makedirs(folder, exist_ok=True)
     cols = np.column_stack([optics.lambda_um, optics.ref, optics.tran,
-                            optics.emit, optics.abs_silicon])
+                            optics.emit, optics.abs_silicon,
+                            optics.emitt_spec_times_emit_atm])
     np.savetxt(path, cols, fmt="%.6e",
-               header="lambda_um   R           T           emit        abs_si\n"
+               header="lambda_um   R           T           emit        "
+                      "abs_si      emit*emit_atm\n"
                       f"radcoolpv optics export ({optics.angles} spectrum)")
 
 

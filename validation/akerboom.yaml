@@ -138,7 +138,7 @@ cases:
   # ===== A. calculated optics, paper Figure 3a ============================ #
 
   - name: A1_optics_bare
-    run: {<<: *optics_run, results_dir: results/A1_optics_bare}
+    run: {<<: *optics_run, results_dir: results/A1_optics_bare, optics_export: data/A1_optics_bare.txt}
     simulation: *normal_s4
     geometry: {source: s4, shape: flat, photonic_material: vacuum, lattice: *paper_lattice}
     structure: *bare_structure
@@ -149,7 +149,7 @@ cases:
         - {label: Paper Fig. 3a, file: data/fig3a_calculated_emittance.txt, column: 1, color: '#008000'}
 
   - name: A2_optics_flat_silica
-    run: {<<: *optics_run, results_dir: results/A2_optics_flat_silica}
+    run: {<<: *optics_run, results_dir: results/A2_optics_flat_silica, optics_export: data/A2_optics_flat_silica.txt}
     simulation: *normal_s4
     geometry: {source: s4, shape: flat, photonic_material: sio2, lattice: *paper_lattice}
     structure: *covered_structure
@@ -160,7 +160,7 @@ cases:
         - {label: Paper Fig. 3a, file: data/fig3a_calculated_emittance.txt, column: 2, color: '#ff0000'}
 
   - name: A3_optics_cylinders
-    run: {<<: *optics_run, results_dir: results/A3_optics_cylinders}
+    run: {<<: *optics_run, results_dir: results/A3_optics_cylinders, optics_export: data/A3_optics_cylinders.txt}
     simulation: *normal_s4
     geometry:
       source: s4
@@ -216,7 +216,7 @@ cases:
   # ===== C. full optical, thermal and electrical result =================== #
 
   - name: C1_pv_bare
-    run: {<<: *pv_run, results_dir: results/C1_pv_bare}
+    run: {<<: *pv_run, results_dir: results/C1_pv_bare, optics_export: data/C1_pv_bare.txt}
     simulation: *pv_simulation
     geometry: {source: s4, shape: flat, photonic_material: vacuum, lattice: *paper_lattice}
     structure: *bare_structure
@@ -225,7 +225,7 @@ cases:
     data: *paper_data
 
   - name: C2_pv_flat_silica
-    run: {<<: *pv_run, results_dir: results/C2_pv_flat_silica}
+    run: {<<: *pv_run, results_dir: results/C2_pv_flat_silica, optics_export: data/C2_pv_flat_silica.txt}
     simulation: *pv_simulation
     geometry: {source: s4, shape: flat, photonic_material: sio2, lattice: *paper_lattice}
     structure: *covered_structure
@@ -234,7 +234,7 @@ cases:
     data: *paper_data
 
   - name: C3_pv_cylinders
-    run: {<<: *pv_run, results_dir: results/C3_pv_cylinders}
+    run: {<<: *pv_run, results_dir: results/C3_pv_cylinders, optics_export: data/C3_pv_cylinders.txt}
     simulation: *pv_simulation
     geometry:
       source: s4

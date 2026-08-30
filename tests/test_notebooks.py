@@ -59,29 +59,87 @@ def _cells(path, kind):
 
 
 @pytest.mark.parametrize("path", NOTEBOOKS, ids=os.path.basename)
-def test_the_upload_cell_matches_what_the_notebook_actually_reads(path):
-    """A notebook that computes its own optics has no optics_results to set.
+def test_run_all_never_blocks_or_builds(path):
+    """Runtime -> Run all has to finish on its own.
 
-    The upload cell was once shared verbatim across all four notebooks, so the
-    two solver-driven ones told students their spectrum was "ready to use as
-    optics_results" -- a key absent from the config on the screen above it.
+    build_s4() was once called unconditionally in A and C, so Run all spent ten
+    minutes compiling before anything happened; files.upload() was called
+    unconditionally in every notebook, so Run all stopped on a file picker and
+    never finished at all. Both must sit behind a switch the notebook ships as
+    False, in the same cell, so the default path touches neither.
     """
-    yaml = "\n".join(body for _, body in _written_yaml(path))
-    upload = "\n".join(c for c in _cells(path, "code")
-                       if c.lstrip().startswith("from google.colab"))
-    assert upload, "every notebook should offer an upload cell"
+    for cell in _cells(path, "code"):
+        for call, switch in (("files.upload()", "MY_DATA"),
+                             ("build_s4()", "RECOMPUTE_WITH_S4")):
+            # Match the call, not the `def` that introduces it.
+            called = [ln for ln in cell.splitlines()
+                      if call in ln and not ln.lstrip().startswith("def ")]
+            if not called:
+                continue
+            assert f"{switch} = False" in cell, (
+                f"{call} runs without {switch} = False in the same cell")
+            before, _, after = cell.partition(f"if {switch}:")
+            assert after, f"{call} is not guarded by `if {switch}:`"
+            assert all(ln in after for ln in called), (
+                f"{call} also runs outside `if {switch}:`")
 
-    # Each notebook is one or the other: it either computes its optics from a
-    # geometry and a materials block, or it reads a stored spectrum.
-    assert ("optics_results:" in yaml) != ("materials:" in yaml)
 
-    assert ("optics_results" in upload) == ("optics_results:" in yaml), (
-        "the upload cell offers optics_results but the YAML never reads one"
-        if "optics_results" in upload else
-        "the YAML reads optics_results but the upload cell never offers it")
+#: Which shipped case each validation notebook must agree with.
+SHIPPED = {"validation_a_optics.ipynb": "A3_optics_cylinders",
+           "validation_b_cooling.ipynb": "B3_cooling_h6_cylinders",
+           "validation_c_pv.ipynb": "C3_pv_cylinders"}
 
-    installs_a_material = "materials\" / \"data" in upload or "MATERIALS" in upload
-    assert installs_a_material == ("materials:" in yaml), (
-        "the upload cell installs a material the YAML can never reference"
-        if installs_a_material else
-        "the YAML has a materials block but the upload cell cannot fill it")
+#: Bookkeeping that is free to differ; everything else is physics.
+_IGNORED = {"results_dir", "optics_export", "plots", "write_outputs"}
+
+
+def _same_file(cfg_a, value_a, cfg_b, value_b):
+    """True when two configs name the same file by different relative paths."""
+    if value_a is None or value_b is None:
+        return value_a == value_b
+    return (os.path.realpath(cfg_a.resolve_data(value_a))
+            == os.path.realpath(cfg_b.resolve_data(value_b)))
+
+
+@pytest.mark.parametrize("path", NOTEBOOKS, ids=os.path.basename)
+def test_notebook_yaml_matches_the_shipped_case(path, tmp_path, monkeypatch):
+    """A reduced grid stops a notebook reproducing the table it prints.
+
+    The notebooks once wrote n=60/s4_modes=20 copies of cases the shipped file
+    runs at 281/60, so "Validation A" printed 0.9829 against the 0.984 its own
+    introduction quotes.
+    """
+    case_name = SHIPPED.get(os.path.basename(path))
+    if case_name is None:
+        pytest.skip("not a validation notebook")
+    monkeypatch.chdir(ROOT)
+
+    (name, body), = _written_yaml(path)
+    target = tmp_path / name
+    target.write_text(body)
+    written = cm.load_cases(str(target))[0]
+    # %%writefile drops the file in the working directory, which the setup cell
+    # has made the repository root; relative data paths resolve from there.
+    written.base_dir = ROOT
+    shipped = {c.case_name: c for c in cm.load_cases(
+        os.path.join(ROOT, "validation", "akerboom.yaml"))}[case_name]
+
+    assert written.simulation == shipped.simulation
+    assert written.geometry == shipped.geometry
+    assert written.structure == shipped.structure
+    assert written.materials == shipped.materials
+
+    # Path-valued keys are written relative to the file that holds them, and
+    # the notebook copy sits at the repository root rather than in validation/.
+    # They must name the same file, not the same string.
+    for block in ("run", "thermal"):
+        for field, value in vars(getattr(written, block)).items():
+            if field in _IGNORED:
+                continue
+            other = getattr(getattr(shipped, block), field)
+            if isinstance(value, str) and (value.endswith(".txt")
+                                           or value.endswith(".csv")):
+                assert _same_file(written, value, shipped, other), (
+                    f"{block}.{field} names a different file")
+            else:
+                assert value == other, f"{block}.{field} differs"

@@ -91,8 +91,11 @@ def _write_outputs(cfg: Config, ctx: RunContext) -> None:
 
     optics, thermal = ctx.optics, ctx.thermal
     # Explicitly requested by path, so it is written even when the timestamped
-    # results folder is switched off.
-    if optics is not None and cfg.run.optics_export:
+    # results folder is switched off -- but only when the optics stage actually
+    # solved. A resumed run holds the spectrum it read, and re-exporting that
+    # writes it straight back over its own source: harmless when the grids
+    # match, silent corruption when they do not.
+    if optics is not None and cfg.run.optics_export and cfg.run.optics:
         target = cfg.resolve(cfg.run.optics_export)
         clean_writers.write_optics_export(target, optics)
         print(f"[optics]  exported resumable spectrum: {target}")

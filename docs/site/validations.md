@@ -26,9 +26,20 @@ radcoolpv run validation/akerboom.yaml
 radcoolpv run validation/akerboom.yaml --case B3_cooling_h6_cylinders
 ```
 
-Group B needs no solver and runs in seconds. Groups A and C call S4 and are
-expensive — roughly four minutes and two hours respectively at the converged
-settings in the file. A case that cannot run does not abort the others.
+Group B needs no solver. Groups A and C call S4 and are expensive — roughly
+four minutes and fifty at the converged settings in the file — so their
+spectra were computed once and committed beside the digitized traces:
+
+```text
+validation/data/A1_optics_bare.txt        A2_optics_flat_silica.txt   A3_optics_cylinders.txt
+validation/data/C1_pv_bare.txt            C2_pv_flat_silica.txt       C3_pv_cylinders.txt
+```
+
+Each is written by the case that names it, so
+`radcoolpv run validation/akerboom.yaml --case A3_optics_cylinders` regenerates
+one. The notebooks read them, which is how every notebook reproduces its table
+in seconds on a machine with no solver. A case that cannot run does not abort
+the others.
 
 ## Group A — optics
 

@@ -156,17 +156,25 @@ def from_reduced_file(path: str, atmosphere_path: str,
     """Load a previously reduced normal or hemispherical optical spectrum.
 
     With ``emittance_column``, the selected zero-based column is treated as
-    hemispherical emittance for an opaque surface. Otherwise, accepted columns
-    are either the five-column ``HEMSIPH`` form
-    ``lambda, R, T, emit, abs_si`` or the seven-column ``PVcode`` form
-    ``lambda, emit, emit_normal, R, R_normal, abs_si, abs_si_normal``.
-    These files retain no directional information, so their atmospheric term
-    uses the same angle-independent approximation as free-form optics.
+    hemispherical emittance for an opaque surface. Otherwise the column count
+    selects the form:
+
+    * 5 -- ``HEMSIPH``: ``lambda, R, T, emit, abs_si``
+    * 6 -- ``radcoolpv`` export: the same, plus the pre-integrated atmospheric
+      product ``<emit * emit_atm>``
+    * 7 -- ``PVcode``: ``lambda, emit, emit_normal, R, R_normal, abs_si,
+      abs_si_normal``
+
+    Only the six-column form reproduces the hemispherical run it came from. The
+    others retain no directional information, so their atmospheric term falls
+    back to the zenith atmosphere times the averaged emittance -- the same
+    angle-independent approximation free-form optics uses.
     """
     data = np.loadtxt(path)
     if data.ndim == 1:
         data = data[None, :]
     lam = data[:, 0]
+    atm_product = None            # set only by the six-column export
     if emittance_column is not None:
         if emittance_column >= data.shape[1]:
             raise ValueError(
@@ -182,23 +190,29 @@ def from_reduced_file(path: str, atmosphere_path: str,
         # the gap a wavelength falls on.
         abs_si = np.where(lam < LAMBDA_GAP, emit, 0.0)
         ref_norm = emit_norm = abs_si_norm = None
-    elif data.shape[1] == 5:
+    elif data.shape[1] in (5, 6):
         ref, tran, emit, abs_si = data[:, 1], data[:, 2], data[:, 3], data[:, 4]
         ref_norm = emit_norm = abs_si_norm = None
+        if data.shape[1] == 6:
+            atm_product = data[:, 5]
     elif data.shape[1] == 7:
         emit, emit_norm, ref, ref_norm, abs_si, abs_si_norm = data[:, 1:].T
         tran = 1.0 - ref - emit
     else:
         raise ValueError(
-            f"{path}: expected 5-column HEMSIPH or 7-column PVcode reduced optics, "
-            f"got {data.shape[1]} columns."
+            f"{path}: expected 5- or 6-column radcoolpv optics or 7-column "
+            f"PVcode reduced optics, got {data.shape[1]} columns."
         )
 
     atm = load_atmosphere(atmosphere_path, lam)
+    # emit_atm stays the zenith value: it is reported and plotted, but the
+    # balance integrates the product below, which is exported when available.
     emit_atm = 1.0 - atm
+    if atm_product is None:
+        atm_product = emit_atm * emit
     return OpticsResult(
         lambda_um=lam, ref=ref, tran=tran, emit=emit, abs_silicon=abs_si,
-        emit_atm=emit_atm, emitt_spec_times_emit_atm=emit_atm * emit,
+        emit_atm=emit_atm, emitt_spec_times_emit_atm=atm_product,
         ref_norm=ref_norm, emit_norm=emit_norm, abs_silicon_norm=abs_si_norm,
         angles=angles, silicon_from_emittance=emittance_column is not None,
     )

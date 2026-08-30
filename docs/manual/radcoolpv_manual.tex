@@ -1049,8 +1049,18 @@ thermal and PV chain works on a machine that has no solver built.
 To chain the two runs without any intermediate step, set
 \code{run.optics\_export} in the optics case to a fixed path and point
 \code{run.optics\_results} at that same path in the thermal case. These are the
-write and read halves of one five-column format
-(\code{lambda\_um R T emit abs\_si}). The export is written even when
+write and read halves of one six-column format
+(\code{lambda\_um R T emit abs\_si <emit*emit\_atm>}).
+
+\marginalia{The sixth column is not a convenience. Without it a resumed
+hemispherical run solves a different energy balance from the one it resumed.}
+
+That sixth column is what makes a resumed run reproduce the run it came from. A
+live hemispherical sweep forms the atmospheric term as the angular average of
+\(\epsilon_{\mathrm{atm}}(\lambda,\theta)\,\epsilon(\lambda,\theta)\), and no
+spectrum carries enough information to rebuild it: a reader given only the
+averaged emittance has to fall back on the zenith atmosphere, which is a
+different number. Five-column files are still read, with that approximation. The export is written even when
 \code{run.write\_outputs} is false, because it is requested by explicit path.
 Note that \code{optics.csv} cannot be reused here: it is comma-separated with a
 text header, which the resume reader rejects, and it lands in a timestamped
@@ -1251,9 +1261,13 @@ radcoolpv run validation/akerboom.yaml
 radcoolpv run validation/akerboom.yaml --case B3_cooling_h6_cylinders
 \end{lstlisting}
 
-Group B needs no solver and runs in seconds. Groups A and C call S4 and cost
-roughly four minutes and two hours at the converged settings in the file. A
-case that cannot run does not abort the others.
+Group B needs no solver. Groups A and C call S4 and cost roughly four minutes
+and fifty minutes at the converged settings in the file, so their spectra were
+computed once and committed beside the digitized traces as
+\code{validation/data/<case>.txt}. Each is written by the case that names it,
+through \code{run.optics\_export}, so running that case regenerates it. The
+notebooks read them, which is how each reproduces its table in seconds on a
+machine with no solver. A case that cannot run does not abort the others.
 
 \subsection{Group A: optics}
 

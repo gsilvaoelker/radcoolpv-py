@@ -198,3 +198,47 @@ def test_pv_group_wavelength_range_stays_inside_the_gold_table():
         grid = _cases()[name].wavelength_array()
         for model in ("RII_Olmon_2012_ev_Au", "Palik_Si", "PalikKitamura_SiO2"):
             registry.get(model)(grid)   # raises if the range is out of bounds
+
+
+# --- the committed converged optics ------------------------------------- #
+# Groups A and C need S4 to compute their spectra, so until those spectra were
+# committed their published numbers were only reachable on a machine that had
+# built it. These read the committed exports and check the tables directly.
+
+@pytest.mark.parametrize(
+    "case,expected",
+    [("A1_optics_bare", 0.032),
+     ("A2_optics_flat_silica", 0.842),
+     ("A3_optics_cylinders", 0.984)],
+)
+def test_committed_optics_reproduce_the_emittance_table(case, expected):
+    from radcoolpv.optics.averages import band_average
+    data = np.loadtxt(os.path.join(ROOT, "data", f"{case}.txt"))
+    assert data.shape[1] == 6, "the export must carry the atmospheric product"
+    average = band_average(data[:, 0], data[:, 3], 7.5, 16.0)
+    assert average == pytest.approx(expected, abs=0.0005)
+
+
+@pytest.mark.parametrize(
+    "case,temperature,efficiency",
+    [("C1_pv_bare", 350.5, 0.1417),
+     ("C2_pv_flat_silica", 329.3, 0.1809),
+     ("C3_pv_cylinders", 327.0, 0.1864)],
+)
+def test_committed_optics_reproduce_the_pv_table(case, temperature, efficiency,
+                                                 tmp_path):
+    """Resuming the committed spectrum must give what the live run gave.
+
+    This is what the sixth export column buys: rebuilt at the zenith, the
+    atmospheric term would differ and these temperatures would not land.
+    """
+    cfg = _cases()[case]
+    cfg.run.optics = False
+    cfg.run.optics_results = f"data/{case}.txt"
+    cfg.run.plots = False
+    cfg.run.write_outputs = False
+    cfg.run.results_dir = str(tmp_path)
+    result = pipeline.run(cfg).thermal
+
+    assert result.equil_temp == pytest.approx(temperature, abs=0.05)
+    assert result.efficiency_equil == pytest.approx(efficiency, abs=0.0005)

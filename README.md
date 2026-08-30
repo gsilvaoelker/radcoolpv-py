@@ -45,8 +45,14 @@ the YAML in the notebook itself.
 | Validation B — cooling | no | [![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/gsilvaoelker/radcoolpv-py/blob/main/docs/site/notebooks/validation_b_cooling.ipynb) — the energy balance alone, and how sensitive it is to the convection coefficient |
 | Validation C — full cell | needed | [![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/gsilvaoelker/radcoolpv-py/blob/main/docs/site/notebooks/validation_c_pv.ipynb) — optics, heat and electricity coupled |
 
-Each validation notebook states the physics, shows its YAML in full so it can
-be edited, and accepts uploaded optical data.
+Every notebook runs to completion with **no solver and no prompt**: the
+converged optics for groups A and C were computed once with S4 and committed
+under `validation/data/`, so each notebook reproduces the table in its own
+introduction in seconds. Each states the physics, shows its YAML in full so it
+can be edited, and carries a `MY_DATA` switch that uploads a spectrum and runs
+the case on it. A and C add `RECOMPUTE_WITH_S4`, which builds the solver and
+computes the optics from the geometry instead of reading them; B never needs a
+solver at all.
 
 A full run takes about a minute and needs no electromagnetic solver. It
 produces the equilibrium temperature, every term in the energy balance, the
@@ -400,9 +406,17 @@ electromagnetic solvers. A supplied normal-incidence spectrum can drive the
 thermal model, but its atmospheric term is then an explicitly angle-independent
 approximation.
 
-`run.optics_results` accepts a five-column `lambda, R, T, emit, A_Si` export, a
+`run.optics_results` accepts a six-column `lambda, R, T, emit, A_Si,
+<emit*emit_atm>` export, the older five-column form without that last column, a
 seven-column form, or — with `run.optics_results_emittance_column` — one
 emittance column of a plain table, treating the surface as opaque.
+
+Only the six-column form reproduces the hemispherical run it came from. A live
+sweep builds the atmospheric term as the angular average of
+`emit_atm(λ,θ)·emit(λ,θ)`, and no spectrum carries enough information to rebuild
+that, so a reader given only the averaged emittance falls back to the zenith
+atmosphere. Exporting the pre-integrated product removes the approximation, and
+`run.optics_export` writes it.
 
 That last form carries no layer-resolved absorptance, so the silicon share is
 inferred: **above the band gap essentially everything absorbed is absorbed in
@@ -415,7 +429,7 @@ for a solved one. A spectrum that stops above the gap — the digitized Akerboom
 traces start at 2 um — yields no photocurrent, correctly.
 
 To chain two files, set `run.optics_export` in the optical case and point
-`run.optics_results` in the thermal case at the same five-column file.
+`run.optics_results` in the thermal case at the same file.
 Timestamped `optics.csv` is a reporting output and is not the resumable format.
 
 ## Outputs

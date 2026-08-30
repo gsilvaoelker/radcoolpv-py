@@ -45,7 +45,15 @@ def summary(ctx, figures: bool = True) -> None:
         if rows:
             print()
 
-    if figures:
+    if not figures:
+        return
+    written = sorted(glob.glob(os.path.join(ctx.results_dir, "figures", "*.png")))
+    try:
         from IPython.display import Image, display
-        for png in sorted(glob.glob(os.path.join(ctx.results_dir, "figures", "*.png"))):
-            display(Image(filename=png))
+    except ImportError:
+        # Called from a plain interpreter rather than a notebook: the figures
+        # are on disk either way, so say where instead of failing.
+        print(f"  {len(written)} figure(s) in {ctx.results_dir}/figures")
+        return
+    for png in written:
+        display(Image(filename=png))
