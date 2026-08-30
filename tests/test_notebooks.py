@@ -51,3 +51,33 @@ def test_every_notebook_reports_through_the_shared_helper(path):
     """Four private copies of the reporting code is how they drift apart."""
     text = open(path).read()
     assert "report.summary(" in text
+
+
+def _cells(path, kind):
+    return ["".join(c["source"]) for c in json.load(open(path))["cells"]
+            if c["cell_type"] == kind]
+
+
+@pytest.mark.parametrize("path", NOTEBOOKS, ids=os.path.basename)
+def test_the_upload_cell_matches_what_the_notebook_actually_reads(path):
+    """A notebook that computes its own optics has no optics_results to set.
+
+    The upload cell was once shared verbatim across all four notebooks, so the
+    two solver-driven ones told students their spectrum was "ready to use as
+    optics_results" -- a key absent from the config on the screen above it.
+    """
+    yaml = "\n".join(body for _, body in _written_yaml(path))
+    upload = "\n".join(c for c in _cells(path, "code")
+                       if c.lstrip().startswith("from google.colab"))
+    assert upload, "every notebook should offer an upload cell"
+
+    reads_a_spectrum = "optics_results:" in yaml
+    mentions_optics_results = "optics_results" in upload
+    assert mentions_optics_results == reads_a_spectrum, (
+        "the upload cell mentions optics_results but the YAML never reads one"
+        if mentions_optics_results else
+        "the YAML reads optics_results but the upload cell never mentions it")
+
+    # Uploading a material works in every case, because materials are what the
+    # registry discovers by filename.
+    assert "materials" in upload
