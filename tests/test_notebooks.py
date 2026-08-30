@@ -71,13 +71,17 @@ def test_the_upload_cell_matches_what_the_notebook_actually_reads(path):
                        if c.lstrip().startswith("from google.colab"))
     assert upload, "every notebook should offer an upload cell"
 
-    reads_a_spectrum = "optics_results:" in yaml
-    mentions_optics_results = "optics_results" in upload
-    assert mentions_optics_results == reads_a_spectrum, (
-        "the upload cell mentions optics_results but the YAML never reads one"
-        if mentions_optics_results else
-        "the YAML reads optics_results but the upload cell never mentions it")
+    # Each notebook is one or the other: it either computes its optics from a
+    # geometry and a materials block, or it reads a stored spectrum.
+    assert ("optics_results:" in yaml) != ("materials:" in yaml)
 
-    # Uploading a material works in every case, because materials are what the
-    # registry discovers by filename.
-    assert "materials" in upload
+    assert ("optics_results" in upload) == ("optics_results:" in yaml), (
+        "the upload cell offers optics_results but the YAML never reads one"
+        if "optics_results" in upload else
+        "the YAML reads optics_results but the upload cell never offers it")
+
+    installs_a_material = "materials\" / \"data" in upload or "MATERIALS" in upload
+    assert installs_a_material == ("materials:" in yaml), (
+        "the upload cell installs a material the YAML can never reference"
+        if installs_a_material else
+        "the YAML has a materials block but the upload cell cannot fill it")
