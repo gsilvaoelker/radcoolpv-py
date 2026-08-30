@@ -76,6 +76,7 @@
 \DeclareRobustCommand{\code}[1]{\begingroup\upshape\ttfamily
   \def\_{\allowbreak\textunderscore\allowbreak}#1\endgroup}
 \newcolumntype{L}[1]{>{\raggedright\arraybackslash}p{#1}}
+\newcolumntype{R}[1]{>{\raggedleft\arraybackslash}p{#1}}
 \lstset{
   basicstyle=\ttfamily\small,
   breaklines=true,
@@ -94,7 +95,7 @@
 \newcommand{\doceyebrow}{TECHNICAL MANUAL}
 \newcommand{\doctitle}{radcoolpv}
 \newcommand{\docsubtitle}{Physics, Numerical Models, YAML Cases, and Validation}
-\newcommand{\docbyline}{Project manual \textperiodcentered\ 13 August 2026}
+\newcommand{\docbyline}{Project manual \textperiodcentered\ \today}
 \newcommand{\docrunninghead}{RADCOOLPV}          % verso (even pages)
 \newcommand{\docrunningfoot}{TECHNICAL MANUAL}   % recto (odd pages)
 % -------------------------------------------------------------------------
@@ -696,9 +697,11 @@ The \code{run} block selects which stages execute:
 \begin{itemize}
   \item \code{optics: true} runs the optical simulation (S4 or the freeform
         solver) to compute the spectral reflectance/emittance; \code{false}
-        skips it, and \code{run.optics\_results} must then point at a prior
-        optics-run results folder (a five-column spectrum file), since the
-        thermal stage needs a spectrum to consume. E.g.\
+        skips it, and \code{run.optics\_results} must then point at a stored
+        spectrum, since the thermal stage needs one to consume: a five-column
+        \code{lambda, R, T, emit, abs\_si} export, a seven-column form, or --- with
+        \code{run.optics\_results\_emittance\_column} --- one emittance column of a
+        plain table, which is treated as an opaque surface. E.g.\
         \code{run: \{optics: false\}}.
   \item \code{thermal: true} solves the atmospheric/thermal energy balance
         and, for a PV case, the I--V curve, from that spectrum; \code{false}
@@ -756,7 +759,7 @@ The remaining \code{run} keys:
   \item \code{results\_dir} (default \code{results}): parent folder for the
         timestamped output directory (Section~\ref{sec:outputs}), resolved
         relative to the YAML file. E.g.\
-        \code{results\_dir: results/flat\_pdms}.
+        \code{results\_dir: results/my\_case}.
   \item \code{write\_outputs} (default \code{true}): write the timestamped
         CSV/JSON folder. \code{false} is for tests or programmatic use; it
         does not affect \code{run.optics\_export}, which is written whenever
@@ -764,7 +767,7 @@ The remaining \code{run} keys:
   \item \code{optics\_results}: path to a prior optics folder or reduced
         spectrum file, read when \code{optics: false}. \textit{Requires} a
         value whenever \code{thermal: true} and \code{optics: false}. E.g.\
-        \code{optics\_results: data/Fig. 3C red/opticalProps-PVcode.txt}.
+        \code{optics\_results: validation/data/fig5a\_measured\_emittance.txt}.
   \item \code{optics\_results\_angles} (default \code{hemispherical}): a
         provenance label recorded in \code{run.json}, not a behavioural
         switch --- \code{normal} and \code{hemispherical} read the same file
@@ -1220,9 +1223,11 @@ never emitted by the active package.
 \section{Validation evidence}
 \label{sec:validation}
 
-There is one literature case. It reproduces the paper's optics and fails the
-paper's own stated thermal coefficient, and the failure is the more instructive
-half, so it is kept in view rather than fitted away.
+There is one literature case, reproduced in three groups: the optics, the
+cooling balance, and the full cell. The optics agree closely. The cooling
+balance is sensitive to a coefficient the paper reports but that this model
+cannot check independently, so that group is presented with both values rather
+than only the one that matches.
 
 \medskip
 \noindent
@@ -1257,7 +1262,7 @@ Fourier modes, against Figure 3a. Silicon is modeled as nonabsorbing, which is
 the paper's own stated assumption for the cooling band. Mean emittance over
 7.5--16 \(\mu\)m:
 
-\begin{table}[ht]
+\begin{center}
 \centering
 \small
 \begin{tabular}{L{45mm}R{25mm}R{25mm}R{25mm}}
@@ -1269,7 +1274,7 @@ Flat silica       & 0.842 & 0.843 & ---\\
 Silica cylinders  & 0.984 & 0.977 & ---\\
 \bottomrule
 \end{tabular}
-\end{table}
+\end{center}
 
 The optics agree.
 
@@ -1277,14 +1282,14 @@ The optics agree.
 
 This group runs the thermal model alone, driven by the \emph{measured}
 emittance digitized from Figure 5a. No geometry, no materials, no solver. The
-isolation is deliberate: a disagreement here belongs to the thermal model
-rather than to the optics. With the coefficient the paper's Methods state,
+isolation is deliberate: what this group tests is the energy balance, with the
+optics held fixed at measured values. With the coefficient the Methods state,
 \(h=6.0~\mathrm{W\,m^{-2}\,K^{-1}}\):
 
-\begin{table}[ht]
+\begin{center}
 \centering
 \small
-\begin{tabular}{L{45mm}R{30mm}R{30mm}}
+\begin{tabular}{L{60mm}R{30mm}R{30mm}}
 \toprule
 Surface & radcoolpv & Paper Fig.~5b\\
 \midrule
@@ -1293,7 +1298,7 @@ Flat silica       & 360.6 K & 339 K\\
 Silica cylinders  & 355.6 K & 336 K\\
 \bottomrule
 \end{tabular}
-\end{table}
+\end{center}
 
 One least-squares fit to all three digitized curves gives
 \(h=12.54~\mathrm{W\,m^{-2}\,K^{-1}}\), which reproduces 359.7/340.1/337.5 K.
@@ -1332,10 +1337,10 @@ no sunlight at all, so the photocurrent integrates to zero and the cell reports
 a few millivolts --- a failure that looks like a solver bug and is a materials
 choice.
 
-\begin{table}[ht]
+\begin{center}
 \centering
 \small
-\begin{tabular}{L{34mm}R{18mm}R{20mm}R{22mm}R{20mm}}
+\begin{tabular}{L{36mm}R{21mm}R{21mm}R{21mm}R{21mm}}
 \toprule
 Surface & \(T_{\mathrm{eq}}\) & Efficiency & \(P_{\mathrm{mpp}}\) & \(\beta_P\)\\
 \midrule
@@ -1344,7 +1349,7 @@ Flat silica      & 329.3 K & 18.09\% & 182.1 W\,m\(^{-2}\) & \(-0.299\) \%/K\\
 Silica cylinders & 327.0 K & 18.64\% & 187.7 W\,m\(^{-2}\) & \(-0.300\) \%/K\\
 \bottomrule
 \end{tabular}
-\end{table}
+\end{center}
 
 The temperature drops agree with the paper: 21.2 K bare to flat silica against
 21 K, 2.3 K flat to cylinders against 3 K, and 23.5 K bare to cylinders against
