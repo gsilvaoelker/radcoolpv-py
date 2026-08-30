@@ -651,8 +651,8 @@ Spectral integrals & trapezoidal on the configured grid &
 grid truncates the Planck peak or undersamples the solar band\\
 Band averages & exact band, endpoints interpolated &
 band not spanned by the grid (omitted, never zero)\\
-Diode I--V & \code{fsolve}, warm-started per voltage &
-no bracket, or a jump too large between voltages\\
+Diode I--V & \code{fsolve}, warm-started per voltage, accepted on its
+residual & a residual that stays large (raises)\\
 MPP, \(V_{\mathrm{mpp}}\) & three-point parabolic refinement &
 peak on a sweep boundary (falls back to the sample)\\
 \(V_{\mathrm{oc}}\) & interpolated \(-J\) zero crossing &
@@ -664,6 +664,20 @@ does not settle (warns, naming the last value)\\
 \bottomrule
 \end{tabular}
 \end{table}
+
+\begin{sloppypar}
+The diode row hides a distinction worth stating. MINPACK reports ``not making
+good progress'' whenever a step stops improving the residual, which is also
+what happens once the residual has reached the floating-point floor and there
+is nothing left to improve. Called without \code{full\_output}, \code{fsolve}
+turns both into the same warning and returns its answer either way, so a solve
+exact to \(10^{-14}\) is indistinguishable from one that failed --- and the
+failed one's wrong current flows into the results. \code{\_solve\_diode} takes
+the status itself and judges by the residual: negligible against
+\(J_{\mathrm{sc}}\) is accepted, anything else raises. Across a converged group
+C case, one solve in roughly ninety thousand reports the stall, with a residual
+of \(-5.7\times10^{-14}\).
+\end{sloppypar}
 
 \begin{sloppypar}
 The band-average row is worth dwelling on, because the obvious implementation

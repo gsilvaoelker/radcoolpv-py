@@ -219,6 +219,7 @@ def test_committed_optics_reproduce_the_emittance_table(case, expected):
     assert average == pytest.approx(expected, abs=0.0005)
 
 
+@pytest.mark.filterwarnings("error::RuntimeWarning")
 @pytest.mark.parametrize(
     "case,temperature,efficiency",
     [("C1_pv_bare", 350.5, 0.1417),

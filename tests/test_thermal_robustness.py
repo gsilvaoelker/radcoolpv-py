@@ -187,3 +187,21 @@ def test_equilibrium_outside_the_sweep_names_the_key_that_fixes_it():
     with pytest.raises(ValueError, match="thermal.cooling_temperature"):
         with contextlib.redirect_stdout(io.StringIO()):
             pipeline.run(cfg)
+
+
+def test_a_diode_solve_that_really_fails_raises(monkeypatch):
+    """A wrong current must not reach the results as a warning.
+
+    fsolve reports "not making good progress" both when a solve has stalled and
+    when it has converged so exactly there is nothing left to improve. Without
+    full_output the two are the same warning, and the stalled one still returns
+    its answer. _solve_diode judges by the residual instead.
+    """
+    with pytest.raises(RuntimeError, match="did not converge"):
+        pv._solve_diode(lambda x: np.exp(x) + 1.0, 0.0, scale=300.0)   # no root
+
+
+def test_a_diode_solve_that_is_merely_exact_is_accepted():
+    """The residual is what decides, not how many steps MINPACK took."""
+    root = pv._solve_diode(lambda x: x - 2.5, 0.0, scale=300.0)
+    assert root == pytest.approx(2.5, abs=1e-12)

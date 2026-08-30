@@ -62,6 +62,29 @@ def _bandgap_wavelength_um(emit_temp: np.ndarray, eg0: float, alpha: float, beta
     return HPLANCK * CLIGHT / (eg * ECHARGE) / MICRON
 
 
+def _solve_diode(f, guess: float, scale: float) -> float:
+    """Solve ``f(J) = 0`` for the diode current density, judged by its residual.
+
+    MINPACK reports "not making good progress" whenever a step stops improving
+    the residual -- which is also what happens once the residual has reached the
+    floating-point floor and there is nothing left to improve. Calling ``fsolve``
+    without ``full_output`` turns that into a warning, so a solve that is exact
+    to 1e-14 looks the same as one that genuinely failed, and the genuinely
+    failed one still returns its wrong answer.
+
+    Taking the status ourselves separates the two: accept any root whose
+    residual is negligible against the short-circuit current, and raise on one
+    that is not.
+    """
+    root, _, status, message = fsolve(f, guess, full_output=True)
+    residual = abs(f(root[0]))
+    if status != 1 and residual > 1e-9 * max(abs(scale), 1.0):
+        raise RuntimeError(
+            f"diode current did not converge: residual {residual:.3e} A/m2 "
+            f"at J = {root[0]:.6g} A/m2. {message.strip()}")
+    return float(root[0])
+
+
 def _photon_flux_blackbody(lam: np.ndarray, temp: float) -> np.ndarray:
     """Blackbody photon flux, photons/(s um^3) (lambda in um)."""
     return (2 * np.pi * CLIGHT * MTOMICRON / lam ** 4) / (
@@ -128,7 +151,7 @@ def solve_iv(cfg, optics: OpticsResult, photon_flux_sun: np.ndarray) -> IVResult
                         + j0 * (np.exp(ECHARGE * vd / (KBOLTZ * temp)) - 1.0)
                         + a_v - isc)
 
-            idn = fsolve(f, id0, full_output=False)[0]
+            idn = _solve_diode(f, id0, isc)
             current_dens[it, iv] = idn
             id0 = idn
 
