@@ -37,6 +37,9 @@ docs/**/_build/
 docs/**/.jupyter_cache/
 docs/**/.ipynb_checkpoints/
 
+# Local working note, not part of the repository
+STATUS.md
+
 # OS
 .DS_Store
 
