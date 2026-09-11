@@ -23,13 +23,13 @@ from .directional import RawOptics
 from .geometry import S4Structure, build_structure, resolve_eps, used_materials
 
 _INSTALL_HINT = (
-    "The S4 Python module is not installed. S4 has no PyPI package and must be "
-    "built from source:\n"
+    "The S4 Python module is not installed. It has no PyPI package: the Colab "
+    "notebook installs a prebuilt wheel, tools/build_s4_wheel.sh builds one on "
+    "Linux, and on a Mac:\n"
     "    brew install fftw suite-sparse openblas lapack boost\n"
     "    git clone https://github.com/phoebe-p/S4 && cd S4\n"
     "    make -f Makefile.m1 S4_pyext      # Apple silicon; else: make S4_pyext\n"
-    "Alternatively use geometry.source: freeform, or resume from a pre-computed "
-    "optics results folder."
+    "Alternatively give optics.file a spectrum computed elsewhere."
 )
 
 
@@ -163,22 +163,21 @@ def sweep(cfg: Config, lambda_grid: np.ndarray,
 
     if angles_deg is None:
         theta, phi, weights = cfg.direction_arrays()
-        mode = cfg.simulation.angles
+        mode = cfg.optics.angles
     else:
         theta = np.asarray(angles_deg, dtype=float)
         phi = np.zeros_like(theta)
         weights = np.ones_like(theta)
         mode = ("normal" if len(theta) == 1 and np.isclose(theta[0], 0.0)
                 else "specific")
-    pols = directional.polarisations(
-        cfg.simulation.polarization_names())
+    pols = directional.polarisations(cfg.optics.polarization_names())
     n_lambda, n_direction = len(lambda_grid), len(theta)
     out = directional.new_accumulator(pols, n_lambda, n_direction)
 
     # Pre-evaluate eps for every material over the whole grid (vectorised), then
     # build the simulation once using the first wavelength's values.
     eps_grid = {m: np.asarray(eps_funcs[m](lambda_grid), dtype=complex) for m in mats}
-    sim = _build_sim(structure, cfg.simulation.s4_modes,
+    sim = _build_sim(structure, cfg.optics.s4_modes,
                      {m: eps_grid[m][0] for m in mats})
 
     for it, (polar, azimuth) in enumerate(zip(theta, phi)):
@@ -200,4 +199,4 @@ def sweep(cfg: Config, lambda_grid: np.ndarray,
 
     return directional.pack_raw(
         out, theta, phi, weights, lambda_grid, mode,
-        cfg.simulation.polarization)
+        cfg.optics.polarization)

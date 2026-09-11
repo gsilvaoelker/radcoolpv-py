@@ -1,0 +1,30 @@
+# Compute the spectrum from the structure with S4, then the energy balance and
+# the cell. Needs the S4 module. Here: the Akerboom et al. (2022) hexagonal
+# silica-microcylinder array on 500 um silica / 500 um silicon / 80 nm gold.
+
+optics:
+  wavelength: {min: 0.3, max: 24.9, n: 1000}   # gold table ends at 24.93 um
+  angles: hemispherical
+  hemisphere_theta_points: 8
+  hemisphere_azimuth_points: 1
+  s4_modes: 60
+  geometry:
+    shape: cylinder
+    photonic_material: sio2
+    lattice: {type: hexagonal, x: 10.608811, y: 6.125}   # pitch 6.125 um
+    cylinder: {radius: 1.75, height: 2.25}
+  structure:
+    - {material: sio2,    thickness: 500.0}
+    - {material: silicon, thickness: 500.0}
+    - {material: gold,    thickness: 0.08}
+  substrate: vacuum
+  materials:
+    sio2: PalikKitamura_SiO2
+    silicon: Palik_Si            # lossy; a lossless silicon makes no current
+    gold: RII_Olmon_2012_ev_Au
+
+thermal:
+  ambient_temperature: 300.0
+  convection_coefficient: 6.0
+
+cell: {}                         # silicon_thickness is read from the structure

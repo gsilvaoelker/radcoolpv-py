@@ -131,25 +131,24 @@ def _load(name):
     return cm.load(os.path.join(os.path.dirname(__file__), "data", name))
 
 
-def test_explicit_sweep_matching_the_default_changes_nothing():
-    """thermal.cooling_temperature drives standard mode, and the default is one.
+def test_explicit_sweep_matching_the_default_changes_nothing(tmp_path):
+    """thermal.temperatures drives every run, and the default is one.
 
     lambda_g is a weighted mean over the whole swept array, so the sweep is not
     merely a search window: stating the default explicitly must reproduce it
     exactly, or the coupling has been broken.
     """
     from radcoolpv import config as cm, pipeline
-    path = os.path.join(os.path.dirname(__file__), "..", "examples", "freeform_pv.yaml")
+    path = os.path.join(os.path.dirname(__file__), "..", "examples", "pv_from_spectrum.yaml")
 
     def run(sweep):
         cfg = cm.load(path)
-        cfg.run.plots = cfg.run.write_outputs = False
         if sweep is not None:
-            cfg.thermal.cooling_temperature = cm.TemperatureSweep(**sweep)
+            cfg.thermal.temperatures = cm.Sweep(**sweep)
         with contextlib.redirect_stdout(io.StringIO()):
-            return pipeline.run(cfg).thermal
+            return pipeline.run(cfg, results_dir=str(tmp_path), plots=False).thermal
 
-    t_amb = 298.0
+    t_amb = 300.0
     default = run(None)
     explicit = run({"min": t_amb, "max": t_amb + 150.0, "n": 151})
 
@@ -159,34 +158,24 @@ def test_explicit_sweep_matching_the_default_changes_nothing():
     assert explicit.beta_p == pytest.approx(default.beta_p, abs=1e-9)
 
 
-def test_standard_mode_sweep_must_contain_ambient():
-    """Otherwise the reported 'ambient' operating point is a silent extrapolation."""
-    from radcoolpv import config as cm
-    cfg_path = os.path.join(os.path.dirname(__file__), "..", "examples", "freeform_pv.yaml")
-    cfg = cm.load(cfg_path)
-    cfg.thermal.cooling_temperature = cm.TemperatureSweep(min=400.0, max=500.0, n=51)
-    with pytest.raises(cm.ConfigError, match="ambient temperature"):
-        cm.validate(cfg)
-
-
-def test_sub_ambient_equilibrium_resolves():
+def test_sub_ambient_equilibrium_resolves(tmp_path):
     """A cooler good enough to go below ambient must not fail to report it."""
     from radcoolpv import pipeline
     cfg = _load("cooling_curve.yaml")
     cfg.thermal.absorbed_solar_power = 10.0     # near-perfect solar rejection
     with contextlib.redirect_stdout(io.StringIO()):
-        result = pipeline.run(cfg).thermal
+        result = pipeline.run(cfg, results_dir=str(tmp_path), plots=False).thermal
     assert result.equil_temp < cfg.thermal.ambient_temperature
 
 
-def test_equilibrium_outside_the_sweep_names_the_key_that_fixes_it():
+def test_equilibrium_outside_the_sweep_names_the_key_that_fixes_it(tmp_path):
     from radcoolpv import pipeline
     cfg = _load("cooling_curve.yaml")
     cfg.thermal.absorbed_solar_power = 10.0
-    cfg.thermal.cooling_temperature.min = 340.0     # equilibrium is below this
-    with pytest.raises(ValueError, match="thermal.cooling_temperature"):
+    cfg.thermal.temperatures.min = 340.0     # equilibrium is below this
+    with pytest.raises(ValueError, match="thermal.temperatures"):
         with contextlib.redirect_stdout(io.StringIO()):
-            pipeline.run(cfg)
+            pipeline.run(cfg, results_dir=str(tmp_path), plots=False)
 
 
 def test_a_diode_solve_that_really_fails_raises(monkeypatch):

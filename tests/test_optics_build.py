@@ -1,4 +1,4 @@
-"""Tests for geometry construction, free-form input, and the S4 backend."""
+"""Tests for geometry construction and the S4 backend guard."""
 
 import os
 
@@ -6,12 +6,9 @@ import numpy as np
 import pytest
 
 from radcoolpv import config as config_module
-from radcoolpv.optics import freeform, geometry, s4_backend
+from radcoolpv.optics import geometry, s4_backend
 
-PKG_DATA = os.path.join(os.path.dirname(__file__), "..", "radcoolpv", "data")
 CONFIGS = os.path.join(os.path.dirname(__file__), "data")
-ATMOS = os.path.join(PKG_DATA, "cptrans_nq_100_15.dat")
-FF_FILE = os.path.join(PKG_DATA, "freeform_NIL_1um.txt")
 
 
 @pytest.fixture
@@ -28,42 +25,29 @@ def test_cylinder_structure(full_cfg):
     assert cyl.name == "Layer_1" and cyl.thickness == 30.0 and cyl.background == "vacuum"
     assert len(cyl.patterns) == 1 and cyl.patterns[0].kind == "circle"
     assert cyl.patterns[0].radius == 5.0 and cyl.patterns[0].material == "sio2"
-    # flat stack + terminal.
+    # flat stack + the semi-infinite substrate.
     assert s.silicon_layer == "layerSilicon"
     assert s.bottom_layer == "layerBottom"
     assert s.layers[-1].name == "layerBottom" and s.layers[-1].background == "substrate"
-    # Zero-thickness non-terminal layers are omitted.
     assert len(s.layers) == 6
 
 
 def test_triangle_discretization():
-    cfg = config_module.from_dict({
-        "run": {"thermal": False},
-        "geometry": {"source": "s4", "shape": "triangle",
-                     "photonic_material": "sio2",
+    cfg = config_module.from_dict({"optics": {
+        "geometry": {"shape": "triangle", "photonic_material": "sio2",
                      "lattice": {"type": "square", "x": 20.0},
-                     "discretization_layers": 4,
-                     "triangle": {"base": 12.0, "height": 20.0}},
-        "structure": [{"material": "silicon", "thickness": 250.0},
-                      {"material": "substrate", "thickness": 0.0, "terminal": True}],
+                     "triangle": {"base": 12.0, "height": 20.0, "layers": 4}},
+        "structure": [{"material": "silicon", "thickness": 250.0}],
+        "substrate": "substrate",
         "materials": {"sio2": "PalikKitamura_SiO2", "silicon": "SiliconNew",
                       "substrate": "Hagemann_Ag"},
-    })
+    }})
     s = geometry.build_structure(cfg)
     tri_layers = [l for l in s.layers if l.name.startswith("Layer_")]
     assert len(tri_layers) == 4
     # Rectangle halfwidths grow from tip to base.
     hw = [l.patterns[0].halfwidths[0] for l in tri_layers]
     assert hw == sorted(hw) and hw[0] > 0
-
-
-def test_freeform_normal_result():
-    res = freeform.load(FF_FILE, n_lambda=500, atmosphere_path=ATMOS)
-    assert res.angles == "normal"
-    assert res.lambda_um.shape == (500,)
-    # tran == 1 - abs - ref by construction.
-    assert np.allclose(res.tran, 1.0 - res.emit - res.ref, atol=1e-12)
-    assert np.all(np.isfinite(res.abs_silicon))
 
 
 def test_s4_backend_guard(full_cfg):

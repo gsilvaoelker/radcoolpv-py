@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "radcoolpv"
-version = "0.1.0"
-description = "YAML-driven radiative-cooling photovoltaics simulator (Python port of radCoolPV)"
+version = "0.2.0"
+description = "Radiative cooling of silicon photovoltaics: spectrum -> temperature -> PV parameters"
 readme = "README.md"
 requires-python = ">=3.9"
 dependencies = [
@@ -30,8 +30,3 @@ include = ["radcoolpv*"]
 [tool.setuptools.package-data]
 "radcoolpv.materials" = ["data/*.csv", "data/*.yml", "SOURCES.md"]
 "radcoolpv" = ["data/*"]
-"radcoolpv.validation" = [
-    "data/*.dat",
-    "data/quartzValidations-4-30um/*.txt",
-    "data/matlab_patterned_ref/*.txt",
-]

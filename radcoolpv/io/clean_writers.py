@@ -1,4 +1,4 @@
-"""Clean CSV outputs and a reproducibility manifest."""
+"""Run outputs: the spectrum, the sweeps, and the ``run.json`` manifest."""
 
 from __future__ import annotations
 
@@ -24,39 +24,21 @@ def _write_csv(folder: str, name: str, cols: np.ndarray, header: str) -> None:
                header=header, comments="", fmt="%.8g")
 
 
-def write_optics_csv(folder: str, optics: OpticsResult) -> None:
-    cols = np.column_stack([
-        optics.lambda_um, optics.ref, optics.tran, optics.emit, optics.abs_silicon,
-        optics.emit_atm, optics.ref_norm, optics.emit_norm, optics.abs_silicon_norm,
-    ])
-    _write_csv(folder, "optics.csv", cols,
-               "lambda_um,ref,tran,emit,abs_silicon,emit_atm,"
-               "ref_norm,emit_norm,abs_silicon_norm")
+def write_optics_txt(folder: str, optics: OpticsResult) -> None:
+    """The spectrum, in the form ``optics.file`` reads back without ``column``.
 
-
-def write_optics_export(path: str, optics: OpticsResult) -> None:
-    """Write the spectrum in the six-column form ``optics_results`` reads.
-
-    ``optics.csv`` cannot serve this purpose: it is comma-separated with a text
-    header, while the resume reader uses whitespace-separated numeric columns.
-
-    The sixth column is what makes a resumed run reproduce the run it came from.
-    A hemispherical sweep forms the atmospheric term as the angular average of
-    ``emit_atm(lambda, theta) * emit(lambda, theta)``, and no spectrum carries
-    enough information to rebuild that: a reader given only the averaged
-    emittance has to fall back on the zenith atmosphere, which is a different
-    number. Exporting the pre-integrated product removes the approximation.
+    The sixth column is what makes a stored spectrum reproduce the run it came
+    from. A hemispherical sweep forms the atmospheric term as the angular
+    average of ``emit_atm(lambda, theta) * emit(lambda, theta)``, and no
+    averaged spectrum carries enough information to rebuild that.
     """
-    folder = os.path.dirname(path)
-    if folder:
-        os.makedirs(folder, exist_ok=True)
     cols = np.column_stack([optics.lambda_um, optics.ref, optics.tran,
                             optics.emit, optics.abs_silicon,
                             optics.emitt_spec_times_emit_atm])
-    np.savetxt(path, cols, fmt="%.6e",
+    np.savetxt(os.path.join(folder, "optics.txt"), cols, fmt="%.6e",
                header="lambda_um   R           T           emit        "
                       "abs_si      emit*emit_atm\n"
-                      f"radcoolpv optics export ({optics.angles} spectrum)")
+                      f"radcoolpv optics ({optics.angles} spectrum)")
 
 
 def write_directional_csv(folder: str, raw) -> None:
@@ -108,15 +90,27 @@ def write_cooling_curve_csv(folder: str, thermal) -> None:
                "temperature_K,cooling_power_W_per_m2")
 
 
-def write_run_json(folder: str, cfg: Config, optics: Optional[OpticsResult],
+def write_all(ctx) -> None:
+    """Every output of a run: spectrum, sweeps, and the ``run.json`` manifest."""
+    folder, optics, thermal = ctx.results_dir, ctx.optics, ctx.thermal
+    write_optics_txt(folder, optics)
+    if "raw" in ctx.extras:
+        write_directional_csv(folder, ctx.extras["raw"])
+    if thermal is not None and thermal.iv is not None:
+        write_iv_csv(folder, thermal)
+        write_power_csv(folder, thermal)
+    elif thermal is not None:
+        write_cooling_curve_csv(folder, thermal)
+    write_run_json(folder, ctx.config, optics, thermal)
+
+
+def write_run_json(folder: str, cfg: Config, optics: OpticsResult,
                    thermal) -> None:
     """Write the resolved case, input hashes, runtime, and scalar results."""
     record = {
         "resolved_config": asdict(cfg),
         "provenance": _provenance(cfg),
-    }
-    if optics is not None:
-        record["optics"] = {
+        "optics": {
             "angles": optics.angles,
             "polarization": optics.polarization,
             "n_lambda": int(len(optics.lambda_um)),
@@ -126,7 +120,8 @@ def write_run_json(folder: str, cfg: Config, optics: Optional[OpticsResult],
             "silicon_from_emittance": optics.silicon_from_emittance,
             "wavelength_range_um": [float(optics.lambda_um[0]),
                                     float(optics.lambda_um[-1])],
-        }
+        },
+    }
     if thermal is not None:
         results = {
             "equilibrium_temperature_K": thermal.equil_temp,
@@ -219,31 +214,23 @@ def _git_value(repo: str, *args: str) -> Optional[str]:
 def _provenance(cfg: Config) -> dict:
     package_root = os.path.abspath(
         os.path.join(os.path.dirname(__file__), "..", ".."))
-    paths = {
-        "config": cfg.config_path,
-        "solar_spectrum": cfg.resolve_data(cfg.data.solar_spectrum),
-        "atmosphere": cfg.resolve_data(cfg.data.atmosphere),
-        "iqe": cfg.resolve_data(cfg.thermal.pv.iqe_file),
-        "optics_results": cfg.resolve_data(cfg.run.optics_results),
-    }
-    if cfg.geometry.source == "freeform":
-        paths["freeform"] = cfg.resolve_data(
-            cfg.geometry.freeform.get("file"))
+    paths = {"config": cfg.config_path, "spectrum": cfg.resolve_data(cfg.optics.file)}
+    if cfg.thermal is not None:
+        paths["atmosphere"] = cfg.resolve_data(cfg.thermal.atmosphere_file)
+    if cfg.cell is not None:
+        paths["iqe"] = cfg.resolve_data(cfg.cell.iqe_file)
     inputs = {
         name: {"path": path, "sha256": _sha256(path)}
         for name, path in paths.items()
         if path and os.path.isfile(path)
     }
     s4 = None
-    if cfg.run.optics and cfg.geometry.source == "s4":
+    if cfg.optics.file is None:
         import S4
-        s4 = {
-            "module_path": S4.__file__,
-            "sha256": _sha256(S4.__file__),
-        }
+        s4 = {"module_path": S4.__file__, "sha256": _sha256(S4.__file__)}
     dirty = _git_value(package_root, "status", "--porcelain",
                        "--untracked-files=no", "--", ".")
-    record = {
+    return {
         "python": sys.version,
         "platform": platform.platform(),
         "git_commit": _git_value(package_root, "rev-parse", "HEAD"),
@@ -251,4 +238,3 @@ def _provenance(cfg: Config) -> dict:
         "inputs": inputs,
         "s4": s4,
     }
-    return record

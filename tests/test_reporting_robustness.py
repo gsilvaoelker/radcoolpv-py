@@ -17,52 +17,35 @@ from radcoolpv import pipeline
 
 CONFIGS = os.path.join(os.path.dirname(__file__), "data")
 EXAMPLES = os.path.join(os.path.dirname(__file__), "..", "examples")
+SPECTRUM = os.path.join(EXAMPLES, "pv_from_spectrum.yaml")
 
 
 def test_optics_only_stack_without_silicon_can_be_printed():
-    """A freestanding cooler has no silicon layer, and that is legal.
-
-    ``Config.thick_si()`` raises when no layer is silicon. The resolved-config
-    banner used to call it for every optics run, so this config could be built
-    and validated but never executed through the CLI.
-    """
+    """A freestanding cooler has no silicon layer, and that is legal."""
     cfg = cm.load(os.path.join(CONFIGS, "cooler_planar.yaml"))
-    assert not any(l.material == "silicon" for l in cfg.structure)
+    assert not any(l.material == "silicon" for l in cfg.optics.structure)
     buf = io.StringIO()
     with contextlib.redirect_stdout(buf):
         pipeline.print_resolved(cfg)
-    out = buf.getvalue()
-    assert "structure    : 2 layers" in out
-    assert "thickSi" not in out          # nothing to report, so nothing claimed
+    assert "structure    : 1 layer(s) on vacuum" in buf.getvalue()
 
 
-def test_thick_si_still_raises_when_the_thermal_stage_needs_it():
-    """The guard above must not weaken the real requirement."""
-    cfg = cm.load(os.path.join(CONFIGS, "cooler_planar.yaml"))
-    with pytest.raises(cm.ConfigError, match="silicon"):
-        cfg.thick_si()
-
-
-def test_voltage_sweep_bracketing_only_the_equilibrium_point_still_runs():
+def test_voltage_sweep_bracketing_only_the_equilibrium_point_still_runs(tmp_path):
     """Ambient Voc is a diagnostic and must not abort the run.
 
     Ambient Voc is the largest in the sweep. A range that brackets the
     equilibrium operating point but stops below the ambient one used to raise,
     losing every result for the sake of one diagnostic.
     """
-    cfg = cm.load(os.path.join(EXAMPLES, "freeform_pv.yaml"))
-    cfg.run.plots = False
-    cfg.run.write_outputs = False
+    cfg = cm.load(SPECTRUM)
     with contextlib.redirect_stdout(io.StringIO()):
-        full = pipeline.run(cfg).thermal
+        full = pipeline.run(cfg, results_dir=str(tmp_path), plots=False).thermal
     assert full.voc_amb > full.voc_equil          # premise of the regression
 
-    cfg2 = cm.load(os.path.join(EXAMPLES, "freeform_pv.yaml"))
-    cfg2.run.plots = False
-    cfg2.run.write_outputs = False
-    cfg2.thermal.voltage.max = 0.5 * (full.voc_equil + full.voc_amb)
+    cfg2 = cm.load(SPECTRUM)
+    cfg2.cell.voltage.max = 0.5 * (full.voc_equil + full.voc_amb)
     with contextlib.redirect_stdout(io.StringIO()):
-        narrow = pipeline.run(cfg2).thermal
+        narrow = pipeline.run(cfg2, results_dir=str(tmp_path), plots=False).thermal
 
     assert narrow.equil_temp == pytest.approx(full.equil_temp, abs=0.5)
     # None rather than 0.0: run.json must not present an undetermined Voc as a
@@ -78,11 +61,9 @@ def test_run_json_reports_both_ambient_and_equilibrium_operating_points(tmp_path
     the manifest alongside their equilibrium counterparts, so the ambient and
     operating points can be compared without re-running anything.
     """
-    cfg = cm.load(os.path.join(EXAMPLES, "freeform_pv.yaml"))
-    cfg.run.results_dir = str(tmp_path)
-    cfg.run.plots = False
+    cfg = cm.load(SPECTRUM)
     with contextlib.redirect_stdout(io.StringIO()):
-        ctx = pipeline.run(cfg)
+        ctx = pipeline.run(cfg, results_dir=str(tmp_path), plots=False)
     block = json.load(open(os.path.join(ctx.results_dir, "run.json")))["thermal_results"]
 
     for key in ("voc_ambient_V", "voc_equilibrium_V",
@@ -102,11 +83,9 @@ def test_run_json_reports_the_diode_terms_at_the_operating_point(tmp_path):
     equilibrium point rather than dumped: auger_current alone is 151x100 values
     and has no business in a scalar manifest.
     """
-    cfg = cm.load(os.path.join(EXAMPLES, "freeform_pv.yaml"))
-    cfg.run.results_dir = str(tmp_path)
-    cfg.run.plots = False
+    cfg = cm.load(SPECTRUM)
     with contextlib.redirect_stdout(io.StringIO()):
-        ctx = pipeline.run(cfg)
+        ctx = pipeline.run(cfg, results_dir=str(tmp_path), plots=False)
     block = json.load(open(os.path.join(ctx.results_dir, "run.json")))["thermal_results"]
 
     j0 = block["saturation_current_equilibrium_A_per_m2"]
@@ -121,11 +100,9 @@ def test_run_json_reports_band_averages_matching_a_direct_call(tmp_path):
     """run.json must report exactly what a direct call to the helper returns."""
     from radcoolpv.optics.averages import pv_band_averages
 
-    cfg = cm.load(os.path.join(EXAMPLES, "freeform_pv.yaml"))
-    cfg.run.results_dir = str(tmp_path)
-    cfg.run.plots = False
+    cfg = cm.load(SPECTRUM)
     with contextlib.redirect_stdout(io.StringIO()):
-        ctx = pipeline.run(cfg)
+        ctx = pipeline.run(cfg, results_dir=str(tmp_path), plots=False)
     block = json.load(open(os.path.join(ctx.results_dir, "run.json")))
     reported = block["band_averages_percent"]
 
@@ -141,38 +118,31 @@ def test_run_json_reports_band_averages_matching_a_direct_call(tmp_path):
 def test_cooling_curve_run_omits_the_pv_only_band_averages(tmp_path):
     """A PV-free run has no operating point to weight them at, so it claims none."""
     cfg = cm.load(os.path.join(CONFIGS, "cooling_curve.yaml"))
-    cfg.run.results_dir = str(tmp_path)
-    cfg.run.plots = False
-    cfg.run.write_outputs = True
     with contextlib.redirect_stdout(io.StringIO()):
-        ctx = pipeline.run(cfg)
+        ctx = pipeline.run(cfg, results_dir=str(tmp_path), plots=False)
     assert ctx.thermal.band_averages is None
     block = json.load(open(os.path.join(ctx.results_dir, "run.json")))
     assert "band_averages_percent" not in block
 
 
 def test_undetermined_ambient_voc_is_null_in_run_json(tmp_path):
-    cfg = cm.load(os.path.join(EXAMPLES, "freeform_pv.yaml"))
-    cfg.run.results_dir = str(tmp_path)
-    cfg.run.plots = False
-    cfg.thermal.voltage.max = 0.74          # brackets equilibrium Voc, not ambient
+    cfg = cm.load(SPECTRUM)
+    cfg.cell.voltage.max = 0.72          # brackets equilibrium Voc, not ambient
     with contextlib.redirect_stdout(io.StringIO()):
-        ctx = pipeline.run(cfg)
+        ctx = pipeline.run(cfg, results_dir=str(tmp_path), plots=False)
     block = json.load(open(os.path.join(ctx.results_dir, "run.json")))["thermal_results"]
     assert block["voc_ambient_V"] is None
     assert block["fill_factor_ambient"] is None
     assert block["voc_equilibrium_V"] is not None
 
 
-def test_equilibrium_voc_outside_the_sweep_still_raises():
+def test_equilibrium_voc_outside_the_sweep_still_raises(tmp_path):
     """Degrading the diagnostic must not silence the real failure."""
-    cfg = cm.load(os.path.join(EXAMPLES, "freeform_pv.yaml"))
-    cfg.run.plots = False
-    cfg.run.write_outputs = False
-    cfg.thermal.voltage.max = 0.2                 # below every Voc
+    cfg = cm.load(SPECTRUM)
+    cfg.cell.voltage.max = 0.2                 # below every Voc
     with pytest.raises(ValueError, match="Voc"):
         with contextlib.redirect_stdout(io.StringIO()):
-            pipeline.run(cfg)
+            pipeline.run(cfg, results_dir=str(tmp_path), plots=False)
 
 
 def test_run_json_is_written_when_git_is_unavailable(tmp_path, monkeypatch):
@@ -184,11 +154,9 @@ def test_run_json_is_written_when_git_is_unavailable(tmp_path, monkeypatch):
     code missed this: a missing executable raises before there is one.
     """
     monkeypatch.setenv("PATH", "")
-    cfg = cm.load(os.path.join(EXAMPLES, "freeform_pv.yaml"))
-    cfg.run.results_dir = str(tmp_path)
-    cfg.run.plots = False
+    cfg = cm.load(SPECTRUM)
     with contextlib.redirect_stdout(io.StringIO()):
-        ctx = pipeline.run(cfg)
+        ctx = pipeline.run(cfg, results_dir=str(tmp_path), plots=False)
     record = json.load(open(os.path.join(ctx.results_dir, "run.json")))
     assert record["provenance"]["git_commit"] is None
     assert record["provenance"]["platform"]          # the rest still recorded
@@ -198,11 +166,8 @@ def test_run_json_is_written_when_git_is_unavailable(tmp_path, monkeypatch):
 def test_pv_free_run_omits_the_electrical_scalars(tmp_path):
     """Zero efficiency and zero Voc are not results of a run with no cell."""
     cfg = cm.load(os.path.join(CONFIGS, "cooling_curve.yaml"))
-    cfg.run.results_dir = str(tmp_path)
-    cfg.run.plots = False
-    cfg.run.write_outputs = True
     with contextlib.redirect_stdout(io.StringIO()):
-        ctx = pipeline.run(cfg)
+        ctx = pipeline.run(cfg, results_dir=str(tmp_path), plots=False)
     block = json.load(open(os.path.join(ctx.results_dir, "run.json")))
     results = block["thermal_results"]
 

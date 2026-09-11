@@ -1,4 +1,4 @@
-"""Build the S4 layer stack from the geometry + structure config.
+"""Build the S4 layer stack from ``optics.geometry`` and ``optics.structure``.
 
 Ports the geometry blocks of ``mainOpticalMatlabS4_v11.m`` (the discretisation
 of spheres/semispheres/triangles/cylinders and the flat layer stack). Produces
@@ -57,7 +57,7 @@ def resolve_eps(cfg: Config) -> Dict[str, Callable]:
     engine and the geometry builder cannot disagree about it.
     """
     funcs: Dict[str, Callable] = {"vacuum": analytic.vacuum}
-    for logical, model in cfg.materials.items():
+    for logical, model in cfg.optics.materials.items():
         funcs[logical] = registry.get(model)
     return funcs
 
@@ -73,7 +73,7 @@ def used_materials(structure: S4Structure) -> List[str]:
 
 
 def _lattice(cfg: Config) -> LatticeVectors:
-    lat = cfg.geometry.lattice
+    lat = cfg.optics.geometry.lattice
     if lat.type == "square":
         return ((lat.x, 0.0), (0.0, lat.x))        # square uses x for both
     if lat.type == "hexagonal":
@@ -82,7 +82,7 @@ def _lattice(cfg: Config) -> LatticeVectors:
 
 
 def _corner_center(cfg: Config) -> Tuple[float, float]:
-    lat = cfg.geometry.lattice
+    lat = cfg.optics.geometry.lattice
     return (lat.x / 2.0, lat.y / 2.0)
 
 
@@ -102,7 +102,7 @@ def _circles(material: str, radius: float, hexa: bool,
 
 def _photonic_layers(cfg: Config) -> List[S4Layer]:
     """Build the patterned photonic layers above the flat stack."""
-    g = cfg.geometry
+    g = cfg.optics.geometry
     mat = g.photonic_material
     hexa = (g.lattice.type == "hexagonal")
     corner = _corner_center(cfg)
@@ -119,7 +119,7 @@ def _photonic_layers(cfg: Config) -> List[S4Layer]:
     if g.shape in ("sphere", "semisphere"):
         rad = g.sphere["radius"]
         diam = 2.0 * rad
-        n = g.discretization_layers
+        n = int(g.sphere["layers"])
         delta = diam / n
         # Mid-layer circle radii (MATLAB sphere discretisation). The successive
         # subtraction of `delta` is kept exactly as-is: replacing it with
@@ -165,7 +165,7 @@ def _photonic_layers(cfg: Config) -> List[S4Layer]:
     if g.shape == "triangle":
         base = g.triangle["base"]
         height = g.triangle["height"]
-        n = g.discretization_layers
+        n = int(g.triangle["layers"])
         delta = height / n
         y = delta * 0.5
         for i in range(n):
@@ -192,7 +192,7 @@ def _photonic_layers(cfg: Config) -> List[S4Layer]:
         layers.append(S4Layer("Layer_1", depth, mat, [groove]))
         return layers
 
-    raise ValueError(f"Unsupported geometry.shape: {g.shape!r}")
+    raise ValueError(f"Unsupported optics.geometry.shape: {g.shape!r}")
 
 
 def build_structure(cfg: Config) -> S4Structure:
@@ -202,23 +202,18 @@ def build_structure(cfg: Config) -> S4Structure:
 
     silicon_layer = None
     silicon_thickness = 0.0
-    bottom_layer = "layerBottom"
-    for i, layer in enumerate(cfg.structure):
-        if layer.terminal:
-            name = "layerBottom"
-            bottom_layer = name
-        elif layer.material == "silicon":
+    for i, layer in enumerate(cfg.optics.structure):
+        if layer.material == "silicon":
             name = "layerSilicon"
             silicon_layer = name
             silicon_thickness = layer.thickness
-        elif layer.thickness == 0.0:
-            continue
         else:
             name = f"layer_{i}_{layer.material}"
         layers.append(S4Layer(name, layer.thickness, layer.material, []))
+    layers.append(S4Layer("layerBottom", 0.0, cfg.optics.substrate, []))
 
     return S4Structure(
         lattice=_lattice(cfg), layers=layers,
         silicon_layer=silicon_layer, silicon_thickness=silicon_thickness,
-        bottom_layer=bottom_layer,
+        bottom_layer="layerBottom",
     )

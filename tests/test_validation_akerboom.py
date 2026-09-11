@@ -9,6 +9,7 @@ the fitted 12.54 W/m2K, so neither set of numbers can drift unnoticed.
 """
 
 import os
+from dataclasses import asdict
 
 import numpy as np
 import pytest
@@ -47,17 +48,17 @@ def test_one_yaml_defines_all_optical_and_thermal_cases():
 
 
 def test_yaml_uses_paper_geometry_and_material_models():
-    cases = _cases()
-    cyl = cases["A3_optics_cylinders"]
+    cyl = _cases()["A3_optics_cylinders"].optics
 
     assert cyl.geometry.cylinder == {"radius": 1.75, "height": 2.25}
     assert cyl.geometry.lattice.x == pytest.approx(np.sqrt(3.0) * 6.125)
     assert cyl.geometry.lattice.y == pytest.approx(6.125)
-    assert [(layer.material, layer.thickness) for layer in cyl.structure[:-1]] == [
+    assert [(layer.material, layer.thickness) for layer in cyl.structure] == [
         ("sio2", 500.0),
         ("silicon", 500.0),
         ("gold", 0.08),
     ]
+    assert cyl.substrate == "vacuum"
     assert cyl.materials == {
         "sio2": "PalikKitamura_SiO2",
         "silicon": "Akerboom_Si_lossless",
@@ -96,10 +97,7 @@ def test_digitized_cooling_curves_preserve_reported_zero_crossings(
 def test_temperatures_at_the_paper_stated_convection_coefficient(
         case_name, calculated_temperature, tmp_path):
     cfg = _cases()[case_name]
-    cfg.run.plots = False
-    cfg.run.write_outputs = False
-    cfg.run.results_dir = str(tmp_path / case_name)
-    result = pipeline.run(cfg).thermal
+    result = pipeline.run(cfg, results_dir=str(tmp_path), plots=False).thermal
 
     assert cfg.thermal.convection_coefficient == pytest.approx(6.0)
     assert result.equil_temp == pytest.approx(calculated_temperature, abs=0.1)
@@ -115,7 +113,7 @@ def test_non_radiating_surface_settles_at_the_analytic_limit():
     energy balance is assembled correctly.
     """
     cfg = _cases()["B1_cooling_h6_bare"]
-    grid = cfg.wavelength_array()
+    grid = np.linspace(2.0, 16.0, 281)
     zeros = np.zeros_like(grid)
     optics = OpticsResult(
         lambda_um=grid,
@@ -152,10 +150,7 @@ def test_non_radiating_surface_settles_at_the_analytic_limit():
 def test_inferred_convection_coefficient_reproduces_figure_5b(
         case_name, paper_temperature, column, tmp_path):
     cfg = _cases()[case_name]
-    cfg.run.plots = False
-    cfg.run.write_outputs = False
-    cfg.run.results_dir = str(tmp_path / case_name)
-    result = pipeline.run(cfg).thermal
+    result = pipeline.run(cfg, results_dir=str(tmp_path), plots=False).thermal
 
     reference = np.loadtxt(FIG5B)
     paper_power = np.interp(
@@ -186,9 +181,9 @@ def test_pv_group_uses_lossy_silicon():
     """
     cases = _cases()
     for name in ("C1_pv_bare", "C2_pv_flat_silica", "C3_pv_cylinders"):
-        assert cases[name].materials["silicon"] == "Palik_Si"
+        assert cases[name].optics.materials["silicon"] == "Palik_Si"
     for name in ("A1_optics_bare", "A2_optics_flat_silica", "A3_optics_cylinders"):
-        assert cases[name].materials["silicon"] == "Akerboom_Si_lossless"
+        assert cases[name].optics.materials["silicon"] == "Akerboom_Si_lossless"
 
 
 def test_pv_group_wavelength_range_stays_inside_the_gold_table():
@@ -203,7 +198,7 @@ def test_pv_group_wavelength_range_stays_inside_the_gold_table():
 # --- the committed converged optics ------------------------------------- #
 # Groups A and C need S4 to compute their spectra, so until those spectra were
 # committed their published numbers were only reachable on a machine that had
-# built it. These read the committed exports and check the tables directly.
+# built it. These read the committed optics.txt files and check the tables.
 
 @pytest.mark.parametrize(
     "case,expected",
@@ -214,7 +209,7 @@ def test_pv_group_wavelength_range_stays_inside_the_gold_table():
 def test_committed_optics_reproduce_the_emittance_table(case, expected):
     from radcoolpv.optics.averages import band_average
     data = np.loadtxt(os.path.join(ROOT, "data", f"{case}.txt"))
-    assert data.shape[1] == 6, "the export must carry the atmospheric product"
+    assert data.shape[1] == 6, "the file must carry the atmospheric product"
     average = band_average(data[:, 0], data[:, 3], 7.5, 16.0)
     assert average == pytest.approx(expected, abs=0.0005)
 
@@ -230,16 +225,16 @@ def test_committed_optics_reproduce_the_pv_table(case, temperature, efficiency,
                                                  tmp_path):
     """Resuming the committed spectrum must give what the live run gave.
 
-    This is what the sixth export column buys: rebuilt at the zenith, the
+    This is what the sixth column buys: rebuilt at the zenith, the
     atmospheric term would differ and these temperatures would not land.
     """
-    cfg = _cases()[case]
-    cfg.run.optics = False
-    cfg.run.optics_results = f"data/{case}.txt"
-    cfg.run.plots = False
-    cfg.run.write_outputs = False
-    cfg.run.results_dir = str(tmp_path)
-    result = pipeline.run(cfg).thermal
+    live = _cases()[case]
+    cfg = config.from_dict({
+        "optics": {"file": f"data/{case}.txt"},
+        "thermal": asdict(live.thermal),
+        "cell": dict(asdict(live.cell), silicon_thickness=live.silicon_thickness()),
+    }, base_dir=ROOT)
+    result = pipeline.run(cfg, results_dir=str(tmp_path), plots=False).thermal
 
     assert result.equil_temp == pytest.approx(temperature, abs=0.05)
     assert result.efficiency_equil == pytest.approx(efficiency, abs=0.0005)

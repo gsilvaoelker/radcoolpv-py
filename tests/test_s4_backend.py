@@ -30,23 +30,20 @@ PATTERNED_TOL = 1e-6
 
 
 def _cfg(photonic="vacuum", shape="flat", cyl=None, grating=None):
-    raw = {
-        "run": {"optics": True, "thermal": False, "plots": False},
-        "simulation": {"wavelength": {"min": 8.0, "max": 10.0, "n": 3},
-                       "angles": "normal", "s4_modes": 40},
-        "geometry": {"source": "s4", "shape": shape,
-                     "photonic_material": photonic,
+    raw = {"optics": {
+        "wavelength": {"min": 8.0, "max": 10.0, "n": 3},
+        "angles": "normal", "s4_modes": 40,
+        "geometry": {"shape": shape, "photonic_material": photonic,
                      "lattice": {"type": "square", "x": 5.0, "y": 5.0}},
         "structure": [{"material": "sio2", "thickness": 2.0},
-                      {"material": "silicon", "thickness": 3.0},
-                      {"material": "substrate", "thickness": 0.0, "terminal": True}],
+                      {"material": "silicon", "thickness": 3.0}],
+        "substrate": "substrate",
         "materials": _MATS,
-        "thermal": {},
-    }
+    }}
     if cyl is not None:
-        raw["geometry"]["cylinder"] = cyl
+        raw["optics"]["geometry"]["cylinder"] = cyl
     if grating is not None:
-        raw["geometry"]["grating"] = grating
+        raw["optics"]["geometry"]["grating"] = grating
     return config_module.from_dict(raw, base_dir="radcoolpv")
 
 
@@ -126,28 +123,22 @@ def test_normal_grating_computes_both_polarizations():
 
 
 def test_silicon_absorption_uses_its_own_two_interfaces():
-    raw_cfg = {
-        "run": {"optics": True, "thermal": False, "plots": False},
-        "simulation": {
-            "wavelength": {"min": 8.0, "max": 10.0, "n": 3},
-            "angles": "normal", "polarization": "TE", "s4_modes": 1,
-        },
-        "geometry": {
-            "source": "s4", "shape": "flat",
-            "photonic_material": "vacuum",
-        },
+    raw_cfg = {"optics": {
+        "wavelength": {"min": 8.0, "max": 10.0, "n": 3},
+        "angles": "normal", "polarization": "TE", "s4_modes": 1,
+        "geometry": {"shape": "flat", "photonic_material": "vacuum"},
         "structure": [
             # Deliberately lossless logical silicon followed by lossy PDMS.
             {"material": "silicon", "thickness": 1.0},
             {"material": "pdms", "thickness": 20.0},
-            {"material": "substrate", "thickness": 0.0, "terminal": True},
         ],
+        "substrate": "substrate",
         "materials": {
             "silicon": "Vacuum",
             "pdms": "GuptaQuerry_PDMS",
             "substrate": "Hagemann_Ag",
         },
-    }
+    }}
     cfg = config_module.from_dict(raw_cfg, base_dir="radcoolpv")
     raw = s4_backend.sweep(cfg, LAMBDAS)
     assert np.max(raw.abs_te) > 0.1

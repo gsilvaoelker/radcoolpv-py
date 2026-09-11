@@ -43,8 +43,7 @@ from radcoolpv.optics import s4_backend
 pytestmark = pytest.mark.skipif(
     not s4_backend.is_available(), reason="S4 module is not built")
 
-REF_DIR = os.path.join(os.path.dirname(__file__), "..", "radcoolpv",
-                       "validation", "data", "matlab_patterned_ref")
+REF_DIR = os.path.join(os.path.dirname(__file__), "data", "matlab_patterned_ref")
 
 BAND = (8.0, 30.0)
 MEAN_TOL = 2.0e-3      # MATLAB's epsilon-rounding floor is ~9e-4
@@ -52,22 +51,19 @@ MAX_TOL = 1.0e-2
 
 
 def _cfg(n_lambda):
-    return config_module.from_dict({
-        "run": {"optics": True, "thermal": False, "plots": False},
-        "simulation": {"wavelength": {"min": BAND[0], "max": BAND[1], "n": n_lambda},
-                       "angles": "hemispherical", "s4_modes": 10},
-        "geometry": {"source": "s4", "shape": "cylinder",
-                     "photonic_material": "sio2",
+    return config_module.from_dict({"optics": {
+        "wavelength": {"min": BAND[0], "max": BAND[1], "n": n_lambda},
+        "angles": "hemispherical", "s4_modes": 10,
+        "geometry": {"shape": "cylinder", "photonic_material": "sio2",
                      "lattice": {"type": "square", "x": 20.0, "y": 20.0},
                      "cylinder": {"radius": 5.0, "height": 30.0}},
         "structure": [{"material": "sio2", "thickness": 100.0},
                       {"material": "si3n4", "thickness": 0.075},
-                      {"material": "silicon", "thickness": 250.0},
-                      {"material": "substrate", "thickness": 0.0, "terminal": True}],
+                      {"material": "silicon", "thickness": 250.0}],
+        "substrate": "substrate",
         "materials": {"sio2": "PalikKitamura_SiO2", "si3n4": "DrudeSi3N4",
                       "silicon": "SiliconNew", "substrate": "Hagemann_Ag"},
-        "thermal": {},
-    }, base_dir="radcoolpv")
+    }}, base_dir="radcoolpv")
 
 
 @pytest.fixture(scope="module")

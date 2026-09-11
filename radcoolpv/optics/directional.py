@@ -2,8 +2,8 @@
 
 Ports ``normalPropsFunc.m`` and ``hemisphPropsFunc.m``. The raw input is the
 reflectance/transmittance/absorptance/silicon-absorptance for each wavelength,
-direction, and polarization. It can come from a live S4 sweep or a historical
-MATLAB/S4 folder used for parity testing.
+direction, and polarization from a live S4 sweep. :func:`from_file` is the
+other way in: a spectrum computed or measured elsewhere.
 
 Output is an :class:`~radcoolpv.io.results.OpticsResult`: the hemispherical (or
 normal) spectral properties plus the normal-incidence copies the thermal stage
@@ -12,7 +12,6 @@ needs for the luminescence term, and the atmospheric emissivity.
 
 from __future__ import annotations
 
-import os
 from dataclasses import dataclass
 from typing import Optional
 
@@ -98,89 +97,37 @@ def pack_raw(out, theta_deg: np.ndarray, phi_deg: np.ndarray,
     return raw
 
 
-def _read_output_file(path: str, n_lambda: int) -> np.ndarray:
-    """Read an OUTPUTS4 file as (n_theta, n_lambda, 6)."""
-    data = np.loadtxt(path)
-    if data.ndim == 1:
-        data = data[None, :]
-    n_rows = data.shape[0]
-    if n_rows % n_lambda != 0:
-        raise ValueError(
-            f"{os.path.basename(path)} has {n_rows} rows, not a multiple of "
-            f"n_lambda={n_lambda}."
-        )
-    n_theta = n_rows // n_lambda
-    return data.reshape(n_theta, n_lambda, 6)
+#: Column order of ``optics.txt``, written by every run and read back by
+#: ``optics.file`` when no ``column`` is given.
+OPTICS_TXT_COLUMNS = "lambda_um R T emit abs_si emit*emit_atm"
 
 
-def from_folder(path: str, n_lambda: int) -> RawOptics:
-    """Load ``OUTPUTS4-TE.txt`` (+ ``-TM.txt`` if present) from a results folder.
+def from_file(path: str, atmosphere_path: str,
+              column: Optional[int] = None) -> OpticsResult:
+    """Load a spectrum from a table whose column 0 is the wavelength in um.
 
-    Columns: ``theta_deg, lambda_um, R, T, A, A_silicon``; rows are ordered
-    theta-major (all wavelengths for theta 0, then theta 1, ...).
-    """
-    te = _read_output_file(os.path.join(path, "OUTPUTS4-TE.txt"), n_lambda)
-    theta_deg = te[:, 0, 0]
-    lambda_um = te[0, :, 1]
-    raw = RawOptics(
-        theta_deg=theta_deg, phi_deg=np.zeros_like(theta_deg),
-        direction_weight=np.zeros_like(theta_deg), lambda_um=lambda_um,
-        ref_te=te[:, :, 2].T, tran_te=te[:, :, 3].T,
-        abs_te=te[:, :, 4].T, abs_si_te=te[:, :, 5].T,
-        mode="normal" if len(theta_deg) == 1 and np.isclose(theta_deg[0], 0.0)
-        else "hemispherical",
-        polarization="unpolarized",
-    )
-    tm_path = os.path.join(path, "OUTPUTS4-TM.txt")
-    if os.path.isfile(tm_path) and os.path.getsize(tm_path) > 0:
-        tm = _read_output_file(tm_path, n_lambda)
-        raw.ref_tm = tm[:, :, 2].T
-        raw.tran_tm = tm[:, :, 3].T
-        raw.abs_tm = tm[:, :, 4].T
-        raw.abs_si_tm = tm[:, :, 5].T
-    if raw.mode == "normal":
-        raw.direction_weight[:] = 1.0
-    else:
-        theta_rad = np.deg2rad(theta_deg)
-        dtheta = theta_rad[1] - theta_rad[0]
-        # Preserve the MATLAB polar-only quadrature for the read-only historical
-        # fixtures. New live hemispherical runs use normalized theta-phi
-        # Gauss-Legendre weights from SimulationConfig.directions().
-        raw.direction_weight = 2.0 * np.cos(theta_rad) * np.sin(theta_rad) * dtheta
-    return raw
+    With ``column``, that column is the hemispherical emittance of an opaque
+    surface (R = 1 - emit, T = 0). Without it the file is a radcoolpv
+    ``optics.txt``: ``lambda, R, T, emit, abs_si, <emit * emit_atm>``.
 
-
-def from_reduced_file(path: str, atmosphere_path: str,
-                      angles: str = "hemispherical",
-                      emittance_column: Optional[int] = None) -> OpticsResult:
-    """Load a previously reduced normal or hemispherical optical spectrum.
-
-    With ``emittance_column``, the selected zero-based column is treated as
-    hemispherical emittance for an opaque surface. Otherwise the column count
-    selects the form:
-
-    * 5 -- ``HEMSIPH``: ``lambda, R, T, emit, abs_si``
-    * 6 -- ``radcoolpv`` export: the same, plus the pre-integrated atmospheric
-      product ``<emit * emit_atm>``
-    * 7 -- ``PVcode``: ``lambda, emit, emit_normal, R, R_normal, abs_si,
-      abs_si_normal``
-
-    Only the six-column form reproduces the hemispherical run it came from. The
-    others retain no directional information, so their atmospheric term falls
-    back to the zenith atmosphere times the averaged emittance -- the same
-    angle-independent approximation free-form optics uses.
+    The sixth column is what lets a stored spectrum reproduce the run that
+    wrote it. A hemispherical sweep forms the atmospheric term as the angular
+    average of ``emit_atm(lambda, theta) * emit(lambda, theta)``, and no
+    averaged spectrum carries enough information to rebuild that; a single
+    emittance column falls back to the zenith atmosphere times the emittance.
     """
     data = np.loadtxt(path)
     if data.ndim == 1:
         data = data[None, :]
     lam = data[:, 0]
-    atm_product = None            # set only by the six-column export
-    if emittance_column is not None:
-        if emittance_column >= data.shape[1]:
+    atm = load_atmosphere(atmosphere_path, lam)
+    emit_atm = 1.0 - atm            # zenith value; reported and plotted
+    if column is not None:
+        if column >= data.shape[1]:
             raise ValueError(
-                f"{path}: emittance column {emittance_column} is outside "
-                f"the {data.shape[1]}-column table.")
-        emit = data[:, emittance_column]
+                f"{path}: optics.column {column} is outside the "
+                f"{data.shape[1]}-column table.")
+        emit = data[:, column]
         ref, tran = 1.0 - emit, np.zeros_like(emit)
         # A single emittance column carries no layer-resolved absorptance, so
         # the silicon share is inferred: above the gap essentially everything
@@ -189,32 +136,18 @@ def from_reduced_file(path: str, atmosphere_path: str,
         # stricter cut-off, so this only has to be right about which side of
         # the gap a wavelength falls on.
         abs_si = np.where(lam < LAMBDA_GAP, emit, 0.0)
-        ref_norm = emit_norm = abs_si_norm = None
-    elif data.shape[1] in (5, 6):
-        ref, tran, emit, abs_si = data[:, 1], data[:, 2], data[:, 3], data[:, 4]
-        ref_norm = emit_norm = abs_si_norm = None
-        if data.shape[1] == 6:
-            atm_product = data[:, 5]
-    elif data.shape[1] == 7:
-        emit, emit_norm, ref, ref_norm, abs_si, abs_si_norm = data[:, 1:].T
-        tran = 1.0 - ref - emit
+        product = emit_atm * emit
+    elif data.shape[1] == 6:
+        ref, tran, emit, abs_si, product = data[:, 1:].T
     else:
         raise ValueError(
-            f"{path}: expected 5- or 6-column radcoolpv optics or 7-column "
-            f"PVcode reduced optics, got {data.shape[1]} columns."
-        )
-
-    atm = load_atmosphere(atmosphere_path, lam)
-    # emit_atm stays the zenith value: it is reported and plotted, but the
-    # balance integrates the product below, which is exported when available.
-    emit_atm = 1.0 - atm
-    if atm_product is None:
-        atm_product = emit_atm * emit
+            f"{path}: expected the six columns of a radcoolpv optics.txt "
+            f"({OPTICS_TXT_COLUMNS}), got {data.shape[1]}. For any other table "
+            "set optics.column to the emittance column.")
     return OpticsResult(
         lambda_um=lam, ref=ref, tran=tran, emit=emit, abs_silicon=abs_si,
-        emit_atm=emit_atm, emitt_spec_times_emit_atm=atm_product,
-        ref_norm=ref_norm, emit_norm=emit_norm, abs_silicon_norm=abs_si_norm,
-        angles=angles, silicon_from_emittance=emittance_column is not None,
+        emit_atm=emit_atm, emitt_spec_times_emit_atm=product,
+        angles="file", silicon_from_emittance=column is not None,
     )
 
 

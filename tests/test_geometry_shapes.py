@@ -1,8 +1,7 @@
 """Geometric correctness of the photonic-structure discretisation.
 
 `sphere` and `semisphere` previously had no coverage at all - no test, no
-config - and every validation config runs `optics: false`, so nothing in the
-suite had ever executed this code. Three defects were living there, all in the
+config - so nothing in the suite had ever executed this code. Three defects were living there, all in the
 semisphere branch:
 
 1. `round(n / 2)` transcribed MATLAB's `round` literally, but MATLAB rounds half
@@ -37,21 +36,22 @@ def _structure(shape, n_layers=3, **shape_kw):
     block = {"sphere": "sphere", "semisphere": "sphere",
              "triangle": "triangle", "cylinder": "cylinder",
              "grating": "grating"}.get(shape)
-    geom = {"source": "s4", "shape": shape, "photonic_material": "sio2",
-            "lattice": {"type": "square", "x": LATTICE, "y": LATTICE},
-            "discretization_layers": n_layers}
+    geom = {"shape": shape, "photonic_material": "sio2",
+            "lattice": {"type": "square", "x": LATTICE, "y": LATTICE}}
     if block:
         geom[block] = shape_kw
+        if shape in ("sphere", "semisphere", "triangle"):
+            geom[block]["layers"] = n_layers
     cfg = config_module.from_dict({
-        "run": {"optics": True, "thermal": False, "plots": False},
-        "simulation": {"wavelength": {"min": 8.0, "max": 10.0, "n": 3},
-                       "angles": "normal", "s4_modes": 10},
-        "geometry": geom,
-        "structure": [{"material": "silicon", "thickness": 250.0},
-                      {"material": "substrate", "thickness": 0.0, "terminal": True}],
-        "materials": {"sio2": "PalikKitamura_SiO2", "silicon": "SiliconNew",
-                      "substrate": "Hagemann_Ag"},
-        "thermal": {},
+        "optics": {
+            "wavelength": {"min": 8.0, "max": 10.0, "n": 3},
+            "angles": "normal", "s4_modes": 10,
+            "geometry": geom,
+            "structure": [{"material": "silicon", "thickness": 250.0}],
+            "substrate": "substrate",
+            "materials": {"sio2": "PalikKitamura_SiO2", "silicon": "SiliconNew",
+                          "substrate": "Hagemann_Ag"},
+        },
     }, base_dir="radcoolpv")
     return geometry.build_structure(cfg)
 
@@ -105,9 +105,8 @@ def test_semisphere_spans_exactly_its_radius(n):
 
 @pytest.mark.parametrize("n", [1, 2, 3, 4, 9, 10])
 def test_semisphere_is_never_empty(n):
-    """`discretization_layers` defaults to 1, which used to yield NO patterned
-    layers at all - the photonic structure vanished and a bare flat stack was
-    reported as a hemisphere."""
+    """One layer used to yield NO patterned layers at all - the photonic
+    structure vanished and a bare flat stack was reported as a hemisphere."""
     s = _structure("semisphere", n, radius=RADIUS)
     assert len(_photonic(s)) >= 1
 
@@ -131,7 +130,7 @@ def test_semisphere_widens_downward_towards_the_equator(n):
 @pytest.mark.parametrize("shape", ["sphere", "semisphere", "triangle"])
 def test_discretised_shapes_reject_nonsensical_layer_counts(shape):
     kw = {"radius": RADIUS} if shape != "triangle" else {"base": 8.0, "height": 6.0}
-    with pytest.raises(ConfigError, match="discretization_layers"):
+    with pytest.raises(ConfigError, match="layers"):
         _structure(shape, 0, **kw)
 
 
@@ -218,18 +217,17 @@ def test_hexagonal_lattice_adds_the_corner_copy():
     sq = _structure("cylinder", 1, radius=2.0, height=3.0)
     assert len(_photonic(sq)[0].patterns) == 1
     cfg = config_module.from_dict({
-        "run": {"optics": True, "thermal": False, "plots": False},
-        "simulation": {"wavelength": {"min": 8.0, "max": 10.0, "n": 3},
-                       "angles": "normal", "s4_modes": 10},
-        "geometry": {"source": "s4", "shape": "cylinder",
-                     "photonic_material": "sio2",
-                     "lattice": {"type": "hexagonal", "x": LATTICE, "y": 10.0},
-                     "cylinder": {"radius": 2.0, "height": 3.0}},
-        "structure": [{"material": "silicon", "thickness": 250.0},
-                      {"material": "substrate", "thickness": 0.0, "terminal": True}],
-        "materials": {"sio2": "PalikKitamura_SiO2", "silicon": "SiliconNew",
-                      "substrate": "Hagemann_Ag"},
-        "thermal": {},
+        "optics": {
+            "wavelength": {"min": 8.0, "max": 10.0, "n": 3},
+            "angles": "normal", "s4_modes": 10,
+            "geometry": {"shape": "cylinder", "photonic_material": "sio2",
+                         "lattice": {"type": "hexagonal", "x": LATTICE, "y": 10.0},
+                         "cylinder": {"radius": 2.0, "height": 3.0}},
+            "structure": [{"material": "silicon", "thickness": 250.0}],
+            "substrate": "substrate",
+            "materials": {"sio2": "PalikKitamura_SiO2", "silicon": "SiliconNew",
+                          "substrate": "Hagemann_Ag"},
+        },
     }, base_dir="radcoolpv")
     hexa = _photonic(geometry.build_structure(cfg))[0]
     assert len(hexa.patterns) == 2

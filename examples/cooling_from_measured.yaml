@@ -1,0 +1,15 @@
+# An emittance measured or digitized from a paper: wavelength in column 0,
+# emittance in the column you name. No cell, because the file starts at 2 um
+# and a cell needs the spectrum below the band gap (1.1 um). The result is
+# the cooling curve and the temperature it settles at.
+# Here: Akerboom et al. (2022) Fig. 5a, silica microcylinders (column 3).
+
+optics:
+  file: ../validation/data/fig5a_measured_emittance.txt
+  column: 3                        # 1 bare Au/Si, 2 flat silica, 3 cylinders
+
+thermal:
+  ambient_temperature: 300.0       # K
+  convection_coefficient: 12.54    # W/m2-K
+  absorbed_solar_power: 808.0      # W/m2 absorbed, as the paper states it
+  temperatures: {min: 260.0, max: 380.0, n: 121}

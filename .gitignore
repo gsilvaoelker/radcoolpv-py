@@ -20,32 +20,13 @@ results/
 .coverage
 htmlcov/
 
-# MATLAB / render artifacts
-*.asv
-*.fig
-*.pov
-docs/manual/*.aux
-docs/manual/*.fdb_latexmk
-docs/manual/*.fls
-docs/manual/*.log
-docs/manual/*.out
-docs/manual/*.synctex.gz
-docs/manual/*.toc
-
-# Generated documentation artifacts (keep the docs sources tracked)
-docs/**/_build/
-docs/**/.jupyter_cache/
-docs/**/.ipynb_checkpoints/
-
-# Local working note, not part of the repository
-STATUS.md
+# Notebook checkpoints and the case files the notebook writes
+.ipynb_checkpoints/
+/case_*.yaml
 
 # OS
 .DS_Store
 
-# The parent repo ignores `*.dat` as a generic result-file type, but two .dat
-# files are bundled package-data that radcoolpv needs at runtime:
-#   radcoolpv/data/cptrans_nq_100_15.dat        default atmosphere (config.py)
-#   radcoolpv/validation/data/perrakis-h0.dat   Perrakis reference (references.py)
-# Without these negations a clean clone builds a broken wheel.
+# The parent repo ignores `*.dat` as a generic result-file type, but
+# radcoolpv/data/cptrans_nq_100_15.dat is the default atmosphere and must ship.
 !radcoolpv/**/*.dat

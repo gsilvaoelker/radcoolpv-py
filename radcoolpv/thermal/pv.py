@@ -96,11 +96,11 @@ def solve_iv(cfg, optics: OpticsResult, photon_flux_sun: np.ndarray) -> IVResult
     lam = optics.lambda_um
     n_lambda = len(lam)
     lambda_delta = lam[1] - lam[0]
-    thick_si = cfg.thick_si()
-    volt = cfg.thermal.voltage.array()
-    rs = cfg.thermal.pv.series_resistance
-    rsh = cfg.thermal.pv.shunt_resistance
-    bg = cfg.thermal.pv.bandgap
+    thick_si = cfg.silicon_thickness()
+    volt = cfg.cell.voltage.array()
+    rs = cfg.cell.series_resistance
+    rsh = cfg.cell.shunt_resistance
+    bg = cfg.cell.bandgap
 
     emit_temp = cfg.temperature_array()
     n_temp = len(emit_temp)
@@ -111,7 +111,7 @@ def solve_iv(cfg, optics: OpticsResult, photon_flux_sun: np.ndarray) -> IVResult
     eg_idx = int(hits[0]) if hits.size else int(np.argmin(np.abs(lam - lam_eg)))
     eg = slice(0, eg_idx + 1)
 
-    iqe = load_iqe(cfg.resolve_data(cfg.thermal.pv.iqe_file), lam)
+    iqe = load_iqe(cfg.resolve_data(cfg.cell.iqe_file), lam)
     abs_pv = optics.abs_silicon
     abs_pv_norm = optics.abs_silicon_norm
 

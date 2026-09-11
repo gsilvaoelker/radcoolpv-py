@@ -1,10 +1,10 @@
-"""radcoolpv: YAML-driven radiative-cooling photovoltaics simulator.
+"""radcoolpv: radiative cooling of silicon photovoltaics.
 
-Python port of the MATLAB+Lua/S4 ``radCoolPV`` toolchain. A single YAML config
-drives a two-stage pipeline: an optics stage (the lazy-loaded, compiled S4
-Python extension, or external spectrum data) and a thermal/electrical
-energy-balance stage. The two stages share one wavelength grid and are coupled
-in memory, so there is no manual connection to keep in sync.
+Python port of the MATLAB+Lua/S4 ``radCoolPV`` toolchain. One YAML case has
+three blocks: ``optics`` (a spectrum from a file, or a structure solved with
+the lazily imported S4 extension), ``thermal`` (the energy balance), and
+``cell`` (the single-diode I-V). The blocks share one wavelength grid and are
+coupled in memory.
 """
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"

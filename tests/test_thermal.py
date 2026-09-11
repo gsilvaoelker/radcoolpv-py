@@ -1,4 +1,4 @@
-"""Tests for the thermal stage: radiative term, Perrakis validation, PV sanity."""
+"""Tests for the thermal stage: radiative term, PV sanity, cooling curve."""
 
 import os
 
@@ -8,18 +8,20 @@ import pytest
 from radcoolpv import config as cm
 from radcoolpv._compat import trapz
 from radcoolpv.io.results import OpticsResult
-from radcoolpv.optics import directional
 from radcoolpv.thermal import energy_balance
 from radcoolpv.thermal.radiative import rad_power
 from radcoolpv.thermal.spectra import load_solar
 
-PKG = os.path.join(os.path.dirname(__file__), "..", "radcoolpv")
-PKG_DATA = os.path.join(PKG, "data")
-VAL_DATA = os.path.join(PKG, "validation", "data")
-QUARTZ = os.path.join(VAL_DATA, "quartzValidations-4-30um")
+PKG_DATA = os.path.join(os.path.dirname(__file__), "..", "radcoolpv", "data")
 ATMOS = os.path.join(PKG_DATA, "cptrans_nq_100_15.dat")
-PERRAKIS = os.path.join(VAL_DATA, "perrakis-h0.dat")
 SOLAR = os.path.join(PKG_DATA, "astmg173.xlsx")
+
+_STACK = {
+    "wavelength": {"min": 0.3, "max": 30.0, "n": 2000}, "angles": "hemispherical",
+    "structure": [{"material": "silicon", "thickness": 250.0}],
+    "substrate": "substrate",
+    "materials": {"silicon": "SiliconNew", "substrate": "Hagemann_Ag"},
+}
 
 
 @pytest.mark.parametrize("temp", [250.0, 300.0, 350.0])
@@ -28,34 +30,6 @@ def test_radiative_matches_stefan_boltzmann(temp):
     p = np.pi * rad_power(lam, np.ones_like(lam), temp)
     sb = 5.670374419e-8 * temp ** 4
     assert p == pytest.approx(sb, rel=2e-3)
-
-
-def _quartz_cfg(mode):
-    return cm.from_dict({
-        "run": {"optics": True, "thermal": True, "plots": False, "mode": mode},
-        "simulation": {"wavelength": {"min": 4.0, "max": 30.0, "n": 2000},
-                       "angles": "hemispherical"},
-        "geometry": {"source": "s4", "shape": "flat", "photonic_material": "sio2"},
-        "structure": [{"material": "silicon", "thickness": 250.0},
-                      {"material": "substrate", "thickness": 0.0, "terminal": True}],
-        "materials": {"sio2": "PalikKitamura_SiO2", "silicon": "SiliconNew",
-                      "substrate": "Hagemann_Ag"},
-        "thermal": {"ambient_temperature": 300.0, "convection_coefficient": 0.0},
-    })
-
-
-def test_perrakis_fig2_cooling_power():
-    raw = directional.from_folder(QUARTZ, 2000)
-    grid = np.linspace(4.0, 30.0, 2000)
-    optics = directional.reduce(raw, ATMOS, lambda_grid=grid)
-    solar = load_solar(SOLAR, grid)
-    res = energy_balance.run(_quartz_cfg("test"), optics, solar)
-
-    per = np.loadtxt(PERRAKIS)
-    in_range = per[:, 0] <= res.emit_temp[-1]
-    mine = np.interp(per[in_range, 0], res.emit_temp, res.cool_power)
-    # Reference is digitised from the paper figure; agree to ~10 W/m^2.
-    assert np.max(np.abs(mine - per[in_range, 1])) < 12.0
 
 
 def _synthetic_optics(grid, atmosphere_path):
@@ -78,16 +52,9 @@ def test_pv_path_is_sane_and_fixed_point_converges():
     optics = _synthetic_optics(grid, ATMOS)
     solar = load_solar(SOLAR, grid)
     cfg = cm.from_dict({
-        "run": {"optics": True, "thermal": True, "plots": False, "mode": "standard"},
-        "simulation": {"wavelength": {"min": 0.3, "max": 30.0, "n": 2000},
-                       "angles": "hemispherical"},
-        "geometry": {"source": "s4", "shape": "flat", "photonic_material": "sio2"},
-        "structure": [{"material": "silicon", "thickness": 250.0},
-                      {"material": "substrate", "thickness": 0.0, "terminal": True}],
-        "materials": {"sio2": "PalikKitamura_SiO2", "silicon": "SiliconNew",
-                      "substrate": "Hagemann_Ag"},
-        "thermal": {"ambient_temperature": 298.0, "convection_coefficient": 12.0,
-                    "equilibrium": "auto"},
+        "optics": _STACK,
+        "thermal": {"ambient_temperature": 298.0, "convection_coefficient": 12.0},
+        "cell": {},
     })
     res = energy_balance.run(cfg, optics, solar)
     assert res.isc > 0
@@ -104,23 +71,15 @@ def test_pv_path_is_sane_and_fixed_point_converges():
     )
 
 
-def test_cooling_curve_mode_uses_configured_temperature_sweep():
+def test_without_a_cell_the_configured_temperature_sweep_drives_the_curve():
     grid = np.linspace(0.3, 30.0, 2000)
     optics = _synthetic_optics(grid, ATMOS)
     solar = load_solar(SOLAR, grid)
     cfg = cm.from_dict({
-        "run": {"optics": True, "thermal": True, "plots": False, "mode": "cooling_curve"},
-        "simulation": {"wavelength": {"min": 0.3, "max": 30.0, "n": 2000},
-                       "angles": "hemispherical"},
-        "geometry": {"source": "s4", "shape": "flat", "photonic_material": "sio2"},
-        "structure": [{"material": "silicon", "thickness": 250.0},
-                      {"material": "substrate", "thickness": 0.0, "terminal": True}],
-        "materials": {"sio2": "PalikKitamura_SiO2", "silicon": "SiliconNew",
-                      "substrate": "Hagemann_Ag"},
+        "optics": _STACK,
         "thermal": {"ambient_temperature": 298.0, "convection_coefficient": 9.0,
-                    "solar_irradiance": 800.0,
                     "reference_temperature": 350.0,
-                    "cooling_temperature": {"min": 310.0, "max": 360.0, "n": 101}},
+                    "temperatures": {"min": 310.0, "max": 360.0, "n": 101}},
     })
 
     res = energy_balance.run(cfg, optics, solar)
@@ -131,28 +90,20 @@ def test_cooling_curve_mode_uses_configured_temperature_sweep():
     assert len(res.cool_power) == 101
     assert res.temperature_reduction == pytest.approx(350.0 - res.equil_temp)
     assert res.solar_power == pytest.approx(
-        trapz(optics.emit * solar.irradiance_per_um, grid) * 800.0 / solar.total_am15
-    )
+        trapz(optics.emit * solar.irradiance_per_um, grid))
 
 
-def test_cooling_curve_accepts_direct_absorbed_solar_power():
+def test_absorbed_solar_power_replaces_the_am15_integral():
     grid = np.linspace(2.0, 16.0, 281)
     optics = _synthetic_optics(grid, ATMOS)
     solar = load_solar(SOLAR, grid)
     cfg = cm.from_dict({
-        "run": {
-            "optics": False, "thermal": True, "plots": False,
-            "mode": "cooling_curve", "optics_results": "unused.txt",
-        },
-        "simulation": {
-            "wavelength": {"min": 2.0, "max": 16.0, "n": 281},
-            "angles": "hemispherical",
-        },
+        "optics": {"file": "unused.txt", "column": 1},
         "thermal": {
             "ambient_temperature": 300.0,
             "convection_coefficient": 12.0,
             "absorbed_solar_power": 808.0,
-            "cooling_temperature": {"min": 260.0, "max": 380.0, "n": 121},
+            "temperatures": {"min": 260.0, "max": 380.0, "n": 121},
         },
     })
 

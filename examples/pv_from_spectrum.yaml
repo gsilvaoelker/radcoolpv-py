@@ -1,0 +1,14 @@
+# A spectrum radcoolpv wrote (optics.txt: six columns, no `column` needed),
+# run through the energy balance and the cell. No solver required.
+# Here: the converged optics of the Akerboom et al. (2022) silica-microcylinder
+# module, so this reproduces the paper's 327.0 K and 18.64 %.
+
+optics:
+  file: ../validation/data/C3_pv_cylinders.txt
+
+thermal:
+  ambient_temperature: 300.0       # K
+  convection_coefficient: 6.0      # W/m2-K, everything non-radiative
+
+cell:
+  silicon_thickness: 500.0         # um; the spectrum does not know the stack

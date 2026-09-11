@@ -1,8 +1,7 @@
-"""Figures, mirroring the MATLAB plots. All output is gated by ``run.plots``.
+"""Figures, mirroring the MATLAB plots.
 
 Uses a non-interactive backend and writes PNGs into ``<results>/figures``. Which
-figures are produced depends on which stages ran (optics and/or thermal) and the
-run mode (test adds a literature overlay).
+figures are produced depends on which blocks ran (thermal, cell).
 """
 
 from __future__ import annotations
@@ -15,37 +14,24 @@ import matplotlib.pyplot as plt  # noqa: E402
 import numpy as np
 
 from ..io.results import RunContext
-from ..validation import references
 
 
 def make_all(ctx: RunContext) -> list:
     """Create all applicable figures; return the list of file paths written."""
     out_dir = os.path.join(ctx.results_dir, "figures")
     os.makedirs(out_dir, exist_ok=True)
-    paths = []
-    optics = ctx.optics
     thermal = ctx.thermal
-
-    if ctx.config.run.mode == "spectral_compare":
-        return [_spectral_comparison(out_dir, ctx.config)]
-
-    if optics is not None:
-        paths.append(_optical_properties(out_dir, optics, ctx.config))
-
+    paths = [_optical_properties(out_dir, ctx.optics)]
     if thermal is not None:
-        paths.append(_cooler_emissivity(out_dir, optics))
-        if ctx.config.run.mode == "cooling_curve":
-            paths.append(_cooling_power_curve(out_dir, thermal, ctx.config))
-        elif ctx.config.run.mode == "test":
-            paths.append(_cooling_power_validation(out_dir, thermal))
+        paths.append(_cooler_emissivity(out_dir, ctx.optics))
+        if thermal.iv is None:
+            paths.append(_cooling_power_curve(out_dir, thermal))
         else:
             paths.append(_energy_balance_terms(out_dir, thermal))
-        if thermal.iv is not None:
             paths.append(_iv_curve(out_dir, thermal))
             paths.append(_power_curve(out_dir, thermal))
             paths.append(_efficiency(out_dir, thermal))
-
-    return [p for p in paths if p]
+    return paths
 
 
 def _save(fig, path):
@@ -60,18 +46,13 @@ def _positive_y_limit(*curves) -> float:
     return 1.1 * largest if largest > 0.0 else 1.0
 
 
-def _optical_properties(out_dir, optics, cfg):
+def _optical_properties(out_dir, optics):
     fig, ax = plt.subplots(figsize=(7, 4))
     lam = optics.lambda_um
     ax.plot(lam, optics.ref, label="Ref.")
     ax.plot(lam, optics.tran, label="Tran.")
     ax.plot(lam, optics.emit, label="Emiss.")
     ax.plot(lam, optics.abs_silicon, label="Abs. Si")
-    for series in cfg.comparison.spectra:
-        data = np.loadtxt(cfg.resolve_data(series["file"]))
-        column = int(series.get("column", 1))
-        ax.plot(data[:, 0], data[:, column], "--",
-                color=series.get("color"), label=series["label"])
     ax.set_xlabel(r"Wavelength ($\mu$m)")
     ax.set_ylabel("Absorp., Reflect., Trans.")
     ax.set_xlim(lam[0], lam[-1]); ax.set_ylim(0, 1)
@@ -91,22 +72,6 @@ def _cooler_emissivity(out_dir, optics):
     return _save(fig, os.path.join(out_dir, "cooler_emissivity.png"))
 
 
-def _spectral_comparison(out_dir, cfg):
-    fig, ax = plt.subplots(figsize=(7, 4))
-    for series in cfg.comparison.spectra:
-        data = np.loadtxt(cfg.resolve_data(series["file"]))
-        kwargs = {"label": series["label"]}
-        if "color" in series:
-            kwargs["color"] = series["color"]
-        ax.plot(data[:, 0], data[:, 1], **kwargs)
-    ax.set_xlim(*cfg.comparison.xlim); ax.set_ylim(*cfg.comparison.ylim)
-    ax.set_xlabel(cfg.comparison.xlabel)
-    ax.set_ylabel(cfg.comparison.ylabel)
-    ax.set_title(cfg.comparison.title)
-    ax.legend(frameon=False)
-    return _save(fig, os.path.join(out_dir, cfg.comparison.output_file))
-
-
 def _energy_balance_terms(out_dir, t):
     fig, ax = plt.subplots(figsize=(7, 4))
     ax.plot(t.emit_temp, t.rad_power, label=r"$P_{rad}$")
@@ -122,32 +87,9 @@ def _energy_balance_terms(out_dir, t):
     return _save(fig, os.path.join(out_dir, "energy_balance_terms.png"))
 
 
-def _cooling_power_validation(out_dir, t):
-    fig, ax = plt.subplots(figsize=(7, 4))
-    ax.plot(t.emit_temp, t.cool_power, label="This code")
-    ref = references.perrakis_fig2()
-    if ref is not None:
-        ax.plot(ref[:, 0], ref[:, 1], "o--", label="Perrakis et al.")
-    ax.axhline(0.0, color="k", lw=0.8)
-    ax.set_xlabel("Temperature (K)"); ax.set_ylabel(r"Cooling power (W/m$^2$)")
-    ax.set_title("Cooling power validation"); ax.legend(frameon=False)
-    return _save(fig, os.path.join(out_dir, "cooling_power_validation.png"))
-
-
-def _cooling_power_curve(out_dir, t, cfg):
+def _cooling_power_curve(out_dir, t):
     fig, ax = plt.subplots(figsize=(7, 4))
     ax.plot(t.emit_temp, t.cool_power, lw=2, label="radcoolpv")
-    path = cfg.resolve_data(cfg.thermal.reference_curve_file)
-    if path:
-        with open(path) as fh:
-            lines = [line for line in fh if not line.startswith("#")]
-        data = np.genfromtxt(lines, missing_values="NA", filling_values=np.nan)
-        if data.ndim == 1:
-            data = data[None, :]
-        column = cfg.thermal.reference_curve_column
-        y = data[:, column]
-        valid = np.isfinite(data[:, 0]) & np.isfinite(y)
-        ax.plot(data[valid, 0], y[valid], "o", ms=3, mfc="white", label="Digitized reference")
     ax.axhline(0.0, color="0.5", lw=0.8)
     ax.axvline(t.equil_temp, ls="--", color="0.5", label=fr"$T_{{eq}}={t.equil_temp:.1f}$ K")
     ax.set_xlabel("Film temperature (K)")
