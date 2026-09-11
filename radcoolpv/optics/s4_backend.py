@@ -24,8 +24,7 @@ from .geometry import S4Structure, build_structure, resolve_eps, used_materials
 
 _INSTALL_HINT = (
     "The S4 Python module is not installed. It has no PyPI package: the Colab "
-    "notebook installs a prebuilt wheel, tools/build_s4_wheel.sh builds one on "
-    "Linux, and on a Mac:\n"
+    "notebook's setup cell builds it on Linux, and on a Mac:\n"
     "    brew install fftw suite-sparse openblas lapack boost\n"
     "    git clone https://github.com/phoebe-p/S4 && cd S4\n"
     "    make -f Makefile.m1 S4_pyext      # Apple silicon; else: make S4_pyext\n"

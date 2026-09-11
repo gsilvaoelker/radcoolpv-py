@@ -109,7 +109,7 @@ source ~/.venvs/radcoolpv-py/bin/activate
 ```
 
 That covers everything except computing a spectrum, which needs S4. It has no
-PyPI package; the notebook installs a wheel from `tools/build_s4_wheel.sh`, and on a Mac:
+PyPI package; the notebook builds it from source on Linux, and on a Mac:
 
 ```bash
 brew install fftw suite-sparse openblas lapack boost
