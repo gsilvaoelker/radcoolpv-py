@@ -1,5 +1,6 @@
 """Tests for the material registry, tabulated loader, and analytic models."""
 
+import glob
 import os
 
 import numpy as np
@@ -9,7 +10,7 @@ from radcoolpv.materials import registry, tabulated
 
 USED_MODELS = [
     "PalikKitamura_SiO2", "SiliconNew", "Rubin_SodaLime",
-    "GuptaQuerry_PDMS", "Hagemann_Ag", "Jaramillo_NILresist", "DrudeSi3N4",
+    "GuptaQuerry_PDMS", "Hagemann_Ag", "DrudeSi3N4",
 ]
 
 DATA_DIR = os.path.join(os.path.dirname(registry.__file__), "data")
@@ -20,6 +21,20 @@ def test_all_used_models_resolve():
     for name in USED_MODELS:
         assert name in avail, f"{name} not registered"
         assert callable(registry.get(name))
+
+
+@pytest.mark.parametrize("name", sorted(
+    os.path.splitext(os.path.basename(p))[0]
+    for p in glob.glob(os.path.join(DATA_DIR, "*.yml"))))
+def test_every_refractiveindex_info_record_loads_over_its_range(name):
+    import io
+    import yaml
+    record = yaml.safe_load(open(os.path.join(DATA_DIR, f"{name}.yml")))
+    table = np.loadtxt(io.StringIO(record["DATA"][0]["data"]))
+    lam = np.linspace(table[0, 0], table[-1, 0], 1000)
+    eps = registry.get(name)(lam)
+    assert np.all(np.isfinite(eps))
+    assert np.all(np.sqrt(eps).real > 0)
 
 
 def test_unknown_model_raises():
@@ -39,7 +54,7 @@ def test_tabulated_covers_simulation_range_without_nan(name):
 
 def test_tabulated_rejects_out_of_range_wavelengths():
     with pytest.raises(ValueError, match="outside tabulated range"):
-        registry.get("Jaramillo_NILresist")(30.0)
+        registry.get("RII_Zhang_2020_PDMS")(30.0)     # table ends at 19.94 um
 
 
 def test_tabulated_matches_nk_formula_at_node_and_midpoint():

@@ -85,6 +85,10 @@ of named cases (`validation/akerboom.yaml` does).
 | `cell.iqe_file` | bundled Si IQE | `lambda_um IQE` table |
 | `cell.voltage` | 0.1–0.8 V, n=100 | I–V sweep |
 
+Tabulated n, k ship for Si, SiO2, Si3N4, Al2O3, TiO2, HfO2, MgF2, Ag, Al, Au,
+PDMS, PMMA, PET, polycarbonate and soda-lime glass; each model's range and
+source is in [`radcoolpv/materials/SOURCES.md`](radcoolpv/materials/SOURCES.md).
+
 ## Run it
 
 ```bash
