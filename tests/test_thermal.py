@@ -42,7 +42,7 @@ def _synthetic_optics(grid, atmosphere_path):
     emit_atm = 1.0 - atm
     return OpticsResult(
         lambda_um=grid, ref=ref, tran=np.zeros_like(grid), emit=emit,
-        abs_silicon=abs_si, emit_atm=emit_atm, emitt_spec_times_emit_atm=emit_atm * emit,
+        abs_silicon=abs_si, emitt_spec_times_emit_atm=emit_atm * emit,
         angles="normal",
     )
 

@@ -33,9 +33,6 @@ class SolarSpectrum:
     irradiance_per_um: np.ndarray    # AM1.5G, W/(m^2 um), interpolated, 0 out of range
     photon_flux: np.ndarray          # photons/(s m^3), interpolated, 0 out of range
     total_am15: float                # int of irradiance, W/m^2 (~1000)
-    # raw (un-interpolated) curve, for plotting:
-    raw_lambda_um: np.ndarray
-    raw_irradiance_per_um: np.ndarray
 
 
 def load_solar(path: str, lambda_um: np.ndarray) -> SolarSpectrum:
@@ -77,5 +74,5 @@ def load_solar(path: str, lambda_um: np.ndarray) -> SolarSpectrum:
 
     return SolarSpectrum(
         lambda_um=lambda_um, irradiance_per_um=irr_interp, photon_flux=photon_flux,
-        total_am15=total_am15, raw_lambda_um=raw_lambda_um, raw_irradiance_per_um=raw_irr_per_um,
+        total_am15=total_am15,
     )

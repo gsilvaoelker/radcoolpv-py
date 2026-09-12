@@ -30,3 +30,9 @@ htmlcov/
 # The parent repo ignores `*.dat` as a generic result-file type, but
 # radcoolpv/data/cptrans_nq_100_15.dat is the default atmosphere and must ship.
 !radcoolpv/**/*.dat
+
+# Apuntes en español (LaTeX + figuras TikZ); trabajo local, no se versiona
+docs/conceptos/
+
+# Local archive of things the project no longer needs (paper PDF, retired data)
+archive/

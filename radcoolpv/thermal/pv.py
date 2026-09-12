@@ -10,7 +10,6 @@ All spectral integrals run up to the band-gap wavelength ``lambda_g``.
 
 from __future__ import annotations
 
-import os
 from dataclasses import dataclass
 
 import numpy as np

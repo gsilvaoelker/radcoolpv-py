@@ -49,10 +49,6 @@ class RawOptics:
     def n_directions(self) -> int:
         return len(self.theta_deg)
 
-    @property
-    def n_lambda(self) -> int:
-        return len(self.lambda_um)
-
 
 # --- sweep helpers used by the S4 engine -----------------------------------
 #
@@ -121,7 +117,6 @@ def from_file(path: str, atmosphere_path: str,
         data = data[None, :]
     lam = data[:, 0]
     atm = load_atmosphere(atmosphere_path, lam)
-    emit_atm = 1.0 - atm            # zenith value; reported and plotted
     if column is not None:
         if column >= data.shape[1]:
             raise ValueError(
@@ -136,7 +131,7 @@ def from_file(path: str, atmosphere_path: str,
         # stricter cut-off, so this only has to be right about which side of
         # the gap a wavelength falls on.
         abs_si = np.where(lam < LAMBDA_GAP, emit, 0.0)
-        product = emit_atm * emit
+        product = (1.0 - atm) * emit          # zenith atmosphere: all a column can give
     elif data.shape[1] == 6:
         ref, tran, emit, abs_si, product = data[:, 1:].T
     else:
@@ -146,7 +141,7 @@ def from_file(path: str, atmosphere_path: str,
             "set optics.column to the emittance column.")
     return OpticsResult(
         lambda_um=lam, ref=ref, tran=tran, emit=emit, abs_silicon=abs_si,
-        emit_atm=emit_atm, emitt_spec_times_emit_atm=product,
+        emitt_spec_times_emit_atm=product,
         angles="file", silicon_from_emittance=column is not None,
     )
 
@@ -193,11 +188,10 @@ def reduce(raw: RawOptics, atmosphere_path: str,
         emit = emit_dir[:, 0]
         abs_si = abs_si_dir[:, 0]
         cos_t = np.cos(np.deg2rad(theta_deg[0]))
-        emit_atm = 1.0 - atm ** (1.0 / cos_t)
-        product = emit_atm * emit
+        product = (1.0 - atm ** (1.0 / cos_t)) * emit
         return OpticsResult(
             lambda_um=lam, ref=ref, tran=tran, emit=emit, abs_silicon=abs_si,
-            emit_atm=emit_atm, emitt_spec_times_emit_atm=product,
+            emitt_spec_times_emit_atm=product,
             angles=raw.mode, polarization=raw.polarization,
         )
 
@@ -211,7 +205,6 @@ def reduce(raw: RawOptics, atmosphere_path: str,
 
     cos_t = np.cos(np.deg2rad(theta_deg))
     emit_atm_2d = 1.0 - atm[:, None] ** (1.0 / cos_t[None, :])
-    emit_atm = np.sum(emit_atm_2d * weights[None, :], axis=1)
     product = np.sum(
         emit_atm_2d * emit_dir * weights[None, :], axis=1)
 
@@ -226,7 +219,7 @@ def reduce(raw: RawOptics, atmosphere_path: str,
 
     return OpticsResult(
         lambda_um=lam, ref=ref, tran=tran, emit=emit, abs_silicon=abs_si,
-        emit_atm=emit_atm, emitt_spec_times_emit_atm=product,
+        emitt_spec_times_emit_atm=product,
         ref_norm=ref_norm, emit_norm=emit_norm, abs_silicon_norm=abs_si_norm,
         angles="hemispherical", polarization=raw.polarization,
     )

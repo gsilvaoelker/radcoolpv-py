@@ -121,7 +121,6 @@ def test_non_radiating_surface_settles_at_the_analytic_limit():
         tran=zeros,
         emit=zeros,
         abs_silicon=zeros,
-        emit_atm=zeros,
         emitt_spec_times_emit_atm=zeros,
         angles="hemispherical",
     )
@@ -130,8 +129,6 @@ def test_non_radiating_surface_settles_at_the_analytic_limit():
         irradiance_per_um=zeros,
         photon_flux=zeros,
         total_am15=0.0,
-        raw_lambda_um=grid,
-        raw_irradiance_per_um=zeros,
     )
 
     result = energy_balance.run(cfg, optics, solar)

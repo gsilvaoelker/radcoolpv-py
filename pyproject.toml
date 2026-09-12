@@ -16,9 +16,14 @@ dependencies = [
     "openpyxl>=3.0",
 ]
 
-# The live optics stage additionally needs the Stanford S4 module, which
-# has no PyPI package and must be built from source (see README); it is therefore
-# not listed here. Thermal calculations and spectrum readers need no S4 build.
+# Computing a spectrum additionally needs the Stanford S4 module, which has no
+# PyPI package and is built from source (see README); it is not listed here.
+
+[project.optional-dependencies]
+test = [
+    "pytest>=7.0",
+    "tmm>=0.1.8",        # analytic transfer-matrix reference for tests/test_s4_backend.py
+]
 
 [project.scripts]
 radcoolpv = "radcoolpv.cli:main"

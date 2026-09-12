@@ -17,8 +17,7 @@ VENV="${VENV_DIR:-$HOME/.venvs/radcoolpv-py}"
 echo "==> $(python3 --version) -> venv at $VENV"
 python3 -m venv "$VENV"
 "$VENV/bin/python" -m pip install -q --upgrade pip
-"$VENV/bin/python" -m pip install -q -r requirements.txt
-"$VENV/bin/python" -m pip install -q -e .
+"$VENV/bin/python" -m pip install -q -e ".[test]"
 
 # Verify from / so the current directory cannot mask a broken install.
 ( cd / && "$VENV/bin/python" -c "import radcoolpv; print('==> radcoolpv OK:', radcoolpv.__file__)" )

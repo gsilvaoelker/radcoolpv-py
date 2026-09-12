@@ -19,9 +19,6 @@ slab thicknesses, peak radius, and the radius profile. They need no optics
 engine, so they run everywhere regardless of whether S4 is built.
 """
 
-import math
-
-import numpy as np
 import pytest
 
 from radcoolpv import config as config_module

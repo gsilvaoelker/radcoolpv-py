@@ -185,12 +185,6 @@ class Config:
         return next(l.thickness for l in self.optics.structure
                     if l.material == "silicon")
 
-    def resolve(self, path: Optional[str]) -> Optional[str]:
-        """Resolve a path from the config relative to the config's directory."""
-        if path is None or os.path.isabs(path):
-            return path
-        return os.path.normpath(os.path.join(self.base_dir, path))
-
     def resolve_data(self, path: Optional[str]) -> Optional[str]:
         """Resolve an input data file.
 

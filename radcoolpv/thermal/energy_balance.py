@@ -10,7 +10,7 @@ solved with no electrical terms (a cooling curve).
 from __future__ import annotations
 
 import warnings
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Optional
 
 import numpy as np
@@ -65,7 +65,6 @@ class ThermalResult:
     current_equil: Optional[np.ndarray] = None
     power_equil: Optional[np.ndarray] = None
     iv: Optional[pv.IVResult] = None
-    optics: Optional[OpticsResult] = None
 
 
 def _zero_crossing(x: np.ndarray, y: np.ndarray, what: str = "equilibrium") -> tuple:
@@ -132,7 +131,6 @@ def run(cfg, optics: OpticsResult, solar: SolarSpectrum) -> ThermalResult:
             cool_power=cool, equil_temp=equil_temp, vmpp=0.0,
             temperature_reduction=reduction(equil_temp),
             rad_power_equil=float(_at_equilibrium(rad_p, emit_temp, equil_temp)),
-            optics=optics,
         )
 
     # --- full PV path ----------------------------------------------------- #
@@ -222,5 +220,5 @@ def run(cfg, optics: OpticsResult, solar: SolarSpectrum) -> ThermalResult:
         saturation_current_equil=j0_equil, auger_current_equil=auger_equil,
         band_averages=band_avgs,
         rad_power_equil=rad_power_equil, current_equil=current_equil, power_equil=power_equil,
-        iv=iv, optics=optics,
+        iv=iv,
     )
