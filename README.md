@@ -116,8 +116,9 @@ the browser cache, and each run takes about 5 s.
 It compares four scenarios at one operating point (plane-of-array irradiance,
 ambient temperature): the base spectrum (`C2_pv_flat_silica`) or a radiative
 cooler, crossed with plain convection or a metal-foam h. The cooler is either
-`C3_pv_cylinders` or a coating from the literature: an uploaded ε(λ) above
-4 µm plus a solar transmittance. The page also gives the STC card (Vmp, Imp,
+`C3_pv_cylinders` or a coating from the literature: an uploaded T(λ) and ε(λ)
+over at least 0.4–13 µm, placed over the base module in a single pass at
+every wavelength. The page also gives the STC card (Vmp, Imp,
 Voc, Isc and their temperature coefficients) that Explorador Solar's
 "Monofacial Modelo Avanzado" asks for.
 

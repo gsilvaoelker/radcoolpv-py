@@ -79,8 +79,7 @@
   <label class="radio"><input type="radio" name="cooler" value="custom"> Recubrimiento de la literatura</label>
   <div id="custom">
     <input type="file" id="csv" accept=".csv,.txt,.dat">
-    <p class="hint">Dos columnas: λ [µm], ε (0–1). Reemplaza la emisividad de la base para λ ≥ 4 µm.</p>
-    <label class="row">Transmitancia solar τs <input type="number" id="tau_solar" value="0.95" min="0" max="1" step="0.01"><span class="unit"></span></label>
+    <p class="hint">Tres columnas: λ [µm], transmitancia T y emisividad ε del recubrimiento (0–1); la reflectancia es R = 1 − T − ε. Debe cubrir al menos 0.4–13 µm: el espectro solar y la ventana atmosférica. Se coloca sobre el módulo base, a toda longitud de onda.</p>
   </div>
 
   <button type="submit" id="run" disabled style="margin-top:18px">CALCULAR</button>
@@ -199,7 +198,7 @@ $("form").onsubmit = async e => {
   e.preventDefault();
   const num = id => parseFloat($(id).value);
   const inp = { g: num("g"), t_amb_c: num("t_amb_c"), n_cells: num("n_cells"), side_mm: num("side_mm"),
-                h: num("h"), h_foam: num("h_foam"), tau_solar: num("tau_solar"),
+                h: num("h"), h_foam: num("h_foam"),
                 cooler: document.querySelector("input[name=cooler]:checked").value, csv: "" };
   if (inp.cooler === "custom") {
     if (!$("csv").files.length) return status("Suba el archivo CSV del recubrimiento.", true);
