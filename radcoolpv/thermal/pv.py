@@ -32,10 +32,10 @@ class IVResult:
     current_dens: np.ndarray      # (nT, nV) diode current density, A/m^2
     cell_power: np.ndarray        # (nV, nT) output power, -J*V, W/m^2
     max_power_point: np.ndarray   # (nT,) max over V, W/m^2
-    isc: float                    # short-circuit current density, A/m^2
+    isc: np.ndarray               # (nT,) short-circuit current density, A/m^2
     current_sat: np.ndarray       # (nT,) saturation current, A/m^2
     auger_current: np.ndarray     # (nT, nV), A/m^2
-    lam_eg_index: int             # 0-based inclusive upper index for lambda_g
+    lam_eg_index: np.ndarray      # (nT,) inclusive upper grid index for lambda_g(T)
     iqe: np.ndarray               # (nLambda,) internal quantum efficiency
     abs_pv: np.ndarray            # (nLambda,) silicon absorptance (hemispherical)
     abs_pv_norm: np.ndarray       # (nLambda,) silicon absorptance (normal)
@@ -48,16 +48,18 @@ def load_iqe(path: str, lambda_um: np.ndarray) -> np.ndarray:
     return np.nan_to_num(iqe, nan=0.0)
 
 
-def _bandgap_wavelength_um(emit_temp: np.ndarray, eg0: float, alpha: float, beta: float) -> float:
-    """Band-gap wavelength (um). Reproduces the MATLAB scalar mrdivide reduction.
+def _bandgap_wavelength_um(emit_temp, eg0: float, alpha: float, beta: float):
+    """Band-gap wavelength (um) from the Varshni gap, elementwise in ``T``.
 
-    MATLAB computes ``Eg0 - alpha*T.^2/(T+beta)`` with ``/`` (matrix right
-    division) on row vectors, which collapses to a single scalar
-    ``dot(T^2, T+beta) / dot(T+beta, T+beta)``. We keep that exact behaviour so
-    ``lambda_g`` (and the integration cut-off) matches.
+    The MATLAB original wrote ``Eg0 - alpha*T.^2/(T+beta)`` with ``/`` (matrix
+    right division) on row vectors, which silently collapses the whole
+    temperature sweep into one scalar. That made the integration cut-off -- and
+    therefore Jsc and beta_P -- depend on how wide a range the user happened to
+    sweep. Here every temperature gets its own ``lambda_g(T) = hc/Eg(T)``, so
+    extending the sweep changes nothing physical.
     """
     t = np.asarray(emit_temp, dtype=float)
-    eg = eg0 - alpha * np.dot(t ** 2, t + beta) / np.dot(t + beta, t + beta)
+    eg = eg0 - alpha * t ** 2 / (t + beta)
     return HPLANCK * CLIGHT / (eg * ECHARGE) / MICRON
 
 
@@ -104,34 +106,45 @@ def solve_iv(cfg, optics: OpticsResult, photon_flux_sun: np.ndarray) -> IVResult
     emit_temp = cfg.temperature_array()
     n_temp = len(emit_temp)
 
-    # Band-gap wavelength and its grid index (inclusive upper bound for integrals).
+    # Band-gap wavelength per temperature, and its grid index (inclusive upper
+    # bound for every photogeneration integral).
     lam_eg = _bandgap_wavelength_um(emit_temp, bg.eg0, bg.alpha, bg.beta)
-    hits = np.where((lam > lam_eg - lambda_delta / 2) & (lam < lam_eg + lambda_delta / 2))[0]
-    eg_idx = int(hits[0]) if hits.size else int(np.argmin(np.abs(lam - lam_eg)))
-    eg = slice(0, eg_idx + 1)
+    eg_index = np.empty(n_temp, dtype=int)
+    for it, lg in enumerate(lam_eg):
+        hits = np.where((lam > lg - lambda_delta / 2) & (lam < lg + lambda_delta / 2))[0]
+        eg_index[it] = int(hits[0]) if hits.size else int(np.argmin(np.abs(lam - lg)))
 
     iqe = load_iqe(cfg.resolve_data(cfg.cell.iqe_file), lam)
     abs_pv = optics.abs_silicon
     abs_pv_norm = optics.abs_silicon_norm
 
-    # Short-circuit current (A/m^2): IQE * absorption * solar photon flux up to lambda_g.
-    jsc_spectral = iqe[eg] * abs_pv[eg] * photon_flux_sun[eg]
-    isc = ECHARGE * trapz(jsc_spectral, lam[eg]) * MICRON
-
     current_dens = np.zeros((n_temp, len(volt)))
     cell_power = np.zeros((len(volt), n_temp))
     max_power_point = np.zeros(n_temp)
     current_sat = np.zeros(n_temp)
+    isc = np.zeros(n_temp)
     auger_current = np.zeros((n_temp, len(volt)))
 
     for it, temp in enumerate(emit_temp):
+        eg = slice(0, eg_index[it] + 1)
+
         # Intrinsic carrier concentration (m^-3) and Auger coefficient (m^6/s).
         ni = 5.29e19 * (temp / 300.0) ** 2.54 * np.exp(-6726.0 / temp) * 1e6
         a_auger = np.interp(temp, _AUGER_T, _AUGER_A) * 1e-12
+        # Auger prefactor. The bias-dependent exponential is driven by the
+        # junction voltage Vd = V - J*Rs, the same one that drives the diode
+        # term: it is the quasi-Fermi-level splitting that sets the bulk
+        # carrier density, not the terminal voltage. (The MATLAB original and
+        # the published model used V; that understates Auger by the factor
+        # exp(3*q*J*Rs/(2*kT)), ~4.6 at the operating point of the Akerboom
+        # case. See docs/model.md.) Vd depends on J, so this term is inside
+        # the solve.
+        auger0 = ECHARGE * 2 * a_auger * ni ** 3 * thick_si * MICRON
 
-        auger = (ECHARGE * 2 * a_auger * ni ** 3 * thick_si * MICRON
-                 * np.exp(3 * ECHARGE * volt / (2 * KBOLTZ * temp)))
-        auger_current[it, :] = auger
+        # Short-circuit current (A/m^2): IQE * absorption * solar photon flux.
+        isc_t = ECHARGE * trapz(iqe[eg] * abs_pv[eg] * photon_flux_sun[eg],
+                                lam[eg]) * MICRON
+        isc[it] = isc_t
 
         pf_bb = _photon_flux_blackbody(lam[eg], temp)
         sat_spectral = iqe[eg] * abs_pv[eg] * pf_bb
@@ -140,18 +153,20 @@ def solve_iv(cfg, optics: OpticsResult, photon_flux_sun: np.ndarray) -> IVResult
 
         # I-V with series + shunt resistance: solve f(Id) = 0 per voltage,
         # warm-starting from the previous solution (continuation).
-        id0 = isc
+        id0 = isc_t
         for iv, v in enumerate(volt):
-            a_v = auger[iv]
 
-            def f(idn, v=v, a_v=a_v):
+            def f(idn, v=v):
                 vd = v - idn * rs
                 return (-idn + vd / rsh
                         + j0 * (np.exp(ECHARGE * vd / (KBOLTZ * temp)) - 1.0)
-                        + a_v - isc)
+                        + auger0 * np.exp(3 * ECHARGE * vd / (2 * KBOLTZ * temp))
+                        - isc_t)
 
-            idn = _solve_diode(f, id0, isc)
+            idn = _solve_diode(f, id0, isc_t)
             current_dens[it, iv] = idn
+            auger_current[it, iv] = auger0 * np.exp(
+                3 * ECHARGE * (v - idn * rs) / (2 * KBOLTZ * temp))
             id0 = idn
 
         cell_power[:, it] = -current_dens[it, :] * volt
@@ -160,7 +175,7 @@ def solve_iv(cfg, optics: OpticsResult, photon_flux_sun: np.ndarray) -> IVResult
     return IVResult(
         emit_temp=emit_temp, volt=volt, current_dens=current_dens, cell_power=cell_power,
         max_power_point=max_power_point, isc=isc, current_sat=current_sat,
-        auger_current=auger_current, lam_eg_index=eg_idx, iqe=iqe,
+        auger_current=auger_current, lam_eg_index=eg_index, iqe=iqe,
         abs_pv=abs_pv, abs_pv_norm=abs_pv_norm,
     )
 
@@ -171,9 +186,9 @@ def non_thermal_power(iv: IVResult, optics: OpticsResult, vmpp: float) -> np.nda
     Depends on the MPP voltage ``vmpp`` (the fixed-point variable).
     """
     lam = optics.lambda_um
-    eg = slice(0, iv.lam_eg_index + 1)
     out = np.zeros_like(iv.emit_temp)
     for it, temp in enumerate(iv.emit_temp):
+        eg = slice(0, iv.lam_eg_index[it] + 1)
         pf_bb = _photon_flux_blackbody(lam[eg], temp)
         irrad = pf_bb * HPLANCK * CLIGHT * MTOMICRON / (lam[eg] * np.pi)
         spectral = iv.iqe[eg] * iv.abs_pv_norm[eg] * irrad

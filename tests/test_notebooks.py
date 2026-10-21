@@ -48,7 +48,7 @@ def test_every_editable_yaml_validates(name, tmp_path):
         assert os.path.isfile(cfg.resolve_data(cfg.optics.file))
 
 
-@pytest.mark.parametrize("name,temperature", [("case_a.yaml", 327.0),
+@pytest.mark.parametrize("name,temperature", [("case_a.yaml", 327.9),
                                               ("case_measured.yaml", 337.5)])
 def test_the_solver_free_cases_run_and_land_on_the_paper(name, temperature, tmp_path):
     target = tmp_path / name

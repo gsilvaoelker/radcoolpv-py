@@ -65,7 +65,7 @@ of named cases (`validation/akerboom.yaml` does).
 | `optics.wavelength` | 0.3–30 um, n=2000 | the grid every integral is taken on; must stay inside every material table |
 | `optics.angles` | hemispherical | `normal` for a quick optics-only look |
 | `optics.polarization` | unpolarized | TE, TM, unpolarized |
-| `optics.hemisphere_theta_points` / `_azimuth_points` | 8 / 12 | angular quadrature; azimuth 1 is exact for a lattice-symmetric structure |
+| `optics.hemisphere_theta_points` / `_azimuth_points` | 8 / 12 | angular quadrature; azimuth 1 samples only φ=0 — an approximation at oblique incidence (see `docs/model.md`) |
 | `optics.s4_modes` | 10 | Fourier truncation; patterned layers need 60–100+ |
 | `optics.geometry.shape` | flat | `cylinder {radius, height}`, `sphere` / `semisphere {radius, layers}`, `triangle {base, height, layers}`, `grating {duty, depth}` |
 | `optics.geometry.photonic_material` | vacuum | material of the pattern |
@@ -75,7 +75,7 @@ of named cases (`validation/akerboom.yaml` does).
 | `optics.materials` | — | logical name → model name (`radcoolpv/materials/SOURCES.md`) |
 | `thermal.ambient_temperature` | 298 K | |
 | `thermal.convection_coefficient` | 12 W/m²·K | convection and conduction lumped; the most sensitive input |
-| `thermal.temperatures` | ambient … ambient+150 K | sweep `{min, max, n}`; also sets the band-gap cut-off (see `docs/model.md`) |
+| `thermal.temperatures` | ambient … ambient+150 K | sweep `{min, max, n}`; a search window, results do not depend on its width |
 | `thermal.absorbed_solar_power` | from AM1.5G | W/m²; replaces the spectral integral |
 | `thermal.reference_temperature` | none | K; reports the reduction from it |
 | `thermal.atmosphere_file` | bundled clear sky | zenith transmittance table |
@@ -139,11 +139,11 @@ below reproduces without a solver.
 | A. mean emittance 7.5–16 um, radcoolpv / paper Fig. 3a | 0.032 / 0.036 | 0.842 / 0.843 | 0.984 / 0.977 |
 | B. T_eq from the *measured* emittance, h = 6.0 (paper) | 415.4 K | 360.6 K | 355.6 K |
 | B. same, h = 12.54 fitted to Fig. 5b | 359.7 K | 340.1 K | 337.5 K |
-| C. full model: T_eq | 350.5 K | 329.3 K | 327.0 K |
-| C. efficiency | 14.17 % | 18.09 % | 18.64 % |
+| C. full model: T_eq | 351.6 K | 330.2 K | 327.9 K |
+| C. efficiency | 13.43 % | 17.09 % | 17.60 % |
 
 The paper reports 360 / 339 / 336 K and a 24 K drop from bare to cylinders;
-the model gives 23.5 K. Group B shows the thermal model is only as good as
+the model gives 23.7 K. Group B shows the thermal model is only as good as
 `h`, which lumps mounting, wind and area: the fitted value is a calibration,
 not evidence. `tests/test_validation_akerboom.py` pins every number here.
 

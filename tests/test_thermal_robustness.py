@@ -134,9 +134,7 @@ def _load(name):
 def test_explicit_sweep_matching_the_default_changes_nothing(tmp_path):
     """thermal.temperatures drives every run, and the default is one.
 
-    lambda_g is a weighted mean over the whole swept array, so the sweep is not
-    merely a search window: stating the default explicitly must reproduce it
-    exactly, or the coupling has been broken.
+    Stating the default explicitly must reproduce it exactly.
     """
     from radcoolpv import config as cm, pipeline
     path = os.path.join(os.path.dirname(__file__), "..", "examples", "pv_from_spectrum.yaml")
@@ -156,6 +154,32 @@ def test_explicit_sweep_matching_the_default_changes_nothing(tmp_path):
     assert explicit.mpp_amb == pytest.approx(default.mpp_amb, abs=1e-9)
     assert explicit.isc == pytest.approx(default.isc, abs=1e-9)
     assert explicit.beta_p == pytest.approx(default.beta_p, abs=1e-9)
+
+
+def test_widening_the_temperature_sweep_leaves_the_physics_alone(tmp_path):
+    """thermal.temperatures is a search window, not a physical input.
+
+    lambda_g is evaluated per temperature, so extending the swept range must
+    not move Jsc, T_eq or beta_P. It used to: the MATLAB original collapsed the
+    Varshni gap over the whole array into one scalar cut-off.
+    """
+    from radcoolpv import config as cm, pipeline
+    path = os.path.join(os.path.dirname(__file__), "..", "examples", "pv_from_spectrum.yaml")
+
+    def run(sweep):
+        cfg = cm.load(path)
+        if sweep is not None:
+            cfg.thermal.temperatures = cm.Sweep(**sweep)
+        with contextlib.redirect_stdout(io.StringIO()):
+            return pipeline.run(cfg, results_dir=str(tmp_path), plots=False).thermal
+
+    narrow = run({"min": 300.0, "max": 400.0, "n": 101})
+    wide = run({"min": 300.0, "max": 600.0, "n": 301})
+
+    assert wide.equil_temp == pytest.approx(narrow.equil_temp, abs=1e-9)
+    assert wide.isc == pytest.approx(narrow.isc, abs=1e-9)
+    assert wide.beta_p == pytest.approx(narrow.beta_p, abs=1e-9)
+    assert wide.efficiency_equil == pytest.approx(narrow.efficiency_equil, abs=1e-9)
 
 
 def test_sub_ambient_equilibrium_resolves(tmp_path):

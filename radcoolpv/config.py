@@ -168,11 +168,9 @@ class Config:
     def temperature_array(self) -> np.ndarray:
         """Temperature sweep shared by the energy balance and the PV I-V.
 
-        The default is deliberately left at the MATLAB range, T_amb to
-        T_amb + 150 K. It is not merely a search window: ``pv.py`` collapses
-        the Varshni gap over this whole array into the single scalar
-        ``lambda_g`` that cuts off every photogeneration integral, so widening
-        the default would move Jsc and the temperature coefficient.
+        A search window and nothing more: ``pv.py`` evaluates ``lambda_g(T)``
+        at each swept temperature, so widening the range costs time but moves
+        no result. The default is the MATLAB one, T_amb to T_amb + 150 K.
         """
         if self.thermal.temperatures is not None:
             return self.thermal.temperatures.array()

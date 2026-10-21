@@ -40,7 +40,7 @@ class ThermalResult:
     equil_temp: float
     vmpp: float
     temperature_reduction: Optional[float] = None
-    isc: float = 0.0
+    isc: float = 0.0              # at the equilibrium temperature, A/m^2
     mpp_amb: float = 0.0
     mpp_equil: float = 0.0
     # None (not 0.0) when the voltage sweep did not bracket the ambient Voc, so
@@ -187,11 +187,15 @@ def run(cfg, optics: OpticsResult, solar: SolarSpectrum) -> ThermalResult:
         voc_amb = pv.open_circuit_voltage(current_amb, iv.volt)
     except ValueError:
         voc_amb = None
+    # Jsc is temperature-dependent (lambda_g moves with the Varshni gap), so
+    # each fill factor uses the Jsc of its own temperature.
+    isc_amb = float(_at_equilibrium(iv.isc, emit_temp, t_amb))
+    isc_equil = float(_at_equilibrium(iv.isc, emit_temp, equil_temp))
     if voc_amb is None:
         ff_amb = None
     else:
-        ff_amb = mpp_amb / (iv.isc * voc_amb) if (iv.isc and voc_amb) else 0.0
-    ff_equil = mpp_equil / (iv.isc * voc_equil) if (iv.isc and voc_equil) else 0.0
+        ff_amb = mpp_amb / (isc_amb * voc_amb) if (isc_amb and voc_amb) else 0.0
+    ff_equil = mpp_equil / (isc_equil * voc_equil) if (isc_equil and voc_equil) else 0.0
     denom = (t_amb - equil_temp)
     beta_p = ((mpp_amb - mpp_equil) / denom * (100.0 / mpp_amb)) if (denom and mpp_amb) else 0.0
     efficiency_equil = mpp_equil / solar.total_am15
@@ -213,7 +217,7 @@ def run(cfg, optics: OpticsResult, solar: SolarSpectrum) -> ThermalResult:
         emit_temp=emit_temp, rad_power=rad_p, atm_power=atm_power, conv_power=conv_p,
         solar_power=solar_power, solar_power_am15=solar.total_am15,
         max_power_point=iv.max_power_point, non_thermal_power=ntp, cool_power=cool,
-        equil_temp=equil_temp, vmpp=vmpp, isc=iv.isc,
+        equil_temp=equil_temp, vmpp=vmpp, isc=isc_equil,
         temperature_reduction=reduction(equil_temp),
         mpp_amb=mpp_amb, mpp_equil=mpp_equil, voc_amb=voc_amb, voc_equil=voc_equil,
         ff_amb=ff_amb, ff_equil=ff_equil, beta_p=beta_p, efficiency_equil=efficiency_equil,

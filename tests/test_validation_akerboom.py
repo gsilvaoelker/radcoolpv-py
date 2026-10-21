@@ -214,9 +214,9 @@ def test_committed_optics_reproduce_the_emittance_table(case, expected):
 @pytest.mark.filterwarnings("error::RuntimeWarning")
 @pytest.mark.parametrize(
     "case,temperature,efficiency",
-    [("C1_pv_bare", 350.5, 0.1417),
-     ("C2_pv_flat_silica", 329.3, 0.1809),
-     ("C3_pv_cylinders", 327.0, 0.1864)],
+    [("C1_pv_bare", 351.6, 0.1343),
+     ("C2_pv_flat_silica", 330.2, 0.1709),
+     ("C3_pv_cylinders", 327.9, 0.1760)],
 )
 def test_committed_optics_reproduce_the_pv_table(case, temperature, efficiency,
                                                  tmp_path):

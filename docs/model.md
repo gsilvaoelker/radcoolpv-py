@@ -93,7 +93,7 @@ The band gap follows Varshni, and its wavelength sets the upper limit of every
 photogeneration integral:
 
 $$
-E_g(T)=E_{g0}-\frac{\alpha T^2}{T+\beta},\qquad \lambda_g=\frac{hc}{E_g}.
+E_g(T)=E_{g0}-\frac{\alpha T^2}{T+\beta},\qquad \lambda_g(T)=\frac{hc}{E_g(T)}.
 $$
 
 Short-circuit and saturation current densities come from the measured internal
@@ -112,8 +112,8 @@ Auger recombination adds a bias-dependent term with a tabulated, temperature-
 interpolated coefficient $C_{\mathrm{A}}$ and intrinsic concentration $n_i$,
 
 $$
-J_{\mathrm{Aug}}(V,T)=2q\,C_{\mathrm{A}}(T)\,n_i^3(T)\,d_{\mathrm{Si}}
-\exp\!\left(\frac{3qV}{2k_BT}\right),
+J_{\mathrm{Aug}}(V_d,T)=2q\,C_{\mathrm{A}}(T)\,n_i^3(T)\,d_{\mathrm{Si}}
+\exp\!\left(\frac{3qV_d}{2k_BT}\right),
 $$
 
 and the single-diode I-V with series and shunt resistance is solved implicitly
@@ -122,7 +122,7 @@ for $J$ at each voltage, writing $V_d=V-JR_s$:
 $$
 J=\frac{V_d}{R_{\mathrm{sh}}}
 +J_0\!\left[\exp\!\left(\frac{qV_d}{k_BT}\right)-1\right]
-+J_{\mathrm{Aug}}-J_{\mathrm{sc}} .
++J_{\mathrm{Aug}}(V_d,T)-J_{\mathrm{sc}} .
 $$
 
 The output power density is $P=-JV$; $P_{\mathrm{MPP}}$ and $V_{\mathrm{MPP}}$
@@ -161,6 +161,14 @@ Optical:
   layers are coherent, and the Fourier basis is truncated at `optics.s4_modes`. A
   result is only meaningful once it is converged in modes, wavelength grid, and
   angular quadrature.
+- **Every layer is coherent**, including the 500 um silica and silicon. There is
+  no incoherent or phase-averaged layer option. Such layers produce interference
+  fringes far finer than any practical wavelength grid, so the computed spectrum
+  neither resolves them nor averages them: it samples them, and the samples
+  alias. Comparing against a measurement that is itself fringe-averaged
+  therefore relies on the fringes being shallow where it matters, which is the
+  case for these opaque, strongly absorbing stacks, but it is an assumption and
+  not an equivalence.
 - Material data are tabulated or analytic dispersions from the sources listed
   in `radcoolpv/materials/SOURCES.md`; extrapolation outside their range is not
   performed.
@@ -189,12 +197,21 @@ PV:
 
 - Single-diode model with constant $R_s$ and $R_{\mathrm{sh}}$, ideality one,
   and radiative saturation current from detailed balance below $\lambda_g$.
-- $\lambda_g$ is reduced to a single scalar over the temperature sweep,
-  reproducing the MATLAB original, so the integration cut-off does not move
-  with $T$. It is a weighted mean over the whole swept range, so **setting
-  `thermal.temperatures` moves the cut-off** and with it $J_{sc}$ and
-  $\beta_P$. The default range is left at the MATLAB one, $T_{amb}$ to
-  $T_{amb}+150$ K, for that reason; widen it deliberately, not incidentally.
+- $\lambda_g(T)$ is evaluated at each swept temperature, so $J_{sc}$, $J_0$ and
+  the luminescence cut-off all move with $T$ and `thermal.temperatures` is a
+  search window only: widening it changes no result. The MATLAB original
+  instead collapsed the Varshni gap over the whole swept array into one scalar
+  (a `/` matrix right division on row vectors), which made every reported
+  number depend on the swept range; that is fixed here, and the C-group
+  validation temperatures moved by at most 0.06 K as a result.
+- The Auger term is driven by the **junction** voltage $V_d=V-JR_s$, the same
+  one that drives the diode term, because it is the quasi-Fermi-level splitting
+  that sets the bulk carrier density. The MATLAB original and the published
+  model used the terminal voltage $V$, which understates Auger by
+  $\exp(3qJR_s/2k_BT)$ — a factor of about 4.6 at the operating point of the
+  Akerboom case. Correcting it moves that case from $T_{eq}=327.05$ K,
+  $\eta=18.60$ % to 327.85 K, 17.60 %, and is the reason the C-group numbers
+  here no longer match the published table as closely as the port once did.
 - When the optics come from a single supplied emittance column, $A_{Si}$ is
   taken to equal $\epsilon$ below $\lambda_g$ and zero above, since parasitic
   absorption above the gap is neglected. `run.json` records that this was
@@ -210,5 +227,12 @@ Numerical:
 - All spectral integrals are trapezoidal on the user's wavelength grid, so the
   grid must resolve the bands that matter, including the 8-13 um atmospheric
   window.
+- The azimuthal quadrature is a uniform rule over the full $2\pi$. Lattice
+  symmetry reduces the exact integral to an irreducible sector, but within that
+  sector the response still varies with $\phi$ at oblique incidence, so
+  `hemisphere_azimuth_points: 1` samples $\phi=0$ alone and is exact only if
+  the response is genuinely azimuth-independent. The Akerboom validation case
+  uses 1; that is a documented approximation, not a symmetry identity.
+  (`radcoolpv/config.py`, `Optics.directions`.)
 - Cost scales roughly as $n_\lambda n_\theta n_\phi n_{\mathrm{pol}}$ times
   the cube of `s4_modes`.
