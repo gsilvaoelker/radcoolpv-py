@@ -122,6 +122,7 @@
 </section>
 </main>
 
+<script id="bundle" type="application/json">{}</script>
 <script>
 const $ = id => document.getElementById(id);
 const status = (msg, err) => { $("status").textContent = msg; $("status").className = err ? "err" : ""; };
@@ -132,11 +133,11 @@ let py, result;
 async function boot() {
   py = await loadPyodide();
   await py.loadPackage(["numpy", "scipy", "pyyaml", "micropip"]);
-  const files = await (await fetch("files.json")).json();   // written by build.sh
-  await py.pyimport("micropip").install(files.wheels.map(w => new URL(w, location.href).href), { deps: false });
+  const files = JSON.parse($("bundle").textContent);   // {path: base64}, inlined by build.sh
+  if (!Object.keys(files).length) throw "abra webapp/dist/index.html, la página que genera build.sh.";
   py.FS.mkdir("data");
-  for (const f of ["app.py", ...files.data])
-    py.FS.writeFile(f, new Uint8Array(await (await fetch(f)).arrayBuffer()));
+  for (const [f, b64] of Object.entries(files)) py.FS.writeFile(f, Uint8Array.from(atob(b64), c => c.charCodeAt(0)));
+  await py.pyimport("micropip").install(Object.keys(files).filter(f => f.endsWith(".whl")).map(f => "emfs:/home/pyodide/" + f), { deps: false });
   py.runPython("import sys, json; sys.path.insert(0, '.'); import app; app._load()");
   $("run").disabled = false;
   status("Listo.");
