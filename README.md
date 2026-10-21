@@ -105,6 +105,27 @@ exactly), `iv.csv` and `power.csv` or `cooling_power.csv`, `figures/`, and
 `run.json` — the resolved case, input hashes, and every scalar result.
 Quantities a run did not solve for are absent, not zero.
 
+## Web simulator (for students)
+
+`webapp/` is a static page that runs this package in the browser with
+Pyodide, with no server and no S4. It compares four scenarios at one operating
+point (plane-of-array irradiance, ambient temperature): the base spectrum
+(`C2_pv_flat_silica`) or a radiative cooler, crossed with plain convection or
+a metal-foam h. The cooler is either `C3_pv_cylinders` or a coating from the
+literature: an uploaded ε(λ) above 4 µm plus a solar transmittance. The page
+also gives the STC card (Vmp, Imp, Voc, Isc and their temperature
+coefficients) that Explorador Solar's "Monofacial Modelo Avanzado" asks for.
+
+```bash
+webapp/build.sh            # -> webapp/dist/index.html (PYTHON=... to pick the interpreter)
+```
+
+`dist/index.html` is self-contained: it inlines the wheels and the spectra,
+so it opens from any host or as a local file. Upload it to
+`public_html/radcoolpv/` with the cPanel File Manager. The first load takes
+20–40 s, and each run about 5 s. `tests/test_webapp.py` pins the page's
+scenario to the C3 case (327.9 K, 17.60 %).
+
 ## Install locally
 
 ```bash
