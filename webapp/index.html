@@ -10,6 +10,10 @@
 <script src="https://cdn.jsdelivr.net/pyodide/v0.29.5/full/pyodide.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.5.1/chart.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/chartjs-plugin-datalabels/2.2.0/chartjs-plugin-datalabels.min.js"></script>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.css">
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.js"></script>
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/contrib/auto-render.min.js"
+        onload="renderMathInElement(document.getElementById('model'))"></script>
 <style>
   :root { --accent: #e8452c; --accent2: #f26b21; --panel: #ececec; --ink: #3a3a3a;
           --muted: #777; --line: #cfcfcf; --bg: #f7f7f7; --card: #fff; }
@@ -53,6 +57,17 @@
   .steps { font-size: .88rem; padding-left: 18px; margin: 6px 0; }
   .steps li { margin: 4px 0; }
   .note { font-size: .8rem; color: var(--muted); }
+  [hidden] { display: none !important; }
+  nav.tabs { display: flex; gap: 4px; padding: 0 16px; background: #fff; border-bottom: 1px solid var(--line); }
+  nav.tabs button { background: none; color: var(--ink); border-radius: 0; border-bottom: 3px solid transparent; padding: 10px 14px; }
+  nav.tabs button.on { color: var(--accent); border-bottom-color: var(--accent); }
+  #model { max-width: 960px; margin: 0 auto; padding: 16px; }
+  #model p, #model li { font-size: .92rem; line-height: 1.5; }
+  #model .katex-display { overflow-x: auto; overflow-y: hidden; padding: 2px 0; }
+  #model td { white-space: normal; text-align: left; vertical-align: top; }
+  .stack { max-width: 420px; margin: 8px 0; font-size: .85rem; }
+  .stack div { padding: 8px 12px; border: 1px solid var(--line); border-top: 0; }
+  .stack div:first-child { border-top: 1px solid var(--line); }
 </style>
 </head>
 <body>
@@ -60,7 +75,11 @@
   <h1>radcoolpv · Enfriamiento radiativo de paneles FV</h1>
   <p>Cuatro escenarios de gestión térmica de un panel de silicio en un punto de operación.</p>
 </header>
-<main>
+<nav class="tabs">
+  <button type="button" class="on" data-tab="sim">Simulador</button>
+  <button type="button" data-tab="model">Modelo y limitaciones</button>
+</nav>
+<main id="sim">
 <form class="panel" id="form">
   <h2>1 · Condición de operación</h2>
   <label class="row">Irradiancia en el plano del panel <input type="number" id="g" value="1000" min="50" max="1400" step="1"><span class="unit">W/m²</span></label>
@@ -130,6 +149,77 @@
   </div>
 </section>
 </main>
+
+<section id="model" hidden>
+  <div class="card">
+    <h2>1 · Modelo matemático</h2>
+    <p>Todo se calcula por unidad de área del módulo, en régimen estacionario y con una sola temperatura \(T\) para todo el módulo. La temperatura de celda es la raíz del balance de energía</p>
+    $$P_{\mathrm{rad}}(T)-P_{\mathrm{atm}}+h\,(T-T_{\mathrm{amb}})-P_{\mathrm{sol}}+P_{\mathrm{MPP}}(T)+P_{\mathrm{lum}}(T)=0,$$
+    <p>donde la emisión térmica, la radiación absorbida del cielo y la potencia solar absorbida son</p>
+    $$P_{\mathrm{rad}}(T)=\pi\!\int\!\langle\varepsilon\rangle\,B_\lambda(T)\,\mathrm{d}\lambda,\qquad
+      P_{\mathrm{atm}}=\pi\!\int\!\langle\varepsilon\,\varepsilon_{\mathrm{atm}}\rangle\,B_\lambda(T_{\mathrm{amb}})\,\mathrm{d}\lambda,\qquad
+      P_{\mathrm{sol}}=\int\!\langle\varepsilon\rangle\,I_{\mathrm{sol}}(\lambda)\,\mathrm{d}\lambda .$$
+    <p>\(B_\lambda\) es la radiancia de Planck, \(\langle\cdot\rangle\) el promedio hemisférico, \(\varepsilon=A\) la emisividad (ley de Kirchhoff) y \(\varepsilon_{\mathrm{atm}}(\lambda,\theta)=1-\tau(\lambda)^{1/\cos\theta}\) la emisividad del cielo a partir de su transmitancia cenital \(\tau\). \(I_{\mathrm{sol}}\) es el espectro AM1.5G escalado para que integre a la irradiancia \(G\) ingresada. \(h\) agrupa convección y conducción; la espuma metálica solo cambia su valor. \(P_{\mathrm{MPP}}\) es la potencia eléctrica extraída y \(P_{\mathrm{lum}}\) la luminiscencia de la celda (&lt; 1 W/m²).</p>
+    <p>La celda es un modelo de un diodo con resistencias serie y paralelo, resuelto para \(J\) en cada voltaje con \(V_d=V-JR_s\):</p>
+    $$J=\frac{V_d}{R_{\mathrm{sh}}}+J_0\!\left[\exp\!\left(\frac{qV_d}{k_BT}\right)-1\right]+J_{\mathrm{Aug}}-J_{\mathrm{sc}},\qquad
+      J_{\mathrm{Aug}}=2q\,C_A(T)\,n_i^3(T)\,d_{\mathrm{Si}}\exp\!\left(\frac{3qV_d}{2k_BT}\right),$$
+    $$J_{\mathrm{sc}}=q\!\int_0^{\lambda_g}\!\mathrm{IQE}\,\langle A_{\mathrm{Si}}\rangle\,\Phi_{\mathrm{sol}}\,\mathrm{d}\lambda,\qquad
+      J_0(T)=q\!\int_0^{\lambda_g}\!\mathrm{IQE}\,\langle A_{\mathrm{Si}}\rangle\,\Phi_{\mathrm{cn}}(T)\,\mathrm{d}\lambda,\qquad
+      \lambda_g(T)=\frac{hc}{E_g(T)},\quad E_g(T)=E_{g0}-\frac{\alpha T^2}{T+\beta}.$$
+    <p>\(\Phi_{\mathrm{sol}}\) y \(\Phi_{\mathrm{cn}}\) son los flujos de fotones del sol y del cuerpo negro a \(T\): \(J_0\) es la recombinación radiativa del balance detallado. Solo la luz absorbida en el silicio (\(A_{\mathrm{Si}}\)) genera corriente; el resto de la absorción (\(\varepsilon\)) solo calienta el módulo. \(P_{\mathrm{MPP}}\) es el máximo de \(-JV\), y \(\eta=P_{\mathrm{MPP}}/G\).</p>
+    <p><b>Panel.</b> Con \(N\) celdas en serie de área \(A=\text{lado}^2\): \(V_{\mathrm{panel}}=N\,V_{\mathrm{celda}}\), \(I_{\mathrm{panel}}=A\,J\) y \(P_{\mathrm{panel}}=N\,A\,P_{\mathrm{MPP}}\).</p>
+    <p><b>Ficha STC.</b> Valores a 25 °C y 1000 W/m². \(\mathrm{d}V_{oc}/\mathrm{d}T\) es una diferencia centrada en ±1 K. Como \(J_{\mathrm{sc}}\) depende de \(T\) solo a través de \(\lambda_g\), su derivada es \(\mathrm{d}J_{\mathrm{sc}}/\mathrm{d}T=q\,\mathrm{IQE}\,A_{\mathrm{Si}}\,\Phi_{\mathrm{sol}}\big|_{\lambda_g}\,\mathrm{d}\lambda_g/\mathrm{d}T\).</p>
+    <p><b>Recubrimiento de la literatura.</b> Con su transmitancia \(T_c(\lambda)\) y emisividad \(\varepsilon_c(\lambda)\), en una sola pasada sobre el módulo base:
+      \(\varepsilon=\varepsilon_c+T_c\,\varepsilon_{\mathrm{base}}\) y \(A_{\mathrm{Si}}=T_c\,A_{\mathrm{Si,base}}\).</p>
+  </div>
+
+  <div class="card">
+    <h2>2 · Propiedades del silicio</h2>
+    <div class="scroll"><table>
+      <tbody>
+        <tr><td>Espesor \(d_{\mathrm{Si}}\)</td><td>500 µm</td></tr>
+        <tr><td>Índice de refracción complejo</td><td>Palik (tabulado)</td></tr>
+        <tr><td>Band gap (Varshni)</td><td>\(E_{g0}=1.166\) eV, \(\alpha=4.73\times10^{-4}\) eV/K, \(\beta=636\) K → a 25 °C: \(E_g=1.121\) eV, \(\lambda_g=1.106\) µm</td></tr>
+        <tr><td>Concentración intrínseca</td><td>\(n_i=5.29\times10^{19}\,(T/300)^{2.54}\exp(-6726/T)\) cm⁻³</td></tr>
+        <tr><td>Coeficiente Auger \(C_A\)</td><td>tabla de 195 a 372 K, de 3.03 a 4.55 × 10⁻³¹ cm⁶/s (3.88 × 10⁻³¹ a 294 K), interpolada</td></tr>
+        <tr><td>Eficiencia cuántica interna</td><td>medida, de 0.33 a 1.20 µm; cero fuera de ese rango</td></tr>
+        <tr><td>Resistencia serie \(R_s\)</td><td>1.1 Ω·cm²</td></tr>
+        <tr><td>Resistencia paralelo \(R_{\mathrm{sh}}\)</td><td>1000 Ω·cm²</td></tr>
+        <tr><td>Factor de idealidad</td><td>1</td></tr>
+      </tbody></table></div>
+  </div>
+
+  <div class="card">
+    <h2>3 · Geometría de la celda base (sin enfriador)</h2>
+    <p>Capas planas, lateralmente infinitas, de arriba hacia abajo (no a escala):</p>
+    <div class="stack">
+      <div style="background:#fff">Aire (cielo y sol)</div>
+      <div style="background:#e3eef9">SiO₂ plana, 500 µm (Palik–Kitamura): cubierta tipo vidrio</div>
+      <div style="background:#d9d9d9">Si, 500 µm (Palik): absorbente fotovoltaico</div>
+      <div style="background:#f2d27a">Au, 80 nm (Olmon 2012): contacto y espejo posterior</div>
+      <div style="background:#fff">Vacío</div>
+    </div>
+    <p>Sin texturizado, sin capa antirreflejo, sin EVA ni backsheet. El espectro óptico (\(R\), \(\varepsilon\), \(A_{\mathrm{Si}}\)) está precalculado con RCWA (S4) de 0.3 a 24.9 µm en 1000 puntos, promediado sobre el hemisferio (8 ángulos polares, 1 azimut) y sin polarización, con 60 modos de Fourier. Es el caso «sílice plana» de Akerboom et al., <i>ACS Photonics</i> 9, 3831 (2022). El enfriador de microcilindros agrega sobre esa sílice un arreglo hexagonal de cilindros de SiO₂ de 1.75 µm de radio y 2.25 µm de alto, con período de 6.125 µm.</p>
+    <p>La atmósfera es la transmitancia cenital de cielo despejado de Cerro Pachón entre 7 y 26 µm; fuera de ese rango el cielo se considera opaco.</p>
+  </div>
+
+  <div class="card">
+    <h2>4 · Limitaciones de esta calculadora</h2>
+    <ul>
+      <li><b>Un punto de operación en régimen estacionario.</b> No hay series horarias ni inercia térmica; la energía anual E<sub>s</sub> ≈ E<sub>base</sub> · P<sub>s</sub>/P<sub>base</sub> es una estimación.</li>
+      <li><b>Una sola temperatura</b> para todo el módulo, sin gradientes entre caras ni en el plano.</li>
+      <li><b>h constante y global</b>, sin dependencia del viento ni de la temperatura. La espuma metálica es solo un h mayor: no se modelan su geometría, la resistencia de contacto ni la caída de presión.</li>
+      <li><b>Radiación solo por la cara frontal</b> hacia un cielo despejado a temperatura ambiente, como si el panel viera todo el cielo. No hay nubes, suelo, cara posterior ni efecto de la inclinación.</li>
+      <li><b>Espectro solar AM1.5G fijo</b>, escalado a G, absorbido con la absortancia hemisférica: no cambia con la hora, la estación, el sitio ni el ángulo del sol.</li>
+      <li><b>Celda idealizada</b>: sin recombinación SRH, texturizado ni antirreflejo, y con espejo de oro. Su Voc es mayor y su Isc menor que en un panel comercial. Como \(A_{\mathrm{Si}}\) no depende de la temperatura, el coeficiente de Isc es cerca de diez veces menor que el real.</li>
+      <li><b>Módulo base simplificado</b>: 500 µm de sílice en lugar de vidrio de 3.2 mm, EVA y backsheet. Absorbe poco entre 1.1 y 4 µm, por lo que la reflexión bajo el band gap rinde aquí menos que en un módulo real.</li>
+      <li><b>Recubrimiento en una sola pasada</b>: sin reflexiones múltiples entre el recubrimiento y el módulo. Sus T y ε se toman como valores hemisféricos, se interpolan linealmente y fuera del archivo se mantienen los valores del borde.</li>
+      <li><b>Panel = N celdas ideales en serie</b>: sin pérdidas por desajuste, separación entre celdas, marco, cableado, suciedad ni inversor.</li>
+      <li><b>Explorador Solar</b> aplica su propio modelo de temperatura según el tipo de montaje: ingrese allí solo la ficha STC, nunca los valores a temperatura de operación.</li>
+    </ul>
+    <p class="note">Detalle completo del modelo: <a href="https://github.com/gsilvaoelker/radcoolpv-py/blob/main/docs/model.md" target="_blank" rel="noopener">docs/model.md</a> en el repositorio radcoolpv-py.</p>
+  </div>
+</section>
 
 <script id="bundle" type="application/json">{}</script>
 <script>
@@ -266,6 +356,12 @@ $("dl").onclick = () => {
   a.download = "radcoolpv_escenarios.csv";
   a.click();
 };
+
+document.querySelectorAll("nav.tabs button").forEach(b => b.onclick = () => {
+  document.querySelectorAll("nav.tabs button").forEach(t => t.classList.toggle("on", t === b));
+  $("sim").hidden = b.dataset.tab !== "sim";
+  $("model").hidden = b.dataset.tab !== "model";
+});
 
 boot().catch(err => status("No se pudo cargar: " + err, true));
 </script>
