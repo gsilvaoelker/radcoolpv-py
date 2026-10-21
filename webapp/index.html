@@ -1,0 +1,233 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>radcoolpv web</title>
+<link rel="icon" href="data:,">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fira+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/pyodide/v0.29.5/full/pyodide.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.5.1/chart.umd.min.js"></script>
+<style>
+  :root { --accent: #e8452c; --accent2: #f26b21; --panel: #ececec; --ink: #3a3a3a;
+          --muted: #777; --line: #cfcfcf; --bg: #f7f7f7; --card: #fff; }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: "Fira Sans", system-ui, sans-serif; color: var(--ink); background: var(--bg); }
+  header { background: linear-gradient(90deg, var(--accent), var(--accent2)); color: #fff; padding: 14px 16px; }
+  header h1 { margin: 0; font-size: 1.25rem; font-weight: 600; }
+  header p { margin: 2px 0 0; font-size: .9rem; opacity: .9; }
+  main { display: grid; grid-template-columns: minmax(300px, 400px) 1fr; gap: 16px; padding: 16px; max-width: 1400px; margin: 0 auto; }
+  @media (max-width: 900px) { main { grid-template-columns: 1fr; } }
+  .panel { background: var(--panel); border-radius: 6px; padding: 14px 16px; min-width: 0; }
+  h2 { color: var(--accent); font-size: .85rem; font-weight: 600; letter-spacing: .04em; text-transform: uppercase;
+       margin: 18px 0 8px; border-bottom: 1px solid var(--line); padding-bottom: 4px; }
+  h2:first-child { margin-top: 0; }
+  label.row { display: grid; grid-template-columns: 1fr 110px 56px; align-items: center; gap: 8px; margin: 8px 0; font-size: .92rem; }
+  input[type=number] { width: 100%; padding: 7px 8px; border: 1px solid var(--line); border-radius: 4px;
+                       color: var(--accent); font: 600 .95rem "Fira Sans", sans-serif; text-align: center; background: #fff; }
+  .unit { color: var(--muted); font-size: .85rem; }
+  .radio { display: block; margin: 6px 0; font-size: .92rem; }
+  #custom { margin: 6px 0 0 22px; }
+  #custom input[type=file] { font-size: .85rem; max-width: 100%; }
+  .hint { color: var(--muted); font-size: .8rem; margin: 4px 0; }
+  button { background: var(--accent); color: #fff; border: 0; border-radius: 4px; padding: 10px 18px;
+           font: 600 .95rem "Fira Sans", sans-serif; cursor: pointer; }
+  button:disabled { background: #bbb; cursor: wait; }
+  button.ghost { background: #fff; color: var(--accent); border: 1px solid var(--accent); padding: 5px 10px; font-size: .8rem; }
+  #status { margin: 10px 0 0; font-size: .88rem; color: var(--muted); }
+  #status.err { color: #b00020; }
+  .results { min-width: 0; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 6px; padding: 14px 16px; margin-bottom: 16px; min-width: 0; }
+  .card h2 { margin-top: 0; }
+  .scroll { overflow-x: auto; }
+  table { border-collapse: collapse; width: 100%; font-size: .88rem; }
+  th, td { padding: 6px 8px; border-bottom: 1px solid #eee; text-align: right; white-space: nowrap; }
+  th:first-child, td:first-child { text-align: left; }
+  thead th { color: var(--muted); font-weight: 500; }
+  .stc { display: grid; gap: 16px; }
+  .stc table td.v { color: var(--accent); font-weight: 600; }
+  .charts { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 16px; }
+  .chart { position: relative; height: 260px; }
+  .steps { font-size: .88rem; padding-left: 18px; margin: 6px 0; }
+  .steps li { margin: 4px 0; }
+  .note { font-size: .8rem; color: var(--muted); }
+</style>
+</head>
+<body>
+<header>
+  <h1>radcoolpv · Enfriamiento radiativo de paneles FV</h1>
+  <p>Cuatro escenarios de gestión térmica de un panel de silicio en un punto de operación.</p>
+</header>
+<main>
+<form class="panel" id="form">
+  <h2>1 · Condición de operación</h2>
+  <label class="row">Irradiancia en el plano del panel <input type="number" id="g" value="1000" min="50" max="1400" step="1"><span class="unit">W/m²</span></label>
+  <label class="row">Temperatura ambiente <input type="number" id="t_amb_c" value="25.0" min="-20" max="50" step="0.1"><span class="unit">°C</span></label>
+
+  <h2>2 · Panel</h2>
+  <label class="row">Número de celdas por panel <input type="number" id="n_cells" value="60" min="1" step="1"><span class="unit"></span></label>
+  <label class="row">Lado de la celda <input type="number" id="side_mm" value="156.75" min="50" max="250" step="0.01"><span class="unit">mm</span></label>
+
+  <h2>3 · Convección</h2>
+  <label class="row">h sin espuma <input type="number" id="h" value="10.0" min="1" step="0.1"><span class="unit">W/m²K</span></label>
+  <label class="row">h con espuma metálica <input type="number" id="h_foam" value="25.0" min="1" step="0.1"><span class="unit">W/m²K</span></label>
+  <p class="hint">Coeficiente global (frontal + posterior). Reemplace los valores por defecto por valores de la literatura.</p>
+
+  <h2>4 · Enfriador radiativo (frontal)</h2>
+  <label class="radio"><input type="radio" name="cooler" value="C3" checked> Microcilindros de SiO₂ (Akerboom et al., 2022)</label>
+  <label class="radio"><input type="radio" name="cooler" value="custom"> Recubrimiento de la literatura</label>
+  <div id="custom">
+    <input type="file" id="csv" accept=".csv,.txt,.dat">
+    <p class="hint">Dos columnas: λ [µm], ε (0–1). Reemplaza la emisividad de la base para λ ≥ 4 µm.</p>
+    <label class="row">Transmitancia solar τs <input type="number" id="tau_solar" value="0.95" min="0" max="1" step="0.01"><span class="unit"></span></label>
+  </div>
+
+  <button type="submit" id="run" disabled style="margin-top:18px">CALCULAR</button>
+  <p id="status">Cargando Python y radcoolpv (≈20 s la primera vez)…</p>
+</form>
+
+<section class="results">
+  <div class="card">
+    <h2>Cómo usar con Explorador Solar</h2>
+    <ol class="steps">
+      <li>En <a href="https://solar.minenergia.cl/fotovoltaico" target="_blank" rel="noopener">Explorador Solar</a>, elija el sitio y lea la irradiancia en el plano del panel y la temperatura ambiente de la condición a estudiar (p. ej., mediodía de verano).</li>
+      <li>Ingrese esos valores aquí y presione CALCULAR.</li>
+      <li>Copie la <b>ficha STC (Base)</b> en «Monofacial Modelo Avanzado» de Explorador Solar y obtenga la energía anual E<sub>base</sub>.</li>
+      <li>Estime cada escenario como E<sub>s</sub> ≈ E<sub>base</sub> · P<sub>s</sub>/P<sub>base</sub>. Repita para 2–3 condiciones (verano, invierno).</li>
+    </ol>
+    <p class="note">Explorador Solar calcula la temperatura de celda solo según el tipo de montaje; no ve el enfriador ni la espuma. Ingrese allí solo valores STC: los valores a temperatura de operación se corregirían dos veces.</p>
+  </div>
+
+  <div id="out" hidden>
+    <div class="card">
+      <h2>A · Comparación de escenarios</h2>
+      <div class="scroll"><table id="cmp"></table></div>
+    </div>
+    <div class="card">
+      <h2>B · Ficha STC para Explorador Solar (25 °C, 1000 W/m²)</h2>
+      <div class="stc" id="stc"></div>
+      <p class="note">Celda idealizada de radcoolpv: 500 µm de Si, sin recombinación SRH ni texturizado, por lo que tiene Voc mayor e Isc menor que un panel comercial. El coeficiente de Isc solo incluye el corrimiento del band gap.</p>
+    </div>
+    <div class="card charts">
+      <div><h2>C · Temperatura de celda</h2><div class="chart"><canvas id="ch_t"></canvas></div></div>
+      <div><h2>D · Balance de energía</h2><div class="chart"><canvas id="ch_q"></canvas></div></div>
+    </div>
+    <div class="card">
+      <h2>E · Emisividad frontal ε(λ)</h2>
+      <div class="chart"><canvas id="ch_e"></canvas></div>
+    </div>
+    <button class="ghost" id="dl">Descargar CSV</button>
+  </div>
+</section>
+</main>
+
+<script>
+const $ = id => document.getElementById(id);
+const status = (msg, err) => { $("status").textContent = msg; $("status").className = err ? "err" : ""; };
+const charts = {};
+Chart.defaults.animation = false;
+let py, result;
+
+async function boot() {
+  py = await loadPyodide();
+  await py.loadPackage(["numpy", "scipy", "pyyaml", "micropip"]);
+  const files = await (await fetch("files.json")).json();   // written by build.sh
+  await py.pyimport("micropip").install(files.wheels.map(w => new URL(w, location.href).href), { deps: false });
+  py.FS.mkdir("data");
+  for (const f of ["app.py", ...files.data])
+    py.FS.writeFile(f, new Uint8Array(await (await fetch(f)).arrayBuffer()));
+  py.runPython("import sys, json; sys.path.insert(0, '.'); import app; app._load()");
+  $("run").disabled = false;
+  status("Listo.");
+}
+
+function fmt(x, d) { return Number(x).toFixed(d); }
+
+function render(r) {
+  const rows = r.rows;
+  const cols = [["T celda [°C]", "t_cell", 1], ["ΔT vs base [°C]", "dt", 1], ["η [%]", "eta", 2],
+                ["P panel [W]", "p_panel", 1], ["Ganancia vs base [%]", "gain", 2], ["Vmp [V]", "vmp", 2],
+                ["Imp [A]", "imp", 3], ["Voc [V]", "voc", 2], ["Isc [A]", "isc", 3]];
+  $("cmp").innerHTML = "<thead><tr><th></th>" + rows.map(s => `<th>${s.name}</th>`).join("") + "</tr></thead><tbody>" +
+    cols.map(([lab, k, d]) => `<tr><td>${lab}</td>` + rows.map(s => `<td>${fmt(s[k], d)}</td>`).join("") + "</tr>").join("") + "</tbody>";
+
+  $("stc").innerHTML = Object.entries(r.stc).map(([name, c]) => `
+    <div class="scroll"><table>
+      <thead><tr><th>${name}</th><th></th><th></th><th><button class="ghost" data-name="${name}">Copiar</button></th></tr></thead>
+      <tbody>
+        <tr><td>Número de celdas por panel</td><td class="v">${c.n}</td><td></td><td></td></tr>
+        <tr><td>Vmp</td><td class="v">${fmt(c.vmp, 2)} V</td><td></td><td></td></tr>
+        <tr><td>Imp</td><td class="v">${fmt(c.imp, 3)} A</td><td></td><td></td></tr>
+        <tr><td>Voc</td><td class="v">${fmt(c.voc, 2)} V</td><td class="v">${fmt(c.voc_pct, 3)} %/°C</td><td class="v">${fmt(c.voc_mv, 1)} mV/°C</td></tr>
+        <tr><td>Isc</td><td class="v">${fmt(c.isc, 3)} A</td><td class="v">${fmt(c.isc_pct, 4)} %/°C</td><td class="v">${fmt(c.isc_ma, 2)} mA/°C</td></tr>
+        <tr><td>Pmp (referencia)</td><td class="v">${fmt(c.pmp, 1)} W</td><td></td><td></td></tr>
+      </tbody></table></div>`).join("");
+  document.querySelectorAll("#stc button").forEach(b => b.onclick = () => {
+    const c = r.stc[b.dataset.name];
+    navigator.clipboard.writeText([c.n, fmt(c.vmp, 2), fmt(c.imp, 3), fmt(c.voc, 2), fmt(c.voc_pct, 3), fmt(c.voc_mv, 1),
+                                   fmt(c.isc, 3), fmt(c.isc_pct, 4), fmt(c.isc_ma, 2)].join("\t"));
+    b.textContent = "Copiado";
+  });
+
+  const names = rows.map(s => s.name), palette = ["#9e9e9e", "#2b7bb9", "#e8452c", "#7b3fa0"];
+  draw("ch_t", { type: "bar", data: { labels: names, datasets: [{ label: "T celda [°C]", data: rows.map(s => s.t_cell), backgroundColor: palette }] },
+                 options: { plugins: { legend: { display: false } }, scales: { y: { title: { display: true, text: "°C" } } } } });
+  const q = [["Solar absorbida", "q_solar", "#f2a900"], ["Radiación neta", "q_rad", "#e8452c"],
+             ["Convección", "q_conv", "#2b7bb9"], ["Eléctrica", "q_elec", "#3a9d5d"]];
+  draw("ch_q", { type: "bar", data: { labels: names, datasets: q.map(([l, k, c]) => ({ label: l, data: rows.map(s => s[k]), backgroundColor: c })) },
+                 options: { scales: { y: { title: { display: true, text: "W/m²" } } } } });
+  const sp = r.spectrum, pts = a => sp.lam.map((x, i) => ({ x, y: a[i] }));
+  draw("ch_e", { type: "line", data: { datasets: [
+      { label: "Ventana atmosférica 8–13 µm", data: sp.lam.map(x => ({ x, y: x >= 8 && x <= 13 ? 1 : null })), fill: "origin",
+        backgroundColor: "rgba(43,123,185,.12)", borderWidth: 0, pointRadius: 0 },
+      { label: "Base (sílice plana)", data: pts(sp.base), borderColor: "#9e9e9e", borderWidth: 1.5, pointRadius: 0 },
+      { label: "Enfriador", data: pts(sp.cooler), borderColor: "#e8452c", borderWidth: 1.5, pointRadius: 0 }] },
+    options: { maintainAspectRatio: false, scales: { x: { type: "linear", min: 0.3, max: 25, title: { display: true, text: "λ [µm]" } },
+                                                     y: { min: 0, max: 1, title: { display: true, text: "ε" } } } } });
+  $("out").hidden = false;
+}
+
+function draw(id, cfg) {
+  charts[id]?.destroy();
+  cfg.options = { responsive: true, maintainAspectRatio: false, ...cfg.options };
+  charts[id] = new Chart($(id), cfg);
+}
+
+$("form").onsubmit = async e => {
+  e.preventDefault();
+  const num = id => parseFloat($(id).value);
+  const inp = { g: num("g"), t_amb_c: num("t_amb_c"), n_cells: num("n_cells"), side_mm: num("side_mm"),
+                h: num("h"), h_foam: num("h_foam"), tau_solar: num("tau_solar"),
+                cooler: document.querySelector("input[name=cooler]:checked").value, csv: "" };
+  if (inp.cooler === "custom") {
+    if (!$("csv").files.length) return status("Suba el archivo CSV del recubrimiento.", true);
+    inp.csv = await $("csv").files[0].text();
+  }
+  $("run").disabled = true;
+  status("Calculando los 4 escenarios (≈10 s)…");
+  await new Promise(r => setTimeout(r, 50));   // let the status paint before Python blocks
+  try {
+    py.globals.set("INP", JSON.stringify(inp));
+    result = JSON.parse(py.runPython("json.dumps(app.simulate(json.loads(INP)))"));
+    render(result);
+    status("Listo.");
+  } catch (err) {
+    status("Error: " + String(err.message || err).trim().split("\n").pop(), true);
+  }
+  $("run").disabled = false;
+};
+
+$("dl").onclick = () => {
+  const keys = Object.keys(result.rows[0]);
+  const csv = [keys.join(","), ...result.rows.map(r => keys.map(k => r[k]).join(","))].join("\n");
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
+  a.download = "radcoolpv_escenarios.csv";
+  a.click();
+};
+
+boot().catch(err => status("No se pudo cargar: " + err, true));
+</script>
+</body>
+</html>
