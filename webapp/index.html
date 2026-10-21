@@ -9,6 +9,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Fira+Sans:wght@400;500;600&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/pyodide/v0.29.5/full/pyodide.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.5.1/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/chartjs-plugin-datalabels/2.2.0/chartjs-plugin-datalabels.min.js"></script>
 <style>
   :root { --accent: #e8452c; --accent2: #f26b21; --panel: #ececec; --ink: #3a3a3a;
           --muted: #777; --line: #cfcfcf; --bg: #f7f7f7; --card: #fff; }
@@ -109,11 +110,19 @@
       <p class="note">Celda idealizada de radcoolpv: 500 µm de Si, sin recombinación SRH ni texturizado, por lo que tiene Voc mayor e Isc menor que un panel comercial. El coeficiente de Isc solo incluye el corrimiento del band gap.</p>
     </div>
     <div class="card charts">
-      <div><h2>C · Temperatura de celda</h2><div class="chart"><canvas id="ch_t"></canvas></div></div>
-      <div><h2>D · Balance de energía</h2><div class="chart"><canvas id="ch_q"></canvas></div></div>
+      <div><h2>C · Efecto de cada escenario respecto a la base</h2>
+        <p class="note"><b style="color:#1c5cab">Reducción de la temperatura de celda (°C, barras, eje izquierdo)</b> y
+          <b style="color:#b0441a">ganancia de potencia del panel (%, puntos, eje derecho)</b>.</p>
+        <div class="chart"><canvas id="ch_t"></canvas></div>
+        <p class="note" id="note_t"></p></div>
+      <div><h2>D · Destino de la potencia solar absorbida</h2>
+        <p class="note">Radiación neta, convección y potencia eléctrica, en W/m²; suman la potencia solar absorbida (la luminiscencia, &lt; 1 W/m², se omite).</p>
+        <div class="chart"><canvas id="ch_q"></canvas></div></div>
     </div>
     <div class="card">
-      <h2>E · Emisividad frontal ε(λ)</h2>
+      <h2>E · Emisividad frontal y espectro solar</h2>
+      <p class="note"><b style="color:#52514e">ε de la base</b> y <b style="color:#1c5cab">ε del enfriador</b> (eje izquierdo);
+        <b style="color:#8a5a00">irradiancia solar incidente, W/(m²·µm)</b> (área, eje derecho). Eje λ logarítmico.</p>
       <div class="chart"><canvas id="ch_e"></canvas></div>
     </div>
     <button class="ghost" id="dl">Descargar CSV</button>
@@ -170,21 +179,51 @@ function render(r) {
     b.textContent = "Copiado";
   });
 
-  const names = rows.map(s => s.name), palette = ["#9e9e9e", "#2b7bb9", "#e8452c", "#7b3fa0"];
-  draw("ch_t", { type: "bar", data: { labels: names, datasets: [{ label: "T celda [°C]", data: rows.map(s => s.t_cell), backgroundColor: palette }] },
-                 options: { plugins: { legend: { display: false } }, scales: { y: { title: { display: true, text: "°C" } } } } });
-  const q = [["Solar absorbida", "q_solar", "#f2a900"], ["Radiación neta", "q_rad", "#e8452c"],
-             ["Convección", "q_conv", "#2b7bb9"], ["Eléctrica", "q_elec", "#3a9d5d"]];
-  draw("ch_q", { type: "bar", data: { labels: names, datasets: q.map(([l, k, c]) => ({ label: l, data: rows.map(s => s[k]), backgroundColor: c })) },
-                 options: { scales: { y: { title: { display: true, text: "W/m²" } } } } });
-  const sp = r.spectrum, pts = a => sp.lam.map((x, i) => ({ x, y: a[i] }));
+  // C: dual axis (Datawrapper): both from zero, and the % axis is the °C axis times the
+  // base cell's |beta_P|, so a point level with its bar is gain from cooling alone.
+  const vs = rows.slice(1), beta = Math.abs(rows[0].beta_p), blueInk = "#1c5cab", orangeInk = "#b0441a";
+  const top = 5 * Math.ceil(1.2 * Math.max(...vs.map(s => Math.max(-s.dt, s.gain / beta))) / 5);
+  const lab = s => s.name.split(/ (?!\+)/);   // two-line category labels
+  const unit = (u, d) => v => fmt(v, d) + " " + u;
+  draw("ch_t", { type: "bar", plugins: [ChartDataLabels], data: { labels: vs.map(lab), datasets: [
+      { label: "Reducción de T celda", data: vs.map(s => -s.dt), yAxisID: "y", backgroundColor: "#86b6ef", borderRadius: 4,
+        datalabels: { anchor: "start", align: "end", offset: 4, color: blueInk, formatter: unit("°C", 1) } },
+      { type: "line", label: "Ganancia de potencia", data: vs.map(s => s.gain), yAxisID: "y1", showLine: false,
+        pointRadius: 7, pointHoverRadius: 9, backgroundColor: "#d95926", borderColor: "#fff", borderWidth: 2,
+        datalabels: { align: "right", offset: 10, color: orangeInk, formatter: unit("%", 1) } }] },
+    options: { plugins: { legend: { display: false }, datalabels: { font: { weight: 600 } },
+                          tooltip: { callbacks: { label: c => `${c.dataset.label}: ${fmt(c.parsed.y, 2)} ${c.datasetIndex ? "%" : "°C"}` } } },
+      scales: { y: { min: 0, max: top, ticks: { count: 6, color: blueInk, callback: unit("°C", 1) } },
+                y1: { position: "right", min: 0, max: top * beta, grid: { drawOnChartArea: false },
+                      ticks: { count: 6, color: orangeInk, callback: unit("%", 1) } } } } });
+  $("note_t").textContent = `Escalas alineadas con el coeficiente de potencia de la celda base (β = ${fmt(rows[0].beta_p, 2)} %/°C): ` +
+    "un punto a la altura de su barra es ganancia explicada solo por el enfriamiento; por encima, el enfriador además aumenta la corriente.";
+  // D: one unit, so one axis; the stack is the absorbed solar power.
+  const q = [["Radiación neta", "q_rad", "#2a78d6"], ["Convección", "q_conv", "#eb6834"], ["Eléctrica", "q_elec", "#1baf7a"]];
+  draw("ch_q", { type: "bar", data: { labels: rows.map(lab), datasets: q.map(([l, k, c]) => ({
+      label: l, data: rows.map(s => s[k]), backgroundColor: c, borderColor: "#fff", borderWidth: 2 })) },
+    options: { plugins: { tooltip: { callbacks: { label: c => `${c.dataset.label}: ${fmt(c.parsed.y, 0)} W/m²`,
+                                                  footer: it => `Solar absorbida: ${fmt(rows[it[0].dataIndex].q_solar, 0)} W/m²` } } },
+               scales: { x: { stacked: true }, y: { stacked: true, ticks: { callback: unit("W/m²", 0) } } } } });
+  // E: dual axis with different units; lines (left) dark, the solar area (right) light.
+  const sp = r.spectrum, pts = a => sp.lam.map((x, i) => ({ x, y: a[i] })), amberInk = "#8a5a00";
+  const sunTop = 500 * Math.ceil(Math.max(...sp.sun) / 500);
   draw("ch_e", { type: "line", data: { datasets: [
-      { label: "Ventana atmosférica 8–13 µm", data: sp.lam.map(x => ({ x, y: x >= 8 && x <= 13 ? 1 : null })), fill: "origin",
-        backgroundColor: "rgba(43,123,185,.12)", borderWidth: 0, pointRadius: 0 },
-      { label: "Base (sílice plana)", data: pts(sp.base), borderColor: "#9e9e9e", borderWidth: 1.5, pointRadius: 0 },
-      { label: "Enfriador", data: pts(sp.cooler), borderColor: "#e8452c", borderWidth: 1.5, pointRadius: 0 }] },
-    options: { maintainAspectRatio: false, scales: { x: { type: "linear", min: 0.3, max: 25, title: { display: true, text: "λ [µm]" } },
-                                                     y: { min: 0, max: 1, title: { display: true, text: "ε" } } } } });
+      { label: "ε base (sílice plana)", data: pts(sp.base), yAxisID: "y", borderColor: "#52514e", borderWidth: 2, pointRadius: 0 },
+      { label: "ε enfriador", data: pts(sp.cooler), yAxisID: "y", borderColor: blueInk, borderWidth: 2, pointRadius: 0 },
+      { label: "Irradiancia solar incidente", data: pts(sp.sun), yAxisID: "y1", fill: "origin", borderColor: "rgba(237,161,0,.55)",
+        backgroundColor: "rgba(237,161,0,.18)", borderWidth: 1, pointRadius: 0 },
+      { label: "Ventana atmosférica 8–13 µm", data: sp.lam.map(x => ({ x, y: x >= 8 && x <= 13 ? 1 : null })), yAxisID: "y",
+        fill: "origin", backgroundColor: "rgba(27,175,122,.10)", borderWidth: 0, pointRadius: 0 }] },
+    options: { interaction: { mode: "index", intersect: false },
+      plugins: { tooltip: { filter: it => it.datasetIndex < 3, callbacks: {
+        title: it => `λ = ${fmt(it[0].parsed.x, 2)} µm`,
+        label: c => c.datasetIndex === 2 ? `${c.dataset.label}: ${fmt(c.parsed.y, 0)} W/(m²·µm)` : `${c.dataset.label}: ${fmt(c.parsed.y, 3)}` } } },
+      scales: { x: { type: "logarithmic", min: 0.3, max: 25, title: { display: true, text: "λ [µm]" },
+                     ticks: { autoSkip: false, callback: v => [0.3, 0.5, 1, 2, 5, 10, 20].some(t => Math.abs(v - t) < 1e-6) ? v : "" } },
+                y: { min: 0, max: 1, ticks: { count: 6 }, title: { display: true, text: "Emisividad ε" } },
+                y1: { position: "right", min: 0, max: sunTop, grid: { drawOnChartArea: false },
+                      ticks: { count: 6, color: amberInk }, title: { display: true, text: "W/(m²·µm)", color: amberInk } } } } });
   $("out").hidden = false;
 }
 

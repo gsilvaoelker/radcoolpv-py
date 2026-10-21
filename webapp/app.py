@@ -123,11 +123,12 @@ def simulate(inp):
                      "p_panel": n * area * r.mpp_equil, "vmp": n * r.vmpp,
                      "imp": area * r.mpp_equil / r.vmpp, "voc": n * r.voc_equil, "isc": area * r.isc,
                      "q_solar": r.solar_power, "q_rad": r.rad_power_equil - r.atm_power,
-                     "q_conv": h * (r.equil_temp - t_amb), "q_elec": r.mpp_equil})
+                     "q_conv": h * (r.equil_temp - t_amb), "q_elec": r.mpp_equil, "beta_p": r.beta_p})
     for r in rows:
         r["dt"] = r["t_cell"] - rows[0]["t_cell"]
         r["gain"] = 100.0 * (r["p_panel"] / rows[0]["p_panel"] - 1.0)
     return {"rows": rows,
             "stc": {"Base": stc_card(base, n, area), "Enfriador radiativo": stc_card(cooler, n, area)},
             "spectrum": {"lam": base.lambda_um.tolist(), "base": base.emit.tolist(),
+                         "sun": _sun(inp["g"]).irradiance_per_um.tolist(),
                          "cooler": cooler.emit.tolist()}}
