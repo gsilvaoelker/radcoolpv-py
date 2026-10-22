@@ -5,8 +5,6 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>radcoolpv web</title>
 <link rel="icon" href="data:,">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Fira+Sans:wght@400;500;600&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/pyodide/v0.29.5/full/pyodide.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.5.1/chart.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/chartjs-plugin-datalabels/2.2.0/chartjs-plugin-datalabels.min.js"></script>
@@ -15,43 +13,49 @@
 <script defer src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/contrib/auto-render.min.js"
         onload="renderMathInElement(document.getElementById('model'))"></script>
 <style>
-  :root { --accent: #e8452c; --accent2: #f26b21; --panel: #ececec; --ink: #3a3a3a;
-          --muted: #777; --line: #cfcfcf; --bg: #f7f7f7; --card: #fff; }
+  /* Palette of gsilvaoelker.com */
+  :root { --navy: #0d2e4c; --navy2: #173f5f; --red: #ef183d; --ink: #111820; --muted: #53606b;
+          --line: #dbe2e8; --soft: #edf2f6; --bg: #fbfcfd; --card: #fff; }
   * { box-sizing: border-box; }
-  body { margin: 0; font-family: "Fira Sans", system-ui, sans-serif; color: var(--ink); background: var(--bg); }
-  header { background: linear-gradient(90deg, var(--accent), var(--accent2)); color: #fff; padding: 14px 16px; }
-  header h1 { margin: 0; font-size: 1.25rem; font-weight: 600; }
-  header p { margin: 2px 0 0; font-size: .9rem; opacity: .9; }
+  body { margin: 0; font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+         color: var(--ink); background: var(--bg); line-height: 1.45; }
+  a { color: var(--navy2); text-decoration-color: rgba(239, 24, 61, .45); text-underline-offset: 3px; }
+  a:hover { color: var(--red); }
+  header { background: var(--navy); color: #fff; padding: 14px 16px; }
+  header h1 { margin: 0; font-size: 1.25rem; font-weight: 700; }
+  header p { margin: 2px 0 0; font-size: .9rem; color: #e3edf5; }
   main { display: grid; grid-template-columns: minmax(300px, 400px) 1fr; gap: 16px; padding: 16px; max-width: 1400px; margin: 0 auto; }
   @media (max-width: 900px) { main { grid-template-columns: 1fr; } }
-  .panel { background: var(--panel); border-radius: 6px; padding: 14px 16px; min-width: 0; }
-  h2 { color: var(--accent); font-size: .85rem; font-weight: 600; letter-spacing: .04em; text-transform: uppercase;
+  .panel, .card { background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 14px 16px; min-width: 0; }
+  .card { margin-bottom: 16px; }
+  h2 { color: var(--red); font-size: .78rem; font-weight: 800; letter-spacing: .02em; text-transform: uppercase;
        margin: 18px 0 8px; border-bottom: 1px solid var(--line); padding-bottom: 4px; }
-  h2:first-child { margin-top: 0; }
+  h2:first-child, .card h2 { margin-top: 0; }
   label.row { display: grid; grid-template-columns: 1fr 110px 56px; align-items: center; gap: 8px; margin: 8px 0; font-size: .92rem; }
-  input[type=number] { width: 100%; padding: 7px 8px; border: 1px solid var(--line); border-radius: 4px;
-                       color: var(--accent); font: 600 .95rem "Fira Sans", sans-serif; text-align: center; background: #fff; }
+  input[type=number], select { width: 100%; padding: 7px 8px; border: 1px solid var(--line); border-radius: 8px; background: #fff;
+                               color: var(--navy2); font-family: inherit; font-size: .95rem; font-weight: 600; }
+  input[type=number] { text-align: center; }
+  select { font-size: .85rem; font-weight: 500; margin: 2px 0 6px; }
   .unit { color: var(--muted); font-size: .85rem; }
   .radio { display: block; margin: 6px 0; font-size: .92rem; }
   #custom { margin: 6px 0 0 22px; }
   #custom input[type=file] { font-size: .85rem; max-width: 100%; }
   .hint { color: var(--muted); font-size: .8rem; margin: 4px 0; }
-  button { background: var(--accent); color: #fff; border: 0; border-radius: 4px; padding: 10px 18px;
-           font: 600 .95rem "Fira Sans", sans-serif; cursor: pointer; }
-  button:disabled { background: #bbb; cursor: wait; }
-  button.ghost { background: #fff; color: var(--accent); border: 1px solid var(--accent); padding: 5px 10px; font-size: .8rem; }
+  button { background: var(--navy); color: #fff; border: 1px solid var(--navy); border-radius: 8px; padding: 10px 18px;
+           font: inherit; font-weight: 700; cursor: pointer; }
+  button:hover { border-color: var(--red); }
+  button:disabled { background: #aebbc6; border-color: #aebbc6; cursor: wait; }
+  button.ghost { background: #fff; color: var(--navy); padding: 5px 10px; font-size: .8rem; }
   #status { margin: 10px 0 0; font-size: .88rem; color: var(--muted); }
   #status.err { color: #b00020; }
   .results { min-width: 0; }
-  .card { background: var(--card); border: 1px solid var(--line); border-radius: 6px; padding: 14px 16px; margin-bottom: 16px; min-width: 0; }
-  .card h2 { margin-top: 0; }
   .scroll { overflow-x: auto; }
   table { border-collapse: collapse; width: 100%; font-size: .88rem; }
-  th, td { padding: 6px 8px; border-bottom: 1px solid #eee; text-align: right; white-space: nowrap; }
+  th, td { padding: 6px 8px; border-bottom: 1px solid var(--soft); text-align: right; white-space: nowrap; }
   th:first-child, td:first-child { text-align: left; }
-  thead th { color: var(--muted); font-weight: 500; }
+  thead th { color: var(--muted); font-weight: 600; }
   .stc { display: grid; gap: 16px; }
-  .stc table td.v { color: var(--accent); font-weight: 600; }
+  .stc table td.v { color: var(--navy2); font-weight: 700; }
   .charts { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 16px; }
   .chart { position: relative; height: 260px; }
   .steps { font-size: .88rem; padding-left: 18px; margin: 6px 0; }
@@ -59,56 +63,68 @@
   .note { font-size: .8rem; color: var(--muted); }
   [hidden] { display: none !important; }
   nav.tabs { display: flex; gap: 4px; padding: 0 16px; background: #fff; border-bottom: 1px solid var(--line); }
-  nav.tabs button { background: none; color: var(--ink); border-radius: 0; border-bottom: 3px solid transparent; padding: 10px 14px; }
-  nav.tabs button.on { color: var(--accent); border-bottom-color: var(--accent); }
+  nav.tabs button { background: none; color: var(--ink); border: 0; border-radius: 0; border-bottom: 3px solid transparent; padding: 10px 14px; font-weight: 600; }
+  nav.tabs button.on { color: var(--navy); border-bottom-color: var(--red); }
+  nav.tabs button:hover { color: var(--red); }
   #model { max-width: 960px; margin: 0 auto; padding: 16px; }
   #model p, #model li { font-size: .92rem; line-height: 1.5; }
   #model .katex-display { overflow-x: auto; overflow-y: hidden; padding: 2px 0; }
   #model td { white-space: normal; text-align: left; vertical-align: top; }
-  .stack { max-width: 420px; margin: 8px 0; font-size: .85rem; }
+  .stack { max-width: 420px; margin: 8px 0 12px; font-size: .85rem; }
   .stack div { padding: 8px 12px; border: 1px solid var(--line); border-top: 0; }
   .stack div:first-child { border-top: 1px solid var(--line); }
 </style>
 </head>
 <body>
 <header>
-  <h1>radcoolpv · Enfriamiento radiativo de paneles FV</h1>
-  <p>Cuatro escenarios de gestión térmica de un panel de silicio en un punto de operación.</p>
+  <h1 data-en="radcoolpv · Radiative cooling of PV panels">radcoolpv · Enfriamiento radiativo de paneles FV</h1>
+  <p data-en="Four thermal-management scenarios of a silicon panel at one operating point.">Cuatro escenarios de gestión térmica de un panel de silicio en un punto de operación.</p>
 </header>
 <nav class="tabs">
-  <button type="button" class="on" data-tab="sim">Simulador</button>
-  <button type="button" data-tab="model">Modelo y limitaciones</button>
+  <button type="button" class="on" data-tab="sim" data-en="Simulator">Simulador</button>
+  <button type="button" data-tab="model" data-en="Model and limitations">Modelo y limitaciones</button>
+  <button type="button" id="lang" title="Español / English" style="margin-left:auto">EN</button>
 </nav>
 <main id="sim">
 <form class="panel" id="form">
-  <h2>1 · Condición de operación</h2>
-  <label class="row">Irradiancia en el plano del panel <input type="number" id="g" value="1000" min="50" max="1400" step="1"><span class="unit">W/m²</span></label>
-  <label class="row">Temperatura ambiente <input type="number" id="t_amb_c" value="25.0" min="-20" max="50" step="0.1"><span class="unit">°C</span></label>
+  <h2 data-en="1 · Operating condition">1 · Condición de operación</h2>
+  <label class="row"><span data-en="Plane-of-array irradiance">Irradiancia en el plano del panel</span> <input type="number" id="g" value="1000" min="50" max="1400" step="any"><span class="unit">W/m²</span></label>
+  <label class="row"><span data-en="Ambient temperature">Temperatura ambiente</span> <input type="number" id="t_amb_c" value="25.0" min="-20" max="50" step="any"><span class="unit">°C</span></label>
 
   <h2>2 · Panel</h2>
-  <label class="row">Número de celdas por panel <input type="number" id="n_cells" value="60" min="1" step="1"><span class="unit"></span></label>
-  <label class="row">Lado de la celda <input type="number" id="side_mm" value="156.75" min="50" max="250" step="0.01"><span class="unit">mm</span></label>
-  <p class="hint">Arista de la celda cuadrada (formato de la oblea). Define el área de la celda, A = lado², que convierte la densidad de corriente del modelo (A/m²) en corriente por celda y potencia del panel; los voltajes no dependen de ella. Valores típicos: 156.75 mm (M2), 166 mm (M6), 182 mm (M10), 210 mm (G12).</p>
+  <label class="row"><span data-en="Cells per panel">Número de celdas por panel</span> <input type="number" id="n_cells" value="60" min="1" step="1"><span class="unit"></span></label>
+  <label class="row"><span data-en="Cell side">Lado de la celda</span> <input type="number" id="side_mm" value="156.75" min="10" max="1000" step="any"><span class="unit">mm</span></label>
+  <p class="hint" data-en="Edge of the square cell (wafer format). It sets the cell area, A = side², which turns the model&#39;s current density (A/m²) into per-cell current and panel power; voltages do not depend on it. Typical values: 156.75 mm (M2), 166 mm (M6), 182 mm (M10), 210 mm (G12).">Arista de la celda cuadrada (formato de la oblea). Define el área de la celda, A = lado², que convierte la densidad de corriente del modelo (A/m²) en corriente por celda y potencia del panel; los voltajes no dependen de ella. Valores típicos: 156.75 mm (M2), 166 mm (M6), 182 mm (M10), 210 mm (G12).</p>
 
-  <h2>3 · Convección</h2>
-  <label class="row">h sin espuma <input type="number" id="h" value="10.0" min="1" step="0.1"><span class="unit">W/m²K</span></label>
-  <label class="row">h con espuma metálica <input type="number" id="h_foam" value="25.0" min="1" step="0.1"><span class="unit">W/m²K</span></label>
-  <p class="hint">Coeficiente global (frontal + posterior). Reemplace los valores por defecto por valores de la literatura.</p>
+  <h2 data-en="3 · Convection">3 · Convección</h2>
+  <label class="row"><span data-en="Base h">h base</span> <input type="number" id="h" value="10.0" min="1" step="any"><span class="unit">W/m²K</span></label>
+  <label class="row"><span data-en="Enhanced h">h mejorado</span> <input type="number" id="h_foam" value="25.0" min="1" step="any"><span class="unit">W/m²K</span></label>
+  <p class="hint" data-en="Overall coefficient (front + back). The enhanced h stands for any convection enhancement: metal foam, fins, forced air, etc. Replace the defaults with values from the literature.">Coeficiente global (frontal + posterior). El h mejorado representa cualquier mejora de la convección: espuma metálica, aletas, convección forzada, etc. Reemplace los valores por defecto por valores de la literatura.</p>
 
-  <h2>4 · Enfriador radiativo (frontal)</h2>
-  <label class="radio"><input type="radio" name="cooler" value="C3" checked> Microcilindros de SiO₂ (Akerboom et al., 2022)</label>
-  <label class="radio"><input type="radio" name="cooler" value="custom"> Recubrimiento de la literatura</label>
+  <h2 data-en="4 · Base module and radiative cooler">4 · Módulo base y enfriador radiativo</h2>
+  <select id="module" aria-label="Módulo base / Base module">
+    <option value="akerboom" data-en="Akerboom 2022 · 500 µm Si, flat silica">Akerboom 2022 · Si 500 µm, sílice plana</option>
+    <option value="oe" data-en="Silva-Oelker 2022 · 250 µm Si, 3.2 mm glass">Silva-Oelker 2022 · Si 250 µm, vidrio 3.2 mm</option>
+  </select>
+  <label class="radio" data-module="akerboom"><input type="radio" name="cooler" value="C3" checked> <span data-en="SiO₂ microcylinders">Microcilindros de SiO₂</span></label>
+  <label class="radio" data-module="oe" hidden><input type="radio" name="cooler" value="hemisph_sodalime"> <span data-en="Soda-lime hemispheres">Hemisferios de soda-lime</span></label>
+  <label class="radio" data-module="oe" hidden><input type="radio" name="cooler" value="hemisph_pdms"> <span data-en="PDMS hemispheres">Hemisferios de PDMS</span></label>
+  <label class="radio" data-module="oe" hidden><input type="radio" name="cooler" value="flat_sodalime"> <span data-en="Flat soda-lime (79.5 µm)">Soda-lime plana (79.5 µm)</span></label>
+  <label class="radio" data-module="oe" hidden><input type="radio" name="cooler" value="flat_pdms"> <span data-en="Flat PDMS (79 µm)">PDMS plano (79 µm)</span></label>
+  <p class="hint" data-module="oe" hidden data-en="These covers replace the 3.2 mm glass on the cell.">Estas cubiertas reemplazan el vidrio de 3.2 mm sobre la celda.</p>
+  <label class="radio"><input type="radio" name="cooler" value="custom"> <span data-en="Coating from the literature">Recubrimiento de la literatura</span></label>
   <div id="custom">
     <input type="file" id="csv" accept=".csv,.txt,.dat">
-    <p class="hint">Tres columnas: λ [µm], transmitancia T y emisividad ε del recubrimiento (0–1); la reflectancia es R = 1 − T − ε. Debe cubrir al menos 0.4–13 µm: el espectro solar y la ventana atmosférica. Se coloca sobre el módulo base, a toda longitud de onda.</p>
+    <p class="hint" data-en="Three columns: λ [µm] and the coating&#39;s transmittance T and emittance ε (0–1); the reflectance is R = 1 − T − ε. It must cover at least 0.4–13 µm: the solar spectrum and the atmospheric window. It is placed on the chosen base module at every wavelength.">Tres columnas: λ [µm], transmitancia T y emisividad ε del recubrimiento (0–1); la reflectancia es R = 1 − T − ε. Debe cubrir al menos 0.4–13 µm: el espectro solar y la ventana atmosférica. Se coloca sobre el módulo base elegido, a toda longitud de onda.</p>
   </div>
 
-  <button type="submit" id="run" disabled style="margin-top:18px">CALCULAR</button>
-  <p id="status">Cargando Python y radcoolpv (≈20 s la primera vez)…</p>
+  <button type="submit" id="run" disabled style="margin-top:18px" data-en="CALCULATE">CALCULAR</button>
+  <p id="status">Cargando Python y radcoolpv (puede tardar más de un minuto la primera vez)…</p>
 </form>
 
 <section class="results">
   <div class="card">
+    <div data-lang="es">
     <h2>Cómo usar con Explorador Solar</h2>
     <ol class="steps">
       <li>En <a href="https://solar.minenergia.cl/fotovoltaico" target="_blank" rel="noopener">Explorador Solar</a>, elija el sitio y lea la irradiancia en el plano del panel y la temperatura ambiente de la condición a estudiar (p. ej., mediodía de verano).</li>
@@ -116,41 +132,57 @@
       <li>Copie la <b>ficha STC (Base)</b> en «Monofacial Modelo Avanzado» de Explorador Solar y obtenga la energía anual E<sub>base</sub>.</li>
       <li>Estime cada escenario como E<sub>s</sub> ≈ E<sub>base</sub> · P<sub>s</sub>/P<sub>base</sub>. Repita para 2–3 condiciones (verano, invierno).</li>
     </ol>
-    <p class="note">Explorador Solar calcula la temperatura de celda solo según el tipo de montaje; no ve el enfriador ni la espuma. Ingrese allí solo valores STC: los valores a temperatura de operación se corregirían dos veces.</p>
+    <p class="note">Explorador Solar calcula la temperatura de celda solo según el tipo de montaje; no ve el enfriador ni la mejora de convección. Ingrese allí solo valores STC: los valores a temperatura de operación se corregirían dos veces.</p>
+    </div>
+    <div data-lang="en" hidden>
+    <h2>How to use it with Explorador Solar</h2>
+    <ol class="steps">
+      <li>In <a href="https://solar.minenergia.cl/fotovoltaico" target="_blank" rel="noopener">Explorador Solar</a>, pick the site and read the plane-of-array irradiance and the ambient temperature for the condition you want to study (e.g., summer noon).</li>
+      <li>Enter those values here and press CALCULATE.</li>
+      <li>Copy the <b>STC card (Base)</b> into Explorador Solar's «Monofacial Modelo Avanzado» and get the annual energy E<sub>base</sub>.</li>
+      <li>Estimate each scenario as E<sub>s</sub> ≈ E<sub>base</sub> · P<sub>s</sub>/P<sub>base</sub>. Repeat for 2–3 conditions (summer, winter).</li>
+    </ol>
+    <p class="note">Explorador Solar computes the cell temperature only from the mounting type; it does not see the cooler or the enhanced convection. Enter only STC values there: values at operating temperature would be temperature-corrected twice.</p>
+    </div>
   </div>
 
   <div id="out" hidden>
     <div class="card">
-      <h2>A · Comparación de escenarios</h2>
+      <h2 data-en="A · Scenario comparison">A · Comparación de escenarios</h2>
       <div class="scroll"><table id="cmp"></table></div>
     </div>
     <div class="card">
-      <h2>B · Ficha STC para Explorador Solar (25 °C, 1000 W/m²)</h2>
+      <h2 data-en="B · STC card for Explorador Solar (25 °C, 1000 W/m²)">B · Ficha STC para Explorador Solar (25 °C, 1000 W/m²)</h2>
       <div class="stc" id="stc"></div>
-      <p class="note">Celda idealizada de radcoolpv: 500 µm de Si, sin recombinación SRH ni texturizado, por lo que tiene Voc mayor e Isc menor que un panel comercial. El coeficiente de Isc solo incluye el corrimiento del band gap.</p>
+      <p class="note" data-en="radcoolpv&#39;s idealized cell, with no SRH recombination or texturing: its Voc is higher and its Isc lower than a commercial panel&#39;s. The Isc coefficient includes only the band-gap shift.">Celda idealizada de radcoolpv, sin recombinación SRH ni texturizado: su Voc es mayor y su Isc menor que en un panel comercial. El coeficiente de Isc solo incluye el corrimiento del band gap.</p>
     </div>
     <div class="card charts">
-      <div><h2>C · Efecto de cada escenario respecto a la base</h2>
-        <p class="note"><b style="color:#1c5cab">Reducción de la temperatura de celda (°C, barras, eje izquierdo)</b> y
-          <b style="color:#b0441a">ganancia de potencia del panel (%, puntos, eje derecho)</b>.</p>
+      <div><h2 data-en="C · Effect of each scenario relative to the base">C · Efecto de cada escenario respecto a la base</h2>
+        <p class="note" data-lang="es"><b style="color:#173f5f">Reducción de la temperatura de celda (°C, barras, eje izquierdo)</b> y
+          <b style="color:#b5102e">ganancia de potencia del panel (%, puntos, eje derecho)</b>.</p>
+        <p class="note" data-lang="en" hidden><b style="color:#173f5f">Cell temperature reduction (°C, bars, left axis)</b> and
+          <b style="color:#b5102e">panel power gain (%, points, right axis)</b>.</p>
         <div class="chart"><canvas id="ch_t"></canvas></div>
         <p class="note" id="note_t"></p></div>
-      <div><h2>D · Destino de la potencia solar absorbida</h2>
-        <p class="note">Radiación neta, convección y potencia eléctrica, en W/m²; suman la potencia solar absorbida (la luminiscencia, &lt; 1 W/m², se omite). La radiación neta es la emisión infrarroja de la cara frontal a la temperatura de celda menos la radiación del cielo que esta absorbe. Fuera de la ventana de 8–13 µm el cielo es casi opaco y emite como un cuerpo negro a temperatura ambiente, y ese intercambio crece con la diferencia de temperaturas; dentro de la ventana el módulo irradia hacia el espacio frío.</p>
+      <div><h2 data-en="D · Where the absorbed solar power goes">D · Destino de la potencia solar absorbida</h2>
+        <p class="note" data-en="Net radiation, convection and electric power, in W/m²; they add up to the absorbed solar power (luminescence, under 1 W/m², is left out). Net radiation is the infrared emission of the front face at the cell temperature minus the sky radiation it absorbs. Outside the 8–13 µm window the sky is nearly opaque and emits like a blackbody at ambient temperature, and that exchange grows with the temperature difference; inside the window the module radiates to cold space.">Radiación neta, convección y potencia eléctrica, en W/m²; suman la potencia solar absorbida (la luminiscencia, &lt; 1 W/m², se omite). La radiación neta es la emisión infrarroja de la cara frontal a la temperatura de celda menos la radiación del cielo que esta absorbe. Fuera de la ventana de 8–13 µm el cielo es casi opaco y emite como un cuerpo negro a temperatura ambiente, y ese intercambio crece con la diferencia de temperaturas; dentro de la ventana el módulo irradia hacia el espacio frío.</p>
         <div class="chart"><canvas id="ch_q"></canvas></div></div>
     </div>
     <div class="card">
-      <h2>E · Emisividad frontal y espectro solar</h2>
-      <p class="note"><b style="color:#52514e">ε de la base</b> y <b style="color:#1c5cab">ε del enfriador</b> (eje izquierdo);
-        <b style="color:#8a5a00">irradiancia solar incidente, W/(m²·µm)</b> (área, eje derecho). Eje λ logarítmico.</p>
+      <h2 data-en="E · Front emittance and solar spectrum">E · Emisividad frontal y espectro solar</h2>
+      <p class="note" data-lang="es"><b style="color:#53606b">ε de la base (trazos)</b> y <b style="color:#b5102e">ε del enfriador</b> (eje izquierdo);
+        <b style="color:#8a6a10">irradiancia solar incidente, W/(m²·µm)</b> (área, eje derecho). Eje λ logarítmico.</p>
+      <p class="note" data-lang="en" hidden><b style="color:#53606b">ε of the base (dashed)</b> and <b style="color:#b5102e">ε of the cooler</b> (left axis);
+        <b style="color:#8a6a10">incident solar irradiance, W/(m²·µm)</b> (area, right axis). Logarithmic λ axis.</p>
       <div class="chart"><canvas id="ch_e"></canvas></div>
     </div>
-    <button class="ghost" id="dl">Descargar CSV</button>
+    <button class="ghost" id="dl" data-en="Download CSV">Descargar CSV</button>
   </div>
 </section>
 </main>
 
 <section id="model" hidden>
+<div data-lang="es">
   <div class="card">
     <h2>1 · Modelo matemático</h2>
     <p>Todo se calcula por unidad de área del módulo, en régimen estacionario y con una sola temperatura \(T\) para todo el módulo. La temperatura de celda es la raíz del balance de energía</p>
@@ -159,7 +191,7 @@
     $$P_{\mathrm{rad}}(T)=\pi\!\int\!\langle\varepsilon\rangle\,B_\lambda(T)\,\mathrm{d}\lambda,\qquad
       P_{\mathrm{atm}}=\pi\!\int\!\langle\varepsilon\,\varepsilon_{\mathrm{atm}}\rangle\,B_\lambda(T_{\mathrm{amb}})\,\mathrm{d}\lambda,\qquad
       P_{\mathrm{sol}}=\int\!\langle\varepsilon\rangle\,I_{\mathrm{sol}}(\lambda)\,\mathrm{d}\lambda .$$
-    <p>\(B_\lambda\) es la radiancia de Planck, \(\langle\cdot\rangle\) el promedio hemisférico, \(\varepsilon=A\) la emisividad (ley de Kirchhoff) y \(\varepsilon_{\mathrm{atm}}(\lambda,\theta)=1-\tau(\lambda)^{1/\cos\theta}\) la emisividad del cielo a partir de su transmitancia cenital \(\tau\). \(I_{\mathrm{sol}}\) es el espectro AM1.5G escalado para que integre a la irradiancia \(G\) ingresada. \(h\) agrupa convección y conducción; la espuma metálica solo cambia su valor. \(P_{\mathrm{MPP}}\) es la potencia eléctrica extraída y \(P_{\mathrm{lum}}\) la luminiscencia de la celda (&lt; 1 W/m²).</p>
+    <p>\(B_\lambda\) es la radiancia de Planck, \(\langle\cdot\rangle\) el promedio hemisférico, \(\varepsilon=A\) la emisividad (ley de Kirchhoff) y \(\varepsilon_{\mathrm{atm}}(\lambda,\theta)=1-\tau(\lambda)^{1/\cos\theta}\) la emisividad del cielo a partir de su transmitancia cenital \(\tau\). \(I_{\mathrm{sol}}\) es el espectro AM1.5G escalado para que integre a la irradiancia \(G\) ingresada. \(h\) agrupa convección y conducción; la convección mejorada (espuma metálica, aletas, convección forzada) solo cambia su valor. \(P_{\mathrm{MPP}}\) es la potencia eléctrica extraída y \(P_{\mathrm{lum}}\) la luminiscencia de la celda (&lt; 1 W/m²).</p>
     <p>La celda es un modelo de un diodo con resistencias serie y paralelo, resuelto para \(J\) en cada voltaje con \(V_d=V-JR_s\):</p>
     $$J=\frac{V_d}{R_{\mathrm{sh}}}+J_0\!\left[\exp\!\left(\frac{qV_d}{k_BT}\right)-1\right]+J_{\mathrm{Aug}}-J_{\mathrm{sc}},\qquad
       J_{\mathrm{Aug}}=2q\,C_A(T)\,n_i^3(T)\,d_{\mathrm{Si}}\exp\!\left(\frac{3qV_d}{2k_BT}\right),$$
@@ -177,8 +209,8 @@
     <h2>2 · Propiedades del silicio</h2>
     <div class="scroll"><table>
       <tbody>
-        <tr><td>Espesor \(d_{\mathrm{Si}}\)</td><td>500 µm</td></tr>
-        <tr><td>Índice de refracción complejo</td><td>Palik (tabulado)</td></tr>
+        <tr><td>Espesor \(d_{\mathrm{Si}}\)</td><td>500 µm (Akerboom) o 250 µm (Silva-Oelker)</td></tr>
+        <tr><td>Índice de refracción complejo</td><td>tabulado: Palik en el ejemplo de Akerboom; el del código del artículo en el de Silva-Oelker</td></tr>
         <tr><td>Band gap (Varshni)</td><td>\(E_{g0}=1.166\) eV, \(\alpha=4.73\times10^{-4}\) eV/K, \(\beta=636\) K → a 25 °C: \(E_g=1.121\) eV, \(\lambda_g=1.106\) µm</td></tr>
         <tr><td>Concentración intrínseca</td><td>\(n_i=5.29\times10^{19}\,(T/300)^{2.54}\exp(-6726/T)\) cm⁻³</td></tr>
         <tr><td>Coeficiente Auger \(C_A\)</td><td>tabla de 195 a 372 K, de 3.03 a 4.55 × 10⁻³¹ cm⁶/s (3.88 × 10⁻³¹ a 294 K), interpolada</td></tr>
@@ -190,8 +222,8 @@
   </div>
 
   <div class="card">
-    <h2>3 · Geometría de la celda base (sin enfriador)</h2>
-    <p>Capas planas, lateralmente infinitas, de arriba hacia abajo (no a escala):</p>
+    <h2>3 · Geometría de los módulos base (sin enfriador)</h2>
+    <p>Capas planas, lateralmente infinitas, de arriba hacia abajo (no a escala). <b>Akerboom et al. (2022):</b></p>
     <div class="stack">
       <div style="background:#fff">Aire (cielo y sol)</div>
       <div style="background:#e3eef9">SiO₂ plana, 500 µm (Palik–Kitamura): cubierta tipo vidrio</div>
@@ -199,7 +231,16 @@
       <div style="background:#f2d27a">Au, 80 nm (Olmon 2012): contacto y espejo posterior</div>
       <div style="background:#fff">Vacío</div>
     </div>
-    <p>Sin texturizado, sin capa antirreflejo, sin EVA ni backsheet. El espectro óptico (\(R\), \(\varepsilon\), \(A_{\mathrm{Si}}\)) está precalculado con RCWA (S4) de 0.3 a 24.9 µm en 1000 puntos, promediado sobre el hemisferio (8 ángulos polares, 1 azimut) y sin polarización, con 60 modos de Fourier. Es el caso «sílice plana» de Akerboom et al., <i>ACS Photonics</i> 9, 3831 (2022). El enfriador de microcilindros agrega sobre esa sílice un arreglo hexagonal de cilindros de SiO₂ de 1.75 µm de radio y 2.25 µm de alto, con período de 6.125 µm.</p>
+    <p><b>Silva-Oelker y Jaramillo-Fernández (2022):</b></p>
+    <div class="stack">
+      <div style="background:#fff">Aire (cielo y sol)</div>
+      <div style="background:#e3eef9">Vidrio, 3.2 mm: cubierta</div>
+      <div style="background:#efe6f5">Si₃N₄, 75 nm: antirreflejo</div>
+      <div style="background:#d9d9d9">Si, 250 µm: absorbente fotovoltaico</div>
+      <div style="background:#e6e6e6">Ag: contacto y espejo posterior</div>
+    </div>
+    <p>En el módulo de Akerboom: sin texturizado, sin capa antirreflejo, sin EVA ni backsheet. El espectro óptico (\(R\), \(\varepsilon\), \(A_{\mathrm{Si}}\)) está precalculado con RCWA (S4) de 0.3 a 24.9 µm en 1000 puntos, promediado sobre el hemisferio (8 ángulos polares, 1 azimut) y sin polarización, con 60 modos de Fourier. Es el caso «sílice plana» de Akerboom et al., <i>ACS Photonics</i> 9, 3831 (2022). El enfriador de microcilindros agrega sobre esa sílice un arreglo hexagonal de cilindros de SiO₂ de 1.75 µm de radio y 2.25 µm de alto, con período de 6.125 µm.</p>
+    <p>En el de Silva-Oelker, los espectros son los exportados por el código del artículo (Fig. 1(d), 3(b) y 3(c)), de 0.3 a 30 µm en 2000 puntos y promediados sobre el hemisferio. Las cubiertas fotónicas reemplazan el vidrio: soda-lime plana de 79.5 µm, PDMS plano de 79 µm, o hemisferios de 9 µm (soda-lime) u 8 µm (PDMS) de diámetro sobre una capa de 75 µm, en una celda hexagonal de (17.3, 10) µm. Es el caso de <i>Opt. Express</i> 30, 32965 (2022).</p>
     <p>La atmósfera es la transmitancia cenital de cielo despejado de Cerro Pachón entre 7 y 26 µm; fuera de ese rango el cielo se considera opaco.</p>
   </div>
 
@@ -208,23 +249,157 @@
     <ul>
       <li><b>Un punto de operación en régimen estacionario.</b> No hay series horarias ni inercia térmica; la energía anual E<sub>s</sub> ≈ E<sub>base</sub> · P<sub>s</sub>/P<sub>base</sub> es una estimación.</li>
       <li><b>Una sola temperatura</b> para todo el módulo, sin gradientes entre caras ni en el plano.</li>
-      <li><b>h constante y global</b>, sin dependencia del viento ni de la temperatura. La espuma metálica es solo un h mayor: no se modelan su geometría, la resistencia de contacto ni la caída de presión.</li>
+      <li><b>h constante y global</b>, sin dependencia del viento ni de la temperatura. La convección mejorada es solo un h mayor: no se modelan la geometría del disipador, la resistencia de contacto ni la caída de presión.</li>
       <li><b>Radiación solo por la cara frontal</b> hacia un cielo despejado a temperatura ambiente, como si el panel viera todo el cielo. No hay nubes, suelo, cara posterior ni efecto de la inclinación.</li>
       <li><b>Espectro solar AM1.5G fijo</b>, escalado a G, absorbido con la absortancia hemisférica: no cambia con la hora, la estación, el sitio ni el ángulo del sol.</li>
-      <li><b>Celda idealizada</b>: sin recombinación SRH, texturizado ni antirreflejo, y con espejo de oro. Su Voc es mayor y su Isc menor que en un panel comercial. Como \(A_{\mathrm{Si}}\) no depende de la temperatura, el coeficiente de Isc es cerca de diez veces menor que el real.</li>
-      <li><b>Módulo base simplificado</b>: 500 µm de sílice en lugar de vidrio de 3.2 mm, EVA y backsheet. Absorbe poco entre 1.1 y 4 µm, por lo que la reflexión bajo el band gap rinde aquí menos que en un módulo real.</li>
+      <li><b>Celda idealizada</b>: sin recombinación SRH ni texturizado, y con un espejo metálico posterior (Au o Ag). Su Voc es mayor y su Isc menor que en un panel comercial. Como \(A_{\mathrm{Si}}\) no depende de la temperatura, el coeficiente de Isc es cerca de diez veces menor que el real.</li>
+      <li><b>Módulos base simplificados</b>, sin EVA ni backsheet. El de Akerboom usa 500 µm de sílice en lugar de vidrio y absorbe poco entre 1.1 y 4 µm, por lo que allí la reflexión bajo el band gap rinde menos que en un módulo real.</li>
       <li><b>Recubrimiento en una sola pasada</b>: sin reflexiones múltiples entre el recubrimiento y el módulo. Sus T y ε se toman como valores hemisféricos, se interpolan linealmente y fuera del archivo se mantienen los valores del borde.</li>
       <li><b>Panel = N celdas ideales en serie</b>: sin pérdidas por desajuste, separación entre celdas, marco, cableado, suciedad ni inversor.</li>
       <li><b>Explorador Solar</b> aplica su propio modelo de temperatura según el tipo de montaje: ingrese allí solo la ficha STC, nunca los valores a temperatura de operación.</li>
     </ul>
     <p class="note">Detalle completo del modelo: <a href="https://github.com/gsilvaoelker/radcoolpv-py/blob/main/docs/model.md" target="_blank" rel="noopener">docs/model.md</a> en el repositorio radcoolpv-py.</p>
   </div>
+  <div class="card">
+    <h2>5 · Validación: Silva-Oelker y Jaramillo-Fernández (2022), Tabla 1</h2>
+    <p>Condiciones del artículo: AM1.5G, \(T_{\mathrm{amb}}=298\) K, \(h=12\) W/m²K y Si de 250 µm. Cada celda indica artículo / radcoolpv.</p>
+    <div class="scroll"><table><thead><tr><th>Estructura</th><th>J<sub>sc</sub> [A/m²]</th><th>P<sub>mpp</sub> [W/m²]</th><th>Ganancia de P<sub>mpp</sub> [%]</th><th>T<sub>eq</sub> [K]</th><th>V<sub>oc</sub> [V]</th></tr></thead>
+<tbody>
+<tr><td>Referencia (vidrio de 3.2 mm)</td><td>306 / 306.3</td><td>188 / 179.2</td><td>—</td><td>323 / 322.7</td><td>0.708 / 0.713</td></tr>
+<tr><td>Soda-lime plana</td><td>337 / 335.4</td><td>210 / 199.1</td><td>11.7 / 11.1</td><td>319 / 318.1</td><td>0.715 / 0.723</td></tr>
+<tr><td>Hemisferios de soda-lime</td><td>355 / 354.9</td><td>222 / 210.2</td><td>18.1 / 17.3</td><td>319 / 318.5</td><td>0.722 / 0.724</td></tr>
+<tr><td>PDMS plano</td><td>342 / 343.3</td><td>214 / 203.9</td><td>13.8 / 13.8</td><td>318 / 317.8</td><td>0.722 / 0.724</td></tr>
+<tr><td>Hemisferios de PDMS</td><td>360 / 359.6</td><td>225 / 212.9</td><td>19.7 / 18.8</td><td>319 / 318.6</td><td>0.722 / 0.724</td></tr>
+</tbody></table></div>
+    <ul>
+      <li>\(J_{\mathrm{sc}}\) coincide dentro de 0.5 %, \(T_{\mathrm{eq}}\) dentro de 0.9 K y \(V_{oc}\) dentro de 1.2 %.</li>
+      <li>\(P_{\mathrm{mpp}}\) queda cerca de 5 % bajo el artículo en todas las filas. Es una corrección de radcoolpv: la recombinación Auger se evalúa con el voltaje de unión \(V_d=V-JR_s\), y el artículo usó el voltaje en bornes \(V\). Con el voltaje en bornes, el mismo cálculo reproduce \(P_{\mathrm{mpp}}\) dentro de 0.4 % en las filas comprobadas. Las ganancias relativas cambian a lo más 0.9 puntos.</li>
+      <li>\(T_{\mathrm{eq}}\) sale 0.3–0.9 K más baja porque los espectros exportados del artículo no traen datos por ángulo, y la radiación del cielo se evalúa solo en el cenit.</li>
+    </ul>
+    <p class="note">Para reproducir una fila en el simulador: módulo de Silva-Oelker, la cubierta respectiva, \(T_{\mathrm{amb}}=24.85\) °C, h base \(=12\) W/m²K y \(G=996\) W/m² (la integral del AM1.5G en la malla del artículo). Con 1 celda de 1000 mm de lado, la tabla A entrega los valores por m².</p>
+  </div>
+</div>
+<div data-lang="en" hidden>
+  <div class="card">
+    <h2>1 · Mathematical model</h2>
+    <p>Everything is computed per unit module area, at steady state, with a single temperature \(T\) for the whole module. The cell temperature is the root of the energy balance</p>
+    $$P_{\mathrm{rad}}(T)-P_{\mathrm{atm}}+h\,(T-T_{\mathrm{amb}})-P_{\mathrm{sun}}+P_{\mathrm{MPP}}(T)+P_{\mathrm{lum}}(T)=0,$$
+    <p>where the thermal emission, the absorbed sky radiation and the absorbed solar power are</p>
+    $$P_{\mathrm{rad}}(T)=\pi\!\int\!\langle\varepsilon\rangle\,B_\lambda(T)\,\mathrm{d}\lambda,\qquad
+      P_{\mathrm{atm}}=\pi\!\int\!\langle\varepsilon\,\varepsilon_{\mathrm{atm}}\rangle\,B_\lambda(T_{\mathrm{amb}})\,\mathrm{d}\lambda,\qquad
+      P_{\mathrm{sun}}=\int\!\langle\varepsilon\rangle\,I_{\mathrm{sun}}(\lambda)\,\mathrm{d}\lambda .$$
+    <p>\(B_\lambda\) is the Planck spectral radiance, \(\langle\cdot\rangle\) the hemispherical average, \(\varepsilon=A\) the emittance (Kirchhoff's law) and \(\varepsilon_{\mathrm{atm}}(\lambda,\theta)=1-\tau(\lambda)^{1/\cos\theta}\) the sky emittance obtained from its zenith transmittance \(\tau\). \(I_{\mathrm{sun}}\) is the AM1.5G spectrum scaled to integrate to the entered irradiance \(G\). \(h\) lumps convection and conduction; enhanced convection (metal foam, fins, forced air) only changes its value. \(P_{\mathrm{MPP}}\) is the electric power extracted and \(P_{\mathrm{lum}}\) the cell's luminescence (under 1 W/m²).</p>
+    <p>The cell is a one-diode model with series and shunt resistances, solved for \(J\) at each voltage with \(V_d=V-JR_s\):</p>
+    $$J=\frac{V_d}{R_{\mathrm{sh}}}+J_0\!\left[\exp\!\left(\frac{qV_d}{k_BT}\right)-1\right]+J_{\mathrm{Aug}}-J_{\mathrm{sc}},\qquad
+      J_{\mathrm{Aug}}=2q\,C_A(T)\,n_i^3(T)\,d_{\mathrm{Si}}\exp\!\left(\frac{3qV_d}{2k_BT}\right),$$
+    $$J_{\mathrm{sc}}=q\!\int_0^{\lambda_g}\!\mathrm{IQE}\,\langle A_{\mathrm{Si}}\rangle\,\Phi_{\mathrm{sun}}\,\mathrm{d}\lambda,\qquad
+      J_0(T)=q\!\int_0^{\lambda_g}\!\mathrm{IQE}\,\langle A_{\mathrm{Si}}\rangle\,\Phi_{\mathrm{bb}}(T)\,\mathrm{d}\lambda,\qquad
+      \lambda_g(T)=\frac{hc}{E_g(T)},\quad E_g(T)=E_{g0}-\frac{\alpha T^2}{T+\beta}.$$
+    <p>\(\Phi_{\mathrm{sun}}\) and \(\Phi_{\mathrm{bb}}\) are the photon fluxes of the sun and of a blackbody at \(T\): \(J_0\) is the detailed-balance radiative recombination. Only light absorbed in the silicon (\(A_{\mathrm{Si}}\)) generates current; the rest of the absorption (\(\varepsilon\)) only heats the module. \(P_{\mathrm{MPP}}\) is the maximum of \(-JV\), and \(\eta=P_{\mathrm{MPP}}/G\).</p>
+    <p><b>Panel.</b> With \(N\) cells in series of area \(A=\text{side}^2\): \(V_{\mathrm{panel}}=N\,V_{\mathrm{cell}}\), \(I_{\mathrm{panel}}=A\,J\) and \(P_{\mathrm{panel}}=N\,A\,P_{\mathrm{MPP}}\).</p>
+    <p><b>STC card.</b> Values at 25 °C and 1000 W/m². \(\mathrm{d}V_{oc}/\mathrm{d}T\) is a central difference over ±1 K. Since \(J_{\mathrm{sc}}\) depends on \(T\) only through \(\lambda_g\), its derivative is \(\mathrm{d}J_{\mathrm{sc}}/\mathrm{d}T=q\,\mathrm{IQE}\,A_{\mathrm{Si}}\,\Phi_{\mathrm{sun}}\big|_{\lambda_g}\,\mathrm{d}\lambda_g/\mathrm{d}T\).</p>
+    <p><b>Coating from the literature.</b> With its transmittance \(T_c(\lambda)\) and emittance \(\varepsilon_c(\lambda)\), in a single pass over the base module:
+      \(\varepsilon=\varepsilon_c+T_c\,\varepsilon_{\mathrm{base}}\) and \(A_{\mathrm{Si}}=T_c\,A_{\mathrm{Si,base}}\).</p>
+  </div>
+
+  <div class="card">
+    <h2>2 · Silicon properties</h2>
+    <div class="scroll"><table>
+      <tbody>
+        <tr><td>Thickness \(d_{\mathrm{Si}}\)</td><td>500 µm (Akerboom) or 250 µm (Silva-Oelker)</td></tr>
+        <tr><td>Complex refractive index</td><td>tabulated: Palik in the Akerboom example; the paper code&#39;s in the Silva-Oelker one</td></tr>
+        <tr><td>Band gap (Varshni)</td><td>\(E_{g0}=1.166\) eV, \(\alpha=4.73\times10^{-4}\) eV/K, \(\beta=636\) K → at 25 °C: \(E_g=1.121\) eV, \(\lambda_g=1.106\) µm</td></tr>
+        <tr><td>Intrinsic carrier concentration</td><td>\(n_i=5.29\times10^{19}\,(T/300)^{2.54}\exp(-6726/T)\) cm⁻³</td></tr>
+        <tr><td>Auger coefficient \(C_A\)</td><td>table from 195 to 372 K, 3.03 to 4.55 × 10⁻³¹ cm⁶/s (3.88 × 10⁻³¹ at 294 K), interpolated</td></tr>
+        <tr><td>Internal quantum efficiency</td><td>measured, 0.33 to 1.20 µm; zero outside that range</td></tr>
+        <tr><td>Series resistance \(R_s\)</td><td>1.1 Ω·cm²</td></tr>
+        <tr><td>Shunt resistance \(R_{\mathrm{sh}}\)</td><td>1000 Ω·cm²</td></tr>
+        <tr><td>Ideality factor</td><td>1</td></tr>
+      </tbody></table></div>
+  </div>
+
+  <div class="card">
+    <h2>3 · Base module geometry (no cooler)</h2>
+    <p>Flat, laterally infinite layers, top to bottom (not to scale). <b>Akerboom et al. (2022):</b></p>
+    <div class="stack">
+      <div style="background:#fff">Air (sky and sun)</div>
+      <div style="background:#e3eef9">Flat SiO₂, 500 µm (Palik–Kitamura): glass-like cover</div>
+      <div style="background:#d9d9d9">Si, 500 µm (Palik): photovoltaic absorber</div>
+      <div style="background:#f2d27a">Au, 80 nm (Olmon 2012): contact and back mirror</div>
+      <div style="background:#fff">Vacuum</div>
+    </div>
+    <p><b>Silva-Oelker &amp; Jaramillo-Fernández (2022):</b></p>
+    <div class="stack">
+      <div style="background:#fff">Air (sky and sun)</div>
+      <div style="background:#e3eef9">Glass, 3.2 mm: cover</div>
+      <div style="background:#efe6f5">Si₃N₄, 75 nm: antireflection coating</div>
+      <div style="background:#d9d9d9">Si, 250 µm: photovoltaic absorber</div>
+      <div style="background:#e6e6e6">Ag: contact and back mirror</div>
+    </div>
+    <p>In the Akerboom module: no texturing, no antireflection coating, no EVA or backsheet. The optical spectrum (\(R\), \(\varepsilon\), \(A_{\mathrm{Si}}\)) is precomputed with RCWA (S4) from 0.3 to 24.9 µm at 1000 points, averaged over the hemisphere (8 polar angles, 1 azimuth), unpolarized, with 60 Fourier modes. It is the "flat silica" case of Akerboom et al., <i>ACS Photonics</i> 9, 3831 (2022). The microcylinder cooler adds, on top of that silica, a hexagonal array of SiO₂ cylinders 1.75 µm in radius and 2.25 µm tall, with a 6.125 µm period.</p>
+    <p>In the Silva-Oelker one, the spectra are those exported by the paper's code (Figs. 1(d), 3(b) and 3(c)), from 0.3 to 30 µm at 2000 points and averaged over the hemisphere. The photonic covers replace the glass: 79.5 µm flat soda-lime, 79 µm flat PDMS, or 9 µm (soda-lime) or 8 µm (PDMS) diameter hemispheres on a 75 µm layer, in a (17.3, 10) µm hexagonal cell. It is the case of <i>Opt. Express</i> 30, 32965 (2022).</p>
+    <p>The atmosphere is the clear-sky zenith transmittance of Cerro Pachón between 7 and 26 µm; outside that range the sky is taken as opaque.</p>
+  </div>
+
+  <div class="card">
+    <h2>4 · Limitations of this calculator</h2>
+    <ul>
+      <li><b>One operating point at steady state.</b> There are no hourly series and no thermal inertia; the annual energy E<sub>s</sub> ≈ E<sub>base</sub> · P<sub>s</sub>/P<sub>base</sub> is an estimate.</li>
+      <li><b>A single temperature</b> for the whole module, with no gradients between faces or in the plane.</li>
+      <li><b>A constant, overall h</b>, independent of wind and temperature. Enhanced convection is only a higher h: the heat-sink geometry, contact resistance and pressure drop are not modeled.</li>
+      <li><b>Radiation from the front face only</b>, to a clear sky at ambient temperature, as if the panel saw the whole sky. There are no clouds, ground, back face or tilt effects.</li>
+      <li><b>A fixed AM1.5G solar spectrum</b>, scaled to G and absorbed through the hemispherical absorptance: it does not change with time of day, season, site or sun angle.</li>
+      <li><b>An idealized cell</b>: no SRH recombination or texturing, and a metal back mirror (Au or Ag). Its Voc is higher and its Isc lower than in a commercial panel. Because \(A_{\mathrm{Si}}\) does not depend on temperature, the Isc coefficient is about ten times smaller than the real one.</li>
+      <li><b>Simplified base modules</b>, with no EVA or backsheet. Akerboom&#39;s uses 500 µm of silica instead of glass and absorbs little between 1.1 and 4 µm, so sub-band-gap reflection pays off less there than in a real module.</li>
+      <li><b>A single-pass coating</b>: no multiple reflections between the coating and the module. Its T and ε are taken as hemispherical values, interpolated linearly, and held at their edge values outside the file.</li>
+      <li><b>Panel = N ideal cells in series</b>: no mismatch, cell spacing, frame, wiring, soiling or inverter losses.</li>
+      <li><b>Explorador Solar</b> applies its own temperature model by mounting type: enter only the STC card there, never values at operating temperature.</li>
+    </ul>
+    <p class="note">Full model details: <a href="https://github.com/gsilvaoelker/radcoolpv-py/blob/main/docs/model.md" target="_blank" rel="noopener">docs/model.md</a> in the radcoolpv-py repository.</p>
+  </div>
+  <div class="card">
+    <h2>5 · Validation: Silva-Oelker &amp; Jaramillo-Fernández (2022), Table 1</h2>
+    <p>The paper's conditions: AM1.5G, \(T_{\mathrm{amb}}=298\) K, \(h=12\) W/m²K and 250 µm Si. Each cell reads paper / radcoolpv.</p>
+    <div class="scroll"><table><thead><tr><th>Structure</th><th>J<sub>sc</sub> [A/m²]</th><th>P<sub>mpp</sub> [W/m²]</th><th>P<sub>mpp</sub> gain [%]</th><th>T<sub>eq</sub> [K]</th><th>V<sub>oc</sub> [V]</th></tr></thead>
+<tbody>
+<tr><td>Reference (3.2 mm glass)</td><td>306 / 306.3</td><td>188 / 179.2</td><td>—</td><td>323 / 322.7</td><td>0.708 / 0.713</td></tr>
+<tr><td>Flat soda-lime</td><td>337 / 335.4</td><td>210 / 199.1</td><td>11.7 / 11.1</td><td>319 / 318.1</td><td>0.715 / 0.723</td></tr>
+<tr><td>Soda-lime hemispheres</td><td>355 / 354.9</td><td>222 / 210.2</td><td>18.1 / 17.3</td><td>319 / 318.5</td><td>0.722 / 0.724</td></tr>
+<tr><td>Flat PDMS</td><td>342 / 343.3</td><td>214 / 203.9</td><td>13.8 / 13.8</td><td>318 / 317.8</td><td>0.722 / 0.724</td></tr>
+<tr><td>PDMS hemispheres</td><td>360 / 359.6</td><td>225 / 212.9</td><td>19.7 / 18.8</td><td>319 / 318.6</td><td>0.722 / 0.724</td></tr>
+</tbody></table></div>
+    <ul>
+      <li>\(J_{\mathrm{sc}}\) agrees within 0.5 %, \(T_{\mathrm{eq}}\) within 0.9 K and \(V_{oc}\) within 1.2 %.</li>
+      <li>\(P_{\mathrm{mpp}}\) sits about 5 % below the paper in every row. This is a radcoolpv correction: Auger recombination is driven by the junction voltage \(V_d=V-JR_s\), while the paper used the terminal voltage \(V\). With the terminal voltage, the same calculation reproduces \(P_{\mathrm{mpp}}\) within 0.4 % in the rows checked. The relative gains change by at most 0.9 points.</li>
+      <li>\(T_{\mathrm{eq}}\) comes out 0.3–0.9 K lower because the paper's exported spectra carry no angle-resolved data, so the sky radiation is evaluated at the zenith only.</li>
+    </ul>
+    <p class="note">To reproduce a row in the simulator: the Silva-Oelker module, the matching cover, \(T_{\mathrm{amb}}=24.85\) °C, base h \(=12\) W/m²K and \(G=996\) W/m² (the AM1.5G integral on the paper's grid). With 1 cell of 1000 mm side, table A gives the values per m².</p>
+  </div>
+</div>
 </section>
 
 <script id="bundle" type="application/json">{}</script>
 <script>
 const $ = id => document.getElementById(id);
-const status = (msg, err) => { $("status").textContent = msg; $("status").className = err ? "err" : ""; };
+// Spanish is the source text; EN maps it to English for strings built here.
+const EN = {
+  "Listo.": "Ready.",
+  "Cargando Python y radcoolpv (puede tardar más de un minuto la primera vez)…": "Loading Python and radcoolpv (the first time can take over a minute)…",
+  "Suba el archivo CSV del recubrimiento.": "Upload the coating's CSV file.",
+  "Calculando los 4 escenarios (≈10 s)…": "Computing the 4 scenarios (≈10 s)…",
+  "No se pudo cargar: ": "Could not load: ",
+  "T celda [°C]": "Cell T [°C]", "P panel [W]": "Panel P [W]", "Ganancia vs base [%]": "Gain vs base [%]",
+  "Convección mejorada": "Enhanced convection", "Enfriador radiativo": "Radiative cooler",
+  "Enfriador + convección mejorada": "Cooler + enhanced convection",
+  "Copiar": "Copy", "Copiado": "Copied", "Número de celdas por panel": "Cells per panel", "Pmp (referencia)": "Pmp (reference)",
+  "Reducción de T celda": "Cell T reduction", "Ganancia de potencia": "Power gain",
+  "Radiación neta": "Net radiation", "Convección": "Convection", "Eléctrica": "Electric", "Solar absorbida": "Absorbed solar",
+  "ε enfriador": "ε cooler", "Irradiancia solar incidente": "Incident solar irradiance",
+  "Ventana atmosférica 8–13 µm": "Atmospheric window 8–13 µm", "Emisividad ε": "Emittance ε",
+};
+let lang = "es", st = ["Cargando Python y radcoolpv (puede tardar más de un minuto la primera vez)…", false, ""];
+const tr = s => lang === "en" ? (EN[s] ?? s) : s;
+const status = (msg, err, extra = "") => { st = [msg, err, extra]; $("status").textContent = tr(msg) + extra; $("status").className = err ? "err" : ""; };
 const charts = {};
 Chart.defaults.animation = false;
 let py, result;
@@ -233,7 +408,7 @@ async function boot() {
   py = await loadPyodide();
   await py.loadPackage(["numpy", "scipy", "pyyaml", "micropip"]);
   const files = JSON.parse($("bundle").textContent);   // {path: base64}, inlined by build.sh
-  if (!Object.keys(files).length) throw "abra webapp/dist/index.html, la página que genera build.sh.";
+  if (!Object.keys(files).length) throw "abra webapp/dist/index.html, la página que genera build.sh / open webapp/dist/index.html, the page build.sh writes.";
   py.FS.mkdir("data");
   for (const [f, b64] of Object.entries(files)) py.FS.writeFile(f, Uint8Array.from(atob(b64), c => c.charCodeAt(0)));
   await py.pyimport("micropip").install(Object.keys(files).filter(f => f.endsWith(".whl")).map(f => "emfs:/home/pyodide/" + f), { deps: false });
@@ -249,70 +424,74 @@ function render(r) {
   const cols = [["T celda [°C]", "t_cell", 1], ["ΔT vs base [°C]", "dt", 1], ["η [%]", "eta", 2],
                 ["P panel [W]", "p_panel", 1], ["Ganancia vs base [%]", "gain", 2], ["Vmp [V]", "vmp", 2],
                 ["Imp [A]", "imp", 3], ["Voc [V]", "voc", 2], ["Isc [A]", "isc", 3]];
-  $("cmp").innerHTML = "<thead><tr><th></th>" + rows.map(s => `<th>${s.name}</th>`).join("") + "</tr></thead><tbody>" +
-    cols.map(([lab, k, d]) => `<tr><td>${lab}</td>` + rows.map(s => `<td>${fmt(s[k], d)}</td>`).join("") + "</tr>").join("") + "</tbody>";
+  $("cmp").innerHTML = "<thead><tr><th></th>" + rows.map(s => `<th>${tr(s.name)}</th>`).join("") + "</tr></thead><tbody>" +
+    cols.map(([lab, k, d]) => `<tr><td>${tr(lab)}</td>` + rows.map(s => `<td>${fmt(s[k], d)}</td>`).join("") + "</tr>").join("") + "</tbody>";
 
   $("stc").innerHTML = Object.entries(r.stc).map(([name, c]) => `
     <div class="scroll"><table>
-      <thead><tr><th>${name}</th><th></th><th></th><th><button class="ghost" data-name="${name}">Copiar</button></th></tr></thead>
+      <thead><tr><th>${tr(name)}</th><th></th><th></th><th><button class="ghost" data-name="${name}">${tr("Copiar")}</button></th></tr></thead>
       <tbody>
-        <tr><td>Número de celdas por panel</td><td class="v">${c.n}</td><td></td><td></td></tr>
+        <tr><td>${tr("Número de celdas por panel")}</td><td class="v">${c.n}</td><td></td><td></td></tr>
         <tr><td>Vmp</td><td class="v">${fmt(c.vmp, 2)} V</td><td></td><td></td></tr>
         <tr><td>Imp</td><td class="v">${fmt(c.imp, 3)} A</td><td></td><td></td></tr>
         <tr><td>Voc</td><td class="v">${fmt(c.voc, 2)} V</td><td class="v">${fmt(c.voc_pct, 3)} %/°C</td><td class="v">${fmt(c.voc_mv, 1)} mV/°C</td></tr>
         <tr><td>Isc</td><td class="v">${fmt(c.isc, 3)} A</td><td class="v">${fmt(c.isc_pct, 4)} %/°C</td><td class="v">${fmt(c.isc_ma, 2)} mA/°C</td></tr>
-        <tr><td>Pmp (referencia)</td><td class="v">${fmt(c.pmp, 1)} W</td><td></td><td></td></tr>
+        <tr><td>${tr("Pmp (referencia)")}</td><td class="v">${fmt(c.pmp, 1)} W</td><td></td><td></td></tr>
       </tbody></table></div>`).join("");
   document.querySelectorAll("#stc button").forEach(b => b.onclick = () => {
     const c = r.stc[b.dataset.name];
     navigator.clipboard.writeText([c.n, fmt(c.vmp, 2), fmt(c.imp, 3), fmt(c.voc, 2), fmt(c.voc_pct, 3), fmt(c.voc_mv, 1),
                                    fmt(c.isc, 3), fmt(c.isc_pct, 4), fmt(c.isc_ma, 2)].join("\t"));
-    b.textContent = "Copiado";
+    b.textContent = tr("Copiado");
   });
 
   // C: dual axis (Datawrapper): both from zero, and the % axis is the °C axis times the
   // base cell's |beta_P|, so a point level with its bar is gain from cooling alone.
-  const vs = rows.slice(1), beta = Math.abs(rows[0].beta_p), blueInk = "#1c5cab", orangeInk = "#b0441a";
+  const vs = rows.slice(1), beta = Math.abs(rows[0].beta_p), leftInk = "#173f5f", rightInk = "#b5102e";
   const top = 5 * Math.ceil(1.2 * Math.max(...vs.map(s => Math.max(-s.dt, s.gain / beta))) / 5);
-  const lab = s => s.name.split(/ (?!\+)/);   // two-line category labels
+  const lab = s => tr(s.name).split(/ (?!\+)/);   // two-line category labels
   const unit = (u, d) => v => fmt(v, d) + " " + u;
   draw("ch_t", { type: "bar", plugins: [ChartDataLabels], data: { labels: vs.map(lab), datasets: [
-      { label: "Reducción de T celda", data: vs.map(s => -s.dt), yAxisID: "y", backgroundColor: "#86b6ef", borderRadius: 4,
-        datalabels: { anchor: "start", align: "end", offset: 4, color: blueInk, formatter: unit("°C", 1) } },
-      { type: "line", label: "Ganancia de potencia", data: vs.map(s => s.gain), yAxisID: "y1", showLine: false,
-        pointRadius: 7, pointHoverRadius: 9, backgroundColor: "#d95926", borderColor: "#fff", borderWidth: 2,
-        datalabels: { align: "right", offset: 10, color: orangeInk, formatter: unit("%", 1) } }] },
+      { label: tr("Reducción de T celda"), data: vs.map(s => -s.dt), yAxisID: "y", backgroundColor: "#9dbbdc", borderRadius: 4,
+        datalabels: { anchor: "start", align: "end", offset: 4, color: leftInk, formatter: unit("°C", 1) } },
+      { type: "line", label: tr("Ganancia de potencia"), data: vs.map(s => s.gain), yAxisID: "y1", showLine: false,
+        pointRadius: 7, pointHoverRadius: 9, backgroundColor: "#ef183d", borderColor: "#fff", borderWidth: 2,
+        datalabels: { align: "right", offset: 10, color: rightInk, formatter: unit("%", 1) } }] },
     options: { plugins: { legend: { display: false }, datalabels: { font: { weight: 600 } },
                           tooltip: { callbacks: { label: c => `${c.dataset.label}: ${fmt(c.parsed.y, 2)} ${c.datasetIndex ? "%" : "°C"}` } } },
-      scales: { y: { min: 0, max: top, ticks: { count: 6, color: blueInk, callback: unit("°C", 1) } },
+      scales: { y: { min: 0, max: top, ticks: { count: 6, color: leftInk, callback: unit("°C", 1) } },
                 y1: { position: "right", min: 0, max: top * beta, grid: { drawOnChartArea: false },
-                      ticks: { count: 6, color: orangeInk, callback: unit("%", 1) } } } } });
-  $("note_t").textContent = `Escalas alineadas con el coeficiente de potencia de la celda base (β = ${fmt(rows[0].beta_p, 2)} %/°C): ` +
-    "un punto a la altura de su barra es ganancia explicada solo por el enfriamiento; por encima, el enfriador además aumenta la corriente.";
+                      ticks: { count: 6, color: rightInk, callback: unit("%", 1) } } } } });
+  const bp = fmt(rows[0].beta_p, 2);
+  $("note_t").textContent = lang === "en"
+    ? `Scales aligned with the base cell's power coefficient (β = ${bp} %/°C): a point level with its bar is a gain from cooling alone; above it, the cooler also raises the current.`
+    : `Escalas alineadas con el coeficiente de potencia de la celda base (β = ${bp} %/°C): un punto a la altura de su barra es ganancia explicada solo por el enfriamiento; por encima, el enfriador además aumenta la corriente.`;
   // D: one unit, so one axis; the stack is the absorbed solar power.
-  const q = [["Radiación neta", "q_rad", "#2a78d6"], ["Convección", "q_conv", "#eb6834"], ["Eléctrica", "q_elec", "#1baf7a"]];
-  draw("ch_q", { type: "bar", data: { labels: rows.map(lab), datasets: q.map(([l, k, c]) => ({
-      label: l, data: rows.map(s => s[k]), backgroundColor: c, borderColor: "#fff", borderWidth: 2 })) },
+  // Stepped brand hues (navy, gold, green), validated for CVD; gold is low-contrast, so segments carry labels.
+  const q = [["Radiación neta", "q_rad", "#356aa0", "#fff"], ["Convección", "q_conv", "#e3a72a", "#111820"], ["Eléctrica", "q_elec", "#23946b", "#fff"]];
+  draw("ch_q", { type: "bar", plugins: [ChartDataLabels], data: { labels: rows.map(lab), datasets: q.map(([l, k, c, ink]) => ({
+      label: tr(l), data: rows.map(s => s[k]), backgroundColor: c, borderColor: "#fff", borderWidth: 2,
+      datalabels: { color: ink, font: { size: 11, weight: 600 }, formatter: v => fmt(v, 0) } })) },
     options: { plugins: { tooltip: { callbacks: { label: c => `${c.dataset.label}: ${fmt(c.parsed.y, 0)} W/m²`,
-                                                  footer: it => `Solar absorbida: ${fmt(rows[it[0].dataIndex].q_solar, 0)} W/m²` } } },
+                                                  footer: it => `${tr("Solar absorbida")}: ${fmt(rows[it[0].dataIndex].q_solar, 0)} W/m²` } } },
                scales: { x: { stacked: true }, y: { stacked: true, ticks: { callback: unit("W/m²", 0) } } } } });
   // E: dual axis with different units; lines (left) dark, the solar area (right) light.
-  const sp = r.spectrum, pts = a => sp.lam.map((x, i) => ({ x, y: a[i] })), amberInk = "#8a5a00";
+  const sp = r.spectrum, pts = a => sp.lam.map((x, i) => ({ x, y: a[i] })), amberInk = "#8a6a10";
   const sunTop = 500 * Math.ceil(Math.max(...sp.sun) / 500);
   draw("ch_e", { type: "line", data: { datasets: [
-      { label: "ε base (sílice plana)", data: pts(sp.base), yAxisID: "y", borderColor: "#52514e", borderWidth: 2, pointRadius: 0 },
-      { label: "ε enfriador", data: pts(sp.cooler), yAxisID: "y", borderColor: blueInk, borderWidth: 2, pointRadius: 0 },
-      { label: "Irradiancia solar incidente", data: pts(sp.sun), yAxisID: "y1", fill: "origin", borderColor: "rgba(237,161,0,.55)",
-        backgroundColor: "rgba(237,161,0,.18)", borderWidth: 1, pointRadius: 0 },
-      { label: "Ventana atmosférica 8–13 µm", data: sp.lam.map(x => ({ x, y: x >= 8 && x <= 13 ? 1 : null })), yAxisID: "y",
-        fill: "origin", backgroundColor: "rgba(27,175,122,.10)", borderWidth: 0, pointRadius: 0 }] },
+      { label: tr("ε base"), data: pts(sp.base), yAxisID: "y", borderColor: "#53606b", borderDash: [5, 3], borderWidth: 2, pointRadius: 0 },
+      { label: tr("ε enfriador"), data: pts(sp.cooler), yAxisID: "y", borderColor: "#ef183d", borderWidth: 2, pointRadius: 0 },
+      { label: tr("Irradiancia solar incidente"), data: pts(sp.sun), yAxisID: "y1", fill: "origin", borderColor: "rgba(227,167,42,.7)",
+        backgroundColor: "rgba(227,167,42,.22)", borderWidth: 1, pointRadius: 0 },
+      { label: tr("Ventana atmosférica 8–13 µm"), data: sp.lam.map(x => ({ x, y: x >= 8 && x <= 13 ? 1 : null })), yAxisID: "y",
+        fill: "origin", backgroundColor: "rgba(35,148,107,.10)", borderWidth: 0, pointRadius: 0 }] },
     options: { interaction: { mode: "index", intersect: false },
       plugins: { tooltip: { filter: it => it.datasetIndex < 3, callbacks: {
         title: it => `λ = ${fmt(it[0].parsed.x, 2)} µm`,
         label: c => c.datasetIndex === 2 ? `${c.dataset.label}: ${fmt(c.parsed.y, 0)} W/(m²·µm)` : `${c.dataset.label}: ${fmt(c.parsed.y, 3)}` } } },
       scales: { x: { type: "logarithmic", min: 0.3, max: 25, title: { display: true, text: "λ [µm]" },
                      ticks: { autoSkip: false, callback: v => [0.3, 0.5, 1, 2, 5, 10, 20].some(t => Math.abs(v - t) < 1e-6) ? v : "" } },
-                y: { min: 0, max: 1, ticks: { count: 6 }, title: { display: true, text: "Emisividad ε" } },
+                y: { min: 0, max: 1, ticks: { count: 6 }, title: { display: true, text: tr("Emisividad ε") } },
                 y1: { position: "right", min: 0, max: sunTop, grid: { drawOnChartArea: false },
                       ticks: { count: 6, color: amberInk }, title: { display: true, text: "W/(m²·µm)", color: amberInk } } } } });
   $("out").hidden = false;
@@ -329,7 +508,7 @@ $("form").onsubmit = async e => {
   const num = id => parseFloat($(id).value);
   const inp = { g: num("g"), t_amb_c: num("t_amb_c"), n_cells: num("n_cells"), side_mm: num("side_mm"),
                 h: num("h"), h_foam: num("h_foam"),
-                cooler: document.querySelector("input[name=cooler]:checked").value, csv: "" };
+                module: $("module").value, cooler: document.querySelector("input[name=cooler]:checked").value, csv: "" };
   if (inp.cooler === "custom") {
     if (!$("csv").files.length) return status("Suba el archivo CSV del recubrimiento.", true);
     inp.csv = await $("csv").files[0].text();
@@ -343,7 +522,7 @@ $("form").onsubmit = async e => {
     render(result);
     status("Listo.");
   } catch (err) {
-    status("Error: " + String(err.message || err).trim().split("\n").pop(), true);
+    status("Error: ", true, String(err.message || err).trim().split("\n").pop());
   }
   $("run").disabled = false;
 };
@@ -363,7 +542,28 @@ document.querySelectorAll("nav.tabs button").forEach(b => b.onclick = () => {
   $("model").hidden = b.dataset.tab !== "model";
 });
 
-boot().catch(err => status("No se pudo cargar: " + err, true));
+function setLang(l) {
+  lang = l;
+  document.documentElement.lang = l;
+  try { localStorage.setItem("lang", l); } catch {}
+  history.replaceState(null, "", location.pathname + "?lang=" + l);   // the URL always shares the current language
+  document.querySelectorAll("[data-en]").forEach(e => { e.dataset.es ??= e.innerHTML; e.innerHTML = l === "en" ? e.dataset.en : e.dataset.es; });
+  document.querySelectorAll("[data-lang]").forEach(e => e.hidden = e.dataset.lang !== l);
+  $("lang").textContent = l === "en" ? "ES" : "EN";
+  status(...st);
+  if (result) render(result);
+}
+$("lang").onclick = () => setLang(lang === "en" ? "es" : "en");
+$("module").onchange = () => {   // show this paper's coolers; keep a cooler of the chosen module selected
+  const m = $("module").value;
+  document.querySelectorAll("[data-module]").forEach(e => e.hidden = e.dataset.module !== m);
+  if (document.querySelector("input[name=cooler]:checked").closest("[hidden]")) document.querySelector(`[data-module="${m}"] input`).checked = true;
+};
+let saved = null;
+try { saved = localStorage.getItem("lang"); } catch {}
+setLang(new URLSearchParams(location.search).get("lang") || saved || "es");
+
+boot().catch(err => status("No se pudo cargar: ", true, String(err)));
 </script>
 </body>
 </html>

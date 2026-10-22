@@ -114,15 +114,17 @@ The first visit downloads Python and its libraries, which takes from about
 the browser cache, and each run takes about 5 s.
 
 It compares four scenarios at one operating point (plane-of-array irradiance,
-ambient temperature): the base spectrum (`C2_pv_flat_silica`) or a radiative
-cooler, crossed with plain convection or a metal-foam h. The cooler is either
-`C3_pv_cylinders` or a coating from the literature: an uploaded T(λ) and ε(λ)
+ambient temperature): a base module or a radiative cooler, crossed with plain or
+enhanced convection (a higher h: metal foam, fins, forced air). The base module
+and its coolers come from either validation paper: Akerboom's flat silica with
+`C3_pv_cylinders`, or Silva-Oelker's glass-covered cell with its soda-lime and
+PDMS covers. The cooler can also be a coating from the literature: an uploaded T(λ) and ε(λ)
 over at least 0.4–13 µm, placed over the base module in a single pass at
 every wavelength. The page also gives the STC card (Vmp, Imp,
 Voc, Isc and their temperature coefficients) that Explorador Solar's
 "Monofacial Modelo Avanzado" asks for.
 
-Every push to `main` that touches the package, `webapp/` or the C2/C3 spectra
+Every push to `main` that touches the package, `webapp/` or the example spectra
 runs `tests/test_webapp.py`, which pins the page's scenario to the C3 case
 (327.9 K, 17.60 %). If it passes, the page is redeployed
 (`.github/workflows/webapp.yml`).
@@ -178,6 +180,28 @@ The paper reports 360 / 339 / 336 K and a 24 K drop from bare to cylinders;
 the model gives 23.7 K. Group B shows the thermal model is only as good as
 `h`, which lumps mounting, wind and area: the fitted value is a calibration,
 not evidence. `tests/test_validation_akerboom.py` pins every number here.
+
+Silva-Oelker and Jaramillo-Fernández, *Opt. Express* **30**, 32965 (2022),
+[doi:10.1364/OE.466335](https://doi.org/10.1364/OE.466335): flat and
+hemisphere-patterned soda-lime and PDMS covers replacing the 3.2 mm glass on a
+Si3N4 / 250 um Si / Ag cell. `validation/silva_oelker.yaml` runs the five rows
+of Table 1 from the spectra the paper's code exported (`validation/data/OE_*.txt`),
+at 298 K and h = 12 W/m²·K. Paper / radcoolpv:
+
+| | Jsc (A/m²) | Pmpp (W/m²) | T_eq (K) | Voc (V) |
+|---|---:|---:|---:|---:|
+| reference, 3.2 mm glass | 306 / 306.3 | 188 / 179.2 | 323 / 322.7 | 0.708 / 0.713 |
+| flat soda-lime | 337 / 335.4 | 210 / 199.1 | 319 / 318.1 | 0.715 / 0.723 |
+| soda-lime hemispheres | 355 / 354.9 | 222 / 210.2 | 319 / 318.5 | 0.722 / 0.724 |
+| flat PDMS | 342 / 343.3 | 214 / 203.9 | 318 / 317.8 | 0.722 / 0.724 |
+| PDMS hemispheres | 360 / 359.6 | 225 / 212.9 | 319 / 318.6 | 0.722 / 0.724 |
+
+Pmpp sits about 5 % low in every row because Auger is driven here by the
+junction voltage and in the paper by the terminal voltage (`docs/model.md`).
+With the terminal voltage the same spectra reproduce Pmpp within 0.4 %. T_eq
+is 0.3–0.9 K low because the exported spectra carry no angle-resolved data, so
+the sky term is the zenith approximation. `tests/test_webapp.py` pins these
+rows through the web simulator, which offers this module as its second example.
 
 ```bash
 PYTHONPATH=. python -m pytest -q      # S4-dependent tests skip without S4

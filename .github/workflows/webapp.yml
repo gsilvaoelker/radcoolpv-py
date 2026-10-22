@@ -8,6 +8,7 @@ on:
       - "webapp/**"
       - "validation/data/C2_pv_flat_silica.txt"
       - "validation/data/C3_pv_cylinders.txt"
+      - "validation/data/OE_*.txt"
       - "pyproject.toml"
       - "tests/test_webapp.py"
       - ".github/workflows/webapp.yml"

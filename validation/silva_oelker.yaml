@@ -1,0 +1,45 @@
+# Silva-Oelker & Jaramillo-Fernandez, "Numerical study of sodalime and PDMS
+# hemisphere photonic structures for radiative cooling of silicon solar cells",
+# Opt. Express 30(18), 32965 (2022). doi:10.1364/OE.466335
+#
+#   radcoolpv run validation/silva_oelker.yaml
+#
+# The five rows of Table 1, from the hemispherical spectra the paper's own code
+# exported (data/OE_*.txt; each file's header names its figure). No solver.
+# The exports carry no angle-resolved data, so the sky term is the zenith
+# approximation written into their last column.
+
+definitions:
+  table1_thermal: &table1_thermal
+    ambient_temperature: 298.0
+    convection_coefficient: 12.0
+
+  table1_cell: &table1_cell
+    silicon_thickness: 250.0     # Si3N4 / Si / Ag base stack
+
+cases:
+
+  - name: reference              # base stack under a 3.2 mm glass cover
+    optics: {file: data/OE_reference.txt}
+    thermal: *table1_thermal
+    cell: *table1_cell
+
+  - name: flat_sodalime
+    optics: {file: data/OE_flat_sodalime.txt}
+    thermal: *table1_thermal
+    cell: *table1_cell
+
+  - name: hemisph_sodalime
+    optics: {file: data/OE_hemisph_sodalime.txt}
+    thermal: *table1_thermal
+    cell: *table1_cell
+
+  - name: flat_pdms
+    optics: {file: data/OE_flat_pdms.txt}
+    thermal: *table1_thermal
+    cell: *table1_cell
+
+  - name: hemisph_pdms
+    optics: {file: data/OE_hemisph_pdms.txt}
+    thermal: *table1_thermal
+    cell: *table1_cell

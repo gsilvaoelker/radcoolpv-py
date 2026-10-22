@@ -7,7 +7,7 @@ cd "$(dirname "$0")"
 PY="${PYTHON:-python3}"
 rm -rf dist && mkdir -p dist/pkg/data
 cp app.py dist/pkg/
-cp ../validation/data/C2_pv_flat_silica.txt ../validation/data/C3_pv_cylinders.txt dist/pkg/data/
+cp ../validation/data/C2_pv_flat_silica.txt ../validation/data/C3_pv_cylinders.txt ../validation/data/OE_*.txt dist/pkg/data/
 "$PY" -m pip wheel --no-deps -q -w dist/pkg ..
 # openpyxl (read by load_solar) is not part of the Pyodide distribution.
 "$PY" -m pip download --no-deps --only-binary=:all: -q -d dist/pkg openpyxl et_xmlfile

@@ -33,6 +33,27 @@ def test_c3_scenario_reproduces_the_pinned_case():
     assert stc["voc_mv"] < 0.0 < stc["isc_ma"]
 
 
+# Silva-Oelker & Jaramillo-Fernandez, Opt. Express 30, 32965 (2022), Table 1:
+# Jsc [A/m^2], Pmpp [W/m^2], T_eq [K] at T_amb = 298 K, h = 12 W/m2K.
+TABLE1 = {"reference": (306, 188, 323), "flat_sodalime": (337, 210, 319), "hemisph_sodalime": (355, 222, 319),
+          "flat_pdms": (342, 214, 318), "hemisph_pdms": (360, 225, 319)}
+
+
+def test_oe_example_against_table1():
+    # Per m^2 (one 1 m x 1 m cell), under the paper's unscaled AM1.5G.
+    inp = dict(INPUTS, module="oe", t_amb_c=24.85, h=12.0, h_foam=12.0, n_cells=1, side_mm=1000.0,
+               g=app._load("oe")["sun"].total_am15)
+    for cooler in ("flat_sodalime", "hemisph_sodalime", "flat_pdms", "hemisph_pdms"):
+        base, _, coat, _ = app.simulate(dict(inp, cooler=cooler))["rows"]
+        for key, r in (("reference", base), (cooler, coat)):
+            jsc, pmpp, teq = TABLE1[key]
+            assert r["isc"] == pytest.approx(jsc, rel=0.01)
+            assert r["t_cell"] + 273.15 == pytest.approx(teq, abs=1.0)
+            # Auger is driven by the junction voltage here and by the terminal
+            # voltage in the paper; that alone puts Pmpp ~5 % below Table 1.
+            assert 0.93 < r["p_panel"] / pmpp < 0.97
+
+
 def _coating(t, e):
     """Simulate under a coating given as T and emit on the base grid."""
     lam = app._load()["base"].lambda_um

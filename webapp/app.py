@@ -1,11 +1,12 @@
 """Browser simulator: four thermal-management scenarios of a silicon PV panel.
 
 Runs in Pyodide (``index.html``) and in CPython (``tests/test_webapp.py``).
-The scenarios are {base front, radiative-cooling front} x {plain convection,
-metal foam}, all at one operating point (plane-of-array irradiance G, ambient
-temperature). The foam enters only as a higher lumped h. A literature cooler is
-a front coating on the base module, given by its own transmittance and
-emittance over the whole spectrum.
+The scenarios are {base front, radiative-cooling front} x {plain, enhanced
+convection}, all at one operating point (plane-of-array irradiance G, ambient
+temperature). Enhanced convection (a metal foam, fins, forced air) enters only
+as a higher lumped h. The base module and its coolers come from one of two
+papers (MODULES); a literature cooler is instead a front coating on the base
+module, given by its own transmittance and emittance over the whole spectrum.
 """
 
 import dataclasses
@@ -21,31 +22,41 @@ from radcoolpv.optics import directional
 from radcoolpv.thermal import energy_balance, pv, spectra
 
 DATA = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data")
-BASE = "C2_pv_flat_silica.txt"      # flat silica: stands in for a glass-covered module
-COOLER = "C3_pv_cylinders.txt"      # Akerboom et al. (2022) silica microcylinders
+# Each paper's base module and the coolers it compares with it, as spectra in
+# DATA, with the silicon thickness those spectra were computed for.
+MODULES = {
+    # Akerboom et al., ACS Photonics 9, 3831 (2022): flat silica vs silica microcylinders.
+    "akerboom": {"thickness": 500.0, "base": "C2_pv_flat_silica.txt",
+                 "coolers": {"C3": "C3_pv_cylinders.txt"}},
+    # Silva-Oelker & Jaramillo-Fernandez, Opt. Express 30, 32965 (2022): a cell under
+    # 3.2 mm glass vs flat or hemisphere-patterned soda-lime and PDMS covers.
+    "oe": {"thickness": 250.0, "base": "OE_reference.txt",
+           "coolers": {k: f"OE_{k}.txt" for k in ("hemisph_sodalime", "hemisph_pdms", "flat_sodalime", "flat_pdms")}},
+}
 COVERAGE_UM = (0.4, 13.0)           # a coating file must span the solar band and the 8-13 um window
-THICKNESS_UM = 500.0                # silicon thickness the C2/C3 spectra were computed for
 _SOLAR = os.path.join(os.path.dirname(radcoolpv.__file__), "data", "astmg173.xlsx")
 _cache = {}
 
 
-def _cfg(t_amb, h, temperatures=None):
+def _cfg(t_amb, h, thickness, temperatures=None):
     thermal = {"ambient_temperature": t_amb, "convection_coefficient": h}
     if temperatures:
         thermal["temperatures"] = temperatures
-    return config.from_dict({"optics": {"file": BASE}, "thermal": thermal,
-                             "cell": {"silicon_thickness": THICKNESS_UM}}, DATA)
+    return config.from_dict({"optics": {"file": "spectrum"}, "thermal": thermal,
+                             "cell": {"silicon_thickness": thickness}}, DATA)
 
 
-def _load():
-    """Base and C3 spectra, AM1.5G on their grid; read once (the xlsx is slow)."""
-    if not _cache:
-        atm = _cfg(298.15, 10.0).resolve_data("cptrans_nq_100_15.dat")
-        _cache["atm"] = atm
-        _cache["base"] = directional.from_file(os.path.join(DATA, BASE), atm)
-        _cache["C3"] = directional.from_file(os.path.join(DATA, COOLER), atm)
-        _cache["sun"] = spectra.load_solar(_SOLAR, _cache["base"].lambda_um)
-    return _cache
+def _load(module="akerboom"):
+    """A module's spectra and AM1.5G on their grid; read once (the xlsx is slow)."""
+    if module not in _cache:
+        m = MODULES[module]
+        atm = _cfg(298.15, 10.0, m["thickness"]).resolve_data("cptrans_nq_100_15.dat")
+        read = lambda f: directional.from_file(os.path.join(DATA, f), atm)
+        base = read(m["base"])
+        _cache[module] = {"base": base, "thickness": m["thickness"],
+                          "sun": spectra.load_solar(_SOLAR, base.lambda_um),
+                          "coolers": {k: read(f) for k, f in m["coolers"].items()}}
+    return _cache[module]
 
 
 def literature_cooler(base, csv_text):
@@ -61,10 +72,12 @@ def literature_cooler(base, csv_text):
     data = data[~np.isnan(data).any(axis=1)]
     data = data[np.argsort(data[:, 0])]
     if data.shape[1] < 3 or data[0, 0] > COVERAGE_UM[0] or data[-1, 0] < COVERAGE_UM[1]:
-        raise ValueError("el archivo del recubrimiento necesita 3 columnas (λ [µm], T, ε) "
-                         f"y cubrir al menos {COVERAGE_UM[0]}–{COVERAGE_UM[1]} µm")
+        span = f"{COVERAGE_UM[0]}–{COVERAGE_UM[1]} µm"
+        raise ValueError(f"el archivo del recubrimiento necesita 3 columnas (λ [µm], T, ε) y cubrir al menos {span} / "
+                         f"the coating file needs 3 columns (λ [µm], T, ε) and must cover at least {span}")
     if np.any(data[:, 1] + data[:, 2] > 1.01):
-        raise ValueError("el recubrimiento tiene T + ε > 1: R = 1 − T − ε sería negativa")
+        raise ValueError("el recubrimiento tiene T + ε > 1: R = 1 − T − ε sería negativa / "
+                         "the coating has T + ε > 1: R = 1 − T − ε would be negative")
     lam = base.lambda_um
     t_c, e_c = (np.interp(lam, data[:, 0], np.clip(data[:, k], 0.0, 1.0)) for k in (1, 2))
     emit = np.minimum(e_c + t_c * base.emit, 1.0)
@@ -77,18 +90,18 @@ def literature_cooler(base, csv_text):
         ref_norm=None, emit_norm=None, abs_silicon_norm=None)
 
 
-def _sun(g):
+def _sun(c, g):
     """AM1.5G scaled so it integrates to g W/m^2 (heat load, Jsc and eta together)."""
-    s = _load()["sun"]
+    s = c["sun"]
     f = g / s.total_am15
     return dataclasses.replace(s, irradiance_per_um=f * s.irradiance_per_um,
                                photon_flux=f * s.photon_flux, total_am15=float(g))
 
 
-def stc_card(optics, n, area):
+def stc_card(optics, n, area, c):
     """Datasheet values at 25 C and 1000 W/m^2, per panel, as Explorador Solar asks."""
-    cfg = _cfg(298.15, 10.0, {"min": 297.15, "max": 299.15, "n": 3})
-    flux = _sun(1000.0).photon_flux
+    cfg = _cfg(298.15, 10.0, c["thickness"], {"min": 297.15, "max": 299.15, "n": 3})
+    flux = _sun(c, 1000.0).photon_flux
     iv = pv.solve_iv(cfg, optics, flux)
     voc = [pv.open_circuit_voltage(iv.current_dens[i], iv.volt) for i in range(3)]
     vmp, pmp = pv.refine_peak(iv.volt, iv.cell_power[:, 1])
@@ -108,17 +121,17 @@ def stc_card(optics, n, area):
 
 
 def simulate(inp):
-    """inp: g, t_amb_c, n_cells, side_mm, h, h_foam, cooler ('C3' | 'custom'), csv."""
-    c = _load()
+    """inp: g, t_amb_c, n_cells, side_mm, h, h_foam, module, cooler (a MODULES key | 'custom'), csv."""
+    c = _load(inp.get("module", "akerboom"))
     base = c["base"]
-    cooler = c["C3"] if inp["cooler"] == "C3" else literature_cooler(base, inp["csv"])
+    cooler = literature_cooler(base, inp["csv"]) if inp["cooler"] == "custom" else c["coolers"][inp["cooler"]]
     n, area = int(inp["n_cells"]), (inp["side_mm"] / 1000.0) ** 2
     t_amb = inp["t_amb_c"] + 273.15
     rows = []
-    for name, optics, h in [("Base", base, inp["h"]), ("Espuma metálica", base, inp["h_foam"]),
+    for name, optics, h in [("Base", base, inp["h"]), ("Convección mejorada", base, inp["h_foam"]),
                             ("Enfriador radiativo", cooler, inp["h"]),
-                            ("Enfriador + espuma", cooler, inp["h_foam"])]:
-        r = energy_balance.run(_cfg(t_amb, h), optics, _sun(inp["g"]))
+                            ("Enfriador + convección mejorada", cooler, inp["h_foam"])]:
+        r = energy_balance.run(_cfg(t_amb, h, c["thickness"]), optics, _sun(c, inp["g"]))
         rows.append({"name": name, "t_cell": r.equil_temp - 273.15, "eta": 100.0 * r.efficiency_equil,
                      "p_panel": n * area * r.mpp_equil, "vmp": n * r.vmpp,
                      "imp": area * r.mpp_equil / r.vmpp, "voc": n * r.voc_equil, "isc": area * r.isc,
@@ -128,7 +141,7 @@ def simulate(inp):
         r["dt"] = r["t_cell"] - rows[0]["t_cell"]
         r["gain"] = 100.0 * (r["p_panel"] / rows[0]["p_panel"] - 1.0)
     return {"rows": rows,
-            "stc": {"Base": stc_card(base, n, area), "Enfriador radiativo": stc_card(cooler, n, area)},
+            "stc": {"Base": stc_card(base, n, area, c), "Enfriador radiativo": stc_card(cooler, n, area, c)},
             "spectrum": {"lam": base.lambda_um.tolist(), "base": base.emit.tolist(),
-                         "sun": _sun(inp["g"]).irradiance_per_um.tolist(),
+                         "sun": _sun(c, inp["g"]).irradiance_per_um.tolist(),
                          "cooler": cooler.emit.tolist()}}
